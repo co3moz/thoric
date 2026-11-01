@@ -85,7 +85,8 @@ pub(crate) fn changed_list(event: &Value) -> Option<&'static str> {
 }
 
 /// Whether an event is one of this manager's desktops starting, whose proxy, when it has one,
-/// has to be started and given its settings.
+/// has to be started and given its settings, and whose screen may need the resolution its
+/// settings name.
 pub(crate) fn starts_a_desktop(event: &Value) -> bool {
     event["Type"] == "container"
         && event["Action"] == "start"
@@ -149,7 +150,7 @@ async fn watch(app: Arc<App>, socket: PathBuf, changes: Arc<Changes>) {
 }
 
 /// Read one event stream until it ends.
-async fn follow(app: &App, socket: &Path, changes: &Changes, attempt: &mut u32) -> Result<()> {
+async fn follow(app: &Arc<App>, socket: &Path, changes: &Changes, attempt: &mut u32) -> Result<()> {
     let io = crate::pulls::connect(socket)
         .await
         .with_context(|| format!("Docker Engine socket {}", socket.display()))?;
@@ -160,11 +161,16 @@ async fn follow(app: &App, socket: &Path, changes: &Changes, attempt: &mut u32) 
         || {
             *attempt = 0;
             app.events.set_docker_events(true);
+            // Desktops Docker started while no stream was open were not seen starting.
+            crate::resolution::after_gap(app.clone());
         },
         |line| {
             let event = serde_json::from_slice::<Value>(line).ok();
-            if event.as_ref().is_some_and(starts_a_desktop) {
+            if let Some(event) = event.as_ref().filter(|event| starts_a_desktop(event)) {
                 app.outbound.wake();
+                if let Some(id) = event["Actor"]["Attributes"]["thoric.environment"].as_str() {
+                    crate::resolution::after_start(app.clone(), id.to_owned());
+                }
             }
             if let Some(list) = event.as_ref().and_then(changed_list) {
                 changes.add(list);

@@ -47,6 +47,7 @@ mod recordings;
 mod releases;
 mod reported;
 mod request_log;
+mod resolution;
 mod script_progress;
 mod stages;
 mod terminal;

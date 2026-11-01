@@ -2,9 +2,10 @@
 //!
 //! Docker fixes a container's environment variables, devices, shared memory size and mounts
 //! when it creates the container, and `docker update` changes a resource limit but cannot
-//! remove one. The name and internet access therefore change in place and limits through
-//! `docker update`. Every other change recreates the container from a commit of its files:
-//! the desktop restarts, but nothing that was in its container layer is lost.
+//! remove one. The name and internet access therefore change in place, limits through
+//! `docker update` and the resolution through the desktop's VNC server (`resolution`). Every
+//! other change recreates the container from a commit of its files: the desktop restarts, but
+//! nothing that was in its container layer is lost.
 use crate::{
     App,
     model::*,
@@ -100,6 +101,8 @@ pub(crate) fn classify(old: &ContainerSpec, new: &ContainerSpec) -> Changes {
         (true, false) => changes.restart.push(name),
     };
     note(old.name != new.name, true, "name");
+    // The desktop's VNC server changes the screen as it runs, as Resize to window does.
+    note(old.resolution != new.resolution, true, "resolution");
     note(old.internet != new.internet, true, "internet");
     // The manager proxies the ports itself; Docker publishes none of them.
     note(old.ports != new.ports, true, "ports");
@@ -114,7 +117,6 @@ pub(crate) fn classify(old: &ContainerSpec, new: &ContainerSpec) -> Changes {
         "memory_mb",
     );
     // Environment variables, devices, shared memory and mounts are fixed at creation.
-    note(old.resolution != new.resolution, false, "resolution");
     note(old.gpu != new.gpu, false, "gpu");
     note(old.audio != new.audio, false, "audio");
     note(old.microphone != new.microphone, false, "microphone");
@@ -279,6 +281,28 @@ impl App {
             self.outbound.wake();
             return Ok(result);
         }
+        let running = info["State"]["Running"] == true;
+        // A stopped desktop, or one Docker is about to restart, is given the new resolution once
+        // it is ready, as every desktop created at another one is.
+        if env.spec.resolution != spec.resolution {
+            if running && info["State"]["Restarting"] != true {
+                self.change_resolution(&env, &info, &spec.resolution)
+                    .await
+                    .context("The desktop's resolution could not change")?;
+                self.append_log(
+                    job_id,
+                    &format!("Changed the desktop's resolution to {}.", spec.resolution),
+                )?;
+            } else {
+                self.append_log(
+                    job_id,
+                    &format!(
+                        "The desktop takes the resolution {} when it starts.",
+                        spec.resolution
+                    ),
+                )?;
+            }
+        }
         if let Some(mut args) = update_args(&env.spec, &spec) {
             args.push(container_id);
             self.docker_args(&args).await?;
@@ -312,7 +336,14 @@ impl App {
         if changes.live.contains(&"proxy") || regrouped {
             self.outbound.wake();
         }
-        self.append_log(job_id, "Saved the settings. The container kept running.")?;
+        self.append_log(
+            job_id,
+            if running {
+                "Saved the settings. The container kept running."
+            } else {
+                "Saved the settings."
+            },
+        )?;
         Ok(result)
     }
 

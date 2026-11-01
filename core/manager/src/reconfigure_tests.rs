@@ -56,18 +56,21 @@ fn name_internet_and_limits_change_in_place_while_creation_settings_restart() {
         })),
     )
     .unwrap();
+    // The desktop's VNC server changes the resolution as the desktop runs.
     assert_eq!(
-        classify(&old, &created).restart,
-        [
-            "resolution",
-            "gpu",
-            "audio",
-            "microphone",
-            "sudo",
-            "gamepad",
-            "shm_mb",
-            "mounts"
-        ]
+        classify(&old, &created),
+        Changes {
+            live: vec!["resolution"],
+            restart: vec![
+                "gpu",
+                "audio",
+                "microphone",
+                "sudo",
+                "gamepad",
+                "shm_mb",
+                "mounts"
+            ]
+        }
     );
     assert_eq!(classify(&old, &old), Changes::default());
 }
@@ -127,7 +130,6 @@ fn every_setting_that_recreates_the_container_is_named_in_the_dashboards_warning
         ..spec()
     };
     let new = ContainerSpec {
-        resolution: "1280x720".into(),
         gpu: true,
         audio: true,
         microphone: true,
@@ -149,7 +151,7 @@ fn every_setting_that_recreates_the_container_is_named_in_the_dashboards_warning
         ..old.clone()
     };
     let restart = classify(&old, &new).restart;
-    assert_eq!(restart.len(), 15, "{restart:?}");
+    assert_eq!(restart.len(), 14, "{restart:?}");
     let catalog = include_str!("../../web/src/locales/en.ts");
     for name in restart {
         assert!(
@@ -585,7 +587,7 @@ esac
         std::fs::write(dir.join("rename-status"), rename_status.to_string()).unwrap();
         let app = app.clone();
         async move {
-            app.update_container("e", request(json!({"resolution": "1280x720"})), "change")
+            app.update_container("e", request(json!({"shm_mb": 1024})), "change")
                 .await
                 .unwrap_err()
         }
@@ -605,7 +607,7 @@ esac
         "{error:#}
 {calls}"
     );
-    assert_eq!(saved.spec.resolution, "1280x720");
+    assert_eq!(saved.spec.shm_mb, 1024);
 
     // Once the old container is back under its name, the record is what it was.
     let mut before: Container = app.db.get(CONTAINERS, "e").unwrap();
@@ -655,6 +657,55 @@ esac
 }
 
 #[cfg(unix)]
+#[tokio::test]
+async fn a_stopped_desktop_takes_a_new_resolution_when_it_starts() {
+    let (app, dir) = fake_docker(
+        r#"case "$*" in
+  'container inspect thoric-e') cat stopped.json; exit ;;
+  *) exit 1 ;;
+esac
+"#,
+    );
+    std::fs::write(dir.join("stopped.json"), STOPPED).unwrap();
+    let job = Job {
+        id: "change".into(),
+        kind: "settings".into(),
+        resource: Some("container:e".into()),
+        status: "running".into(),
+        created_at: 1,
+        finished_at: None,
+        log: String::new(),
+        result: None,
+        progress: None,
+        stages: Vec::new(),
+        script: None,
+        name: None,
+    };
+    app.db.put("job", "change", &job).unwrap();
+    let result = app
+        .update_container("e", request(json!({"resolution": "1600x900"})), "change")
+        .await
+        .unwrap();
+    assert_eq!(
+        (&result["live"], &result["restart"]),
+        (&json!(["resolution"]), &json!([]))
+    );
+    // Nothing is committed or created; the record has the size the desktop starts with.
+    let calls = std::fs::read_to_string(dir.join("calls")).unwrap();
+    assert!(
+        !calls.contains("commit") && !calls.contains("create"),
+        "{calls}"
+    );
+    let saved: Container = app.db.get(CONTAINERS, "e").unwrap();
+    assert_eq!(saved.spec.resolution, "1600x900");
+    assert_eq!(
+        app.db.job("change").unwrap().log,
+        "The desktop takes the resolution 1600x900 when it starts.\nSaved the settings.\n"
+    );
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[cfg(unix)]
 const RUNNING: &str = r#"[{"Id":"c0ffee","Config":{"Image":"sha256:desktop","Labels":{"thoric.managed":"true","thoric.environment":"e"}},"State":{"Running":true}}]"#;
 
 /// A settings change of the running container `e` that recreates it, whose new container `new`
@@ -700,7 +751,7 @@ esac
     };
     app.db.put("job", "change", &job).unwrap();
     let outcome = app
-        .update_container("e", request(json!({"resolution": "1280x720"})), "change")
+        .update_container("e", request(json!({"shm_mb": 1024})), "change")
         .await;
     let calls = std::fs::read_to_string(dir.join("calls")).unwrap();
     let record = app.db.get(CONTAINERS, "e").unwrap();
@@ -728,7 +779,7 @@ async fn the_previous_container_stays_aside_until_the_new_desktop_is_ready() {
     let removed = calls.find("rm --force c0ffee").expect(&calls);
     assert!(ready < removed, "{calls}");
     assert!(!calls.contains("rename c0ffee thoric-e\n"), "{calls}");
-    assert_eq!(record.spec.resolution, "1280x720");
+    assert_eq!(record.spec.shm_mb, 1024);
     assert_eq!(
         record.working_image.map(|image| image.image_id),
         Some("sha256:work".into())

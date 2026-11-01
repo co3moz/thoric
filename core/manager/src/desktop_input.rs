@@ -620,7 +620,18 @@ pub(crate) fn needs_start_position(actions: &[Action]) -> bool {
     false
 }
 
-async fn connect(address: &str) -> anyhow::Result<(TcpStream, u16, u16)> {
+/// A shared connection to a desktop's VNC server past its ServerInit, before any encoding is
+/// asked for: the screen's size and how many bytes each pixel the server sends takes.
+pub(crate) struct Connection {
+    pub stream: TcpStream,
+    pub width: u16,
+    pub height: u16,
+    pub pixel_bytes: usize,
+}
+
+/// Open a shared RFB 3.8 connection without authentication, which the desktop's VNC server
+/// allows on its private network only, so the browser's viewer stays connected.
+pub(crate) async fn handshake(address: &str) -> anyhow::Result<Connection> {
     let mut stream = TcpStream::connect(address).await?;
     stream.set_nodelay(true)?;
     let mut version = [0u8; 12];
@@ -652,6 +663,20 @@ async fn connect(address: &str) -> anyhow::Result<(TcpStream, u16, u16)> {
     }
     let mut name = vec![0; name_len];
     stream.read_exact(&mut name).await?;
+    Ok(Connection {
+        stream,
+        width,
+        height,
+        pixel_bytes: usize::from(pixel_format[0] / 8),
+    })
+}
+async fn connect(address: &str) -> anyhow::Result<(TcpStream, u16, u16)> {
+    let Connection {
+        mut stream,
+        width,
+        height,
+        ..
+    } = handshake(address).await?;
     // Negotiate Fence to acknowledge that preceding input has been processed.
     let mut encodings = vec![2, 0, 0, 1];
     encodings.extend((-312i32).to_be_bytes());

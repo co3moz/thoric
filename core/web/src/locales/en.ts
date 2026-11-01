@@ -379,7 +379,6 @@ export const en = {
   "stages.layerHint":
     "Docker reports no progress while it saves the layer. A large change can take several minutes.",
 
-  "restart.field.resolution": "resolution",
   "restart.field.gpu": "GPU",
   "restart.field.audio": "audio",
   "restart.field.microphone": "microphone",

@@ -374,7 +374,6 @@ export const de: Messages = {
   "scriptSteps.cached": "Aus dem Cache",
   "stages.layerHint":
     "Docker meldet keinen Fortschritt, während es die Ebene speichert. Eine große Änderung kann mehrere Minuten dauern.",
-  "restart.field.resolution": "Auflösung",
   "restart.field.gpu": "GPU",
   "restart.field.audio": "Audio",
   "restart.field.microphone": "Mikrofon",

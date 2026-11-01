@@ -4,7 +4,9 @@
 //! it before it reports done: a creation, a start or restart, a retry, a reset and a settings
 //! change that creates the container again, which restores the previous container when the new
 //! one does not get there. A desktop that stops, that Docker keeps restarting or that is not
-//! ready in time fails the job with its exit code and the last lines it logged.
+//! ready in time fails the job with its exit code and the last lines it logged. A ready desktop
+//! that Docker started at another resolution than its settings name is given theirs
+//! (`resolution`).
 use crate::{App, model::Container};
 use anyhow::{Context, Result, bail};
 use serde_json::Value;
@@ -35,19 +37,44 @@ const LOG_LINES: &str = "20";
 const LOG_BYTES: usize = 4096;
 
 impl App {
-    /// Wait until the desktop of a container that was just started is ready, and return the
+    /// Wait until the desktop of a container that was just started is ready, give it the
+    /// resolution its settings name when Docker started it at another, and return the
     /// container's ID.
     pub(crate) async fn desktop_ready(&self, env: &Container, job_id: &str) -> Result<String> {
-        self.wait_ready(env, job_id, &PATIENCE).await
+        let info = self.wait_ready(env, job_id, &PATIENCE).await?;
+        // The desktop works at either size, so one that kept its own still counts as started.
+        match self.keep_resolution(env, &info).await {
+            Ok(Some(resolution)) => self.append_log(
+                job_id,
+                &format!("Gave the desktop the resolution {resolution} its settings name."),
+            )?,
+            Ok(None) => {}
+            Err(error) => self.append_log(
+                job_id,
+                &format!("The desktop kept the resolution it was created with: {error:#}"),
+            )?,
+        }
+        Ok(info["Id"]
+            .as_str()
+            .context("Missing container ID")?
+            .to_owned())
     }
 
-    /// [`App::desktop_ready`] with the patience given, which tests shorten.
+    /// Whether the desktop of the Docker container `id` is ready now.
+    pub(crate) async fn desktop_is_ready(&self, id: &str) -> bool {
+        self.docker(&["exec", "--user", "1001:1001", id, "test", "-e", READY_FILE])
+            .await
+            .is_ok()
+    }
+
+    /// Wait as [`App::desktop_ready`] does, with the patience given, which tests shorten, and
+    /// return what `docker inspect` said of the ready container.
     pub(crate) async fn wait_ready(
         &self,
         env: &Container,
         job_id: &str,
         patience: &Patience,
-    ) -> Result<String> {
+    ) -> Result<Value> {
         let started = Instant::now();
         let mut counted = None;
         let mut waited = false;
@@ -63,14 +90,11 @@ impl App {
             let restarted = restarts.saturating_sub(*counted.get_or_insert(restarts));
             // Docker reports a container it is about to restart as running and restarting.
             if state["Running"] == true && state["Restarting"] != true {
-                let ready = self
-                    .docker(&["exec", "--user", "1001:1001", &id, "test", "-e", READY_FILE])
-                    .await;
-                if ready.is_ok() {
+                if self.desktop_is_ready(&id).await {
                     if waited {
                         self.append_log(job_id, "The desktop is ready.")?;
                     }
-                    return Ok(id);
+                    return Ok(info);
                 }
             } else if state["Restarting"] != true {
                 bail!(

@@ -370,7 +370,6 @@ export const tr: Messages = {
   "scriptSteps.cached": "Önbellekten",
   "stages.layerHint":
     "Docker katmanı kaydederken ilerleme bildirmez. Büyük bir değişiklik birkaç dakika sürebilir.",
-  "restart.field.resolution": "çözünürlük",
   "restart.field.gpu": "GPU",
   "restart.field.audio": "ses",
   "restart.field.microphone": "mikrofon",
