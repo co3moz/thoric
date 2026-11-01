@@ -2087,13 +2087,13 @@ try:
     assert [e["name"] for e in tool("list_mcp_endpoints")["structuredContent"]["items"] if e["grants"] and e["grants"][0]["container_id"]==never_id]==["never-ready"]
     original=json.loads(docker("inspect",never_container))[0]
     assert original["RestartCount"]>=3 and original["State"]["Running"],original["State"]
-    changed=ended(api(f"containers/{never_id}/settings",{"resolution":"1280x720"}))
+    changed=ended(api(f"containers/{never_id}/settings",{"shm_mb":1024}))
     assert changed["status"]=="failed" and "restoring the previous one" in changed["log"],changed
     assert [s["name"] for s in changed["stages"] if "started_at" in s]==["stop","commit","create","start"],changed["stages"]
     assert json.loads(docker("inspect",never_container))[0]["Id"]==original["Id"]
     assert docker("ps","-aq","--filter",f"name=^{never_container}-previous$")==b""
     assert not docker("image","ls","-q",f"thoric/container:{changed['id']}")
-    assert api(f"containers/{never_id}")["spec"]["resolution"]=="1920x1080"
+    assert api(f"containers/{never_id}")["spec"]["shm_mb"]==512
     # A start waits the same way; a stop does not.
     job(api(f"containers/{never_id}/action",{"action":"stop"}))
     started=ended(api(f"containers/{never_id}/action",{"action":"start"}))
@@ -2228,7 +2228,7 @@ try:
         assert error.code == 400, error.code
     # The volume settings cannot put another volume at its path, and a recreation keeps it.
     assert refused(f"containers/{kept}/settings", {"mounts": [{"volume": share, "target": "/unity-install-location"}]}) == 400
-    job(api(f"containers/{kept}/settings", {"resolution": "1280x720"}))
+    job(api(f"containers/{kept}/settings", {"shm_mb": 1024}))
     image_refs.append(api(f"containers/{kept}")["working_image"]["reference"])
     ready(kept_container)
     assert volume_mounts(kept_container) == {"/unity-install-location": installs_volume}
@@ -2302,7 +2302,7 @@ try:
     docker("exec", "--user", "desktop", f"thoric-{own}", "sh", "-c", "printf kept > /home/desktop/Projects/extra")
     job(api(f"containers/{own}/reset", {}))
     ready(f"thoric-{own}")
-    job(api(f"containers/{own}/settings", {"resolution": "1280x720"}))
+    job(api(f"containers/{own}/settings", {"shm_mb": 1024}))
     image_refs.append(api(f"containers/{own}")["working_image"]["reference"])
     ready(f"thoric-{own}")
     assert volume_mounts(f"thoric-{own}") == {"/home/desktop/Projects": own_volume}
@@ -2386,21 +2386,45 @@ try:
     assert (limits["NanoCpus"], limits["Memory"], limits["MemorySwap"]) == (2 * 10**9, 2048 * 2**20, 4096 * 2**20), limits
     assert docker("inspect", "--format", "{{.Id}}", edit_container).decode().strip() == first_id
     assert api(f"containers/{edit}")["spec"]["name"] == "Settings edited"
+    # A new resolution reaches the running desktop through its VNC server without a new container,
+    # and the desktop gets it again after a restart, by the manager or by Docker alone.
+    def screen():
+        shown = docker("exec", "--user", "desktop", "--env", "DISPLAY=:0", edit_container, "xdpyinfo").decode()
+        return shown.split("dimensions:", 1)[1].split()[0]
+    assert screen() == "1920x1080", screen()
+    preview = api(f"containers/{edit}/settings", {"resolution": "1600x900", "dry_run": True})
+    assert preview["live"] == ["resolution"] and preview["restart"] == [], preview
+    resized = api(f"containers/{edit}/settings", {"resolution": "1600x900"})
+    job(resized)
+    assert "Changed the desktop's resolution to 1600x900." in api(f"jobs/{resized['job_id']}")["log"]
+    assert screen() == "1600x900", screen()
+    assert docker("inspect", "--format", "{{.Id}}", edit_container).decode().strip() == first_id
+    shot = tool("screenshot", {"container_id": edit})["structuredContent"]
+    assert (shot["width"], shot["height"]) == (1600, 900), shot
+    # The restart job and Docker's start event both give it; whichever comes first does.
+    job(api(f"containers/{edit}/action", {"action": "restart"}))
+    assert screen() == "1600x900", screen()
+    docker("restart", edit_container)
+    assert wait_for(lambda: screen() == "1600x900", 120), screen()
+    ready(edit_container)
+    assert docker("inspect", "--format", "{{.Id}}", edit_container).decode().strip() == first_id
+    print("PASS a new resolution reaches the running desktop and stays after the manager or Docker restarts it", flush=True)
     docker("exec", "--user", "desktop", edit_container, "sh", "-c", "printf kept > /home/desktop/settings-marker")
     preview = tool("update_container", {"container_id": edit, "audio": True, "cpus": None, "dry_run": True})["structuredContent"]
     assert preview["live"] == [] and preview["restart"] == ["cpus", "audio"], preview
     applied = mcp_job(tool("update_container", {"container_id": edit, "audio": True, "cpus": None}))
     assert "Open applications close" in applied["log"] and "Its files were kept" in applied["log"], applied["log"]
     # The running desktop was stopped first, so every stage ran, in order.
-    assert [stage["name"] for stage in applied["stages"] if "started_at" in stage] == ["stop", "commit", "create", "cleanup"], applied["stages"]
+    assert [stage["name"] for stage in applied["stages"] if "started_at" in stage] == ["stop", "commit", "create", "start", "cleanup"], applied["stages"]
     assert all(a["finished_at"] == b["started_at"] for a, b in zip(applied["stages"], applied["stages"][1:])), applied["stages"]
-    assert "Stage 2/4: Committing the container layer\n" in applied["log"], applied["log"]
+    assert "Stage 2/5: Committing the container layer\n" in applied["log"], applied["log"]
     carried =api(f"containers/{edit}")["working_image"]["reference"]
     image_refs.append(carried)
     ready(edit_container)
     second = json.loads(docker("inspect", edit_container))[0]
     assert second["Id"] != first_id and second["HostConfig"]["NanoCpus"] == 0, second["HostConfig"]
-    assert "DESKTOP_AUDIO=true" in second["Config"]["Env"], second["Config"]["Env"]
+    # The new container is created at the resolution its settings name.
+    assert {"DESKTOP_AUDIO=true", "DESKTOP_RESOLUTION=1600x900"} <= set(second["Config"]["Env"]), second["Config"]["Env"]
     assert docker("exec", edit_container, "cat", "/home/desktop/settings-marker") == b"kept"
     assert b"Server Name" in docker("exec", "--user", "desktop", edit_container, "pactl", "info")
     assert not docker("ps", "-a", "--filter", f"name={edit_container}-previous", "--format", "{{.Names}}").strip()

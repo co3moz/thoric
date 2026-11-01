@@ -94,7 +94,8 @@ const QUICK: Patience = Patience {
 #[cfg(unix)]
 async fn wait(app: &App, patience: &Patience) -> Result<String> {
     let env: Container = app.db.get(CONTAINERS, "e").unwrap();
-    app.wait_ready(&env, "start", patience).await
+    let info = app.wait_ready(&env, "start", patience).await?;
+    Ok(info["Id"].as_str().unwrap().to_owned())
 }
 
 #[cfg(unix)]

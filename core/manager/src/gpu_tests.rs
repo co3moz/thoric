@@ -326,10 +326,7 @@ async fn a_host_without_a_wsl_gpu_refuses_a_gpu_container_naming_wsl_gpu() {
     // A settings change that creates it again is refused the same way; one applied in place is not.
     let request = |body: serde_json::Value| body.as_object().unwrap().clone();
     let error = app
-        .settings_preview(
-            &env,
-            &request(serde_json::json!({"resolution": "1280x720"})),
-        )
+        .settings_preview(&env, &request(serde_json::json!({"shm_mb": 1024})))
         .unwrap_err();
     assert!(error.to_string().contains("WSL_GPU"), "{error}");
     let (_, changes) = app

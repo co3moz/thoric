@@ -373,7 +373,6 @@ export const fr: Messages = {
   "scriptSteps.cached": "En cache",
   "stages.layerHint":
     "Docker ne signale aucune progression pendant l'enregistrement de la couche. Une modification importante peut prendre plusieurs minutes.",
-  "restart.field.resolution": "la résolution",
   "restart.field.gpu": "le GPU",
   "restart.field.audio": "l'audio",
   "restart.field.microphone": "le microphone",

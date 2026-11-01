@@ -519,7 +519,7 @@ esac
 "#,
     );
     container(&app);
-    let run = |resolution: &'static str, running: bool, status: u8| {
+    let run = |shm_mb: u64, running: bool, status: u8| {
         std::fs::write(
             dir.join("container.json"),
             CONTAINER_JSON.replace("RUNNING", &running.to_string()),
@@ -532,7 +532,7 @@ esac
             let started = crate::api::update_settings(
                 axum::extract::State(app.clone()),
                 axum::extract::Path("e".into()),
-                axum::Json(serde_json::json!({"resolution": resolution})),
+                axum::Json(serde_json::json!({"shm_mb": shm_mb})),
             )
             .await
             .unwrap();
@@ -541,7 +541,7 @@ esac
     };
     let calls = || std::fs::read_to_string(dir.join("calls")).unwrap();
 
-    let recreated = run("1280x720", true, 0).await;
+    let recreated = run(1024, true, 0).await;
     assert_eq!(recreated.status, "completed", "{}", recreated.log);
     assert_eq!(
         begun(&recreated),
@@ -596,7 +596,7 @@ esac
 
     // A stopped container has nothing to stop, and its replacement is not started, so those
     // stages are skipped.
-    let stopped = run("1600x900", false, 0).await;
+    let stopped = run(2048, false, 0).await;
     assert_eq!(stopped.status, "completed", "{}", stopped.log);
     assert_eq!(
         begun(&stopped),
@@ -620,7 +620,7 @@ esac
     );
 
     // A new container Docker refused is where the change stopped; the previous one is back.
-    let failed = run("1024x768", true, 1).await;
+    let failed = run(768, true, 1).await;
     assert_eq!(failed.status, "failed");
     assert_eq!(
         begun(&failed),

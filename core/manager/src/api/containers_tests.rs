@@ -327,12 +327,15 @@ async fn container_settings_are_checked_before_any_job_or_docker_work() {
     };
     let (status, body) = post(
         "edit-id",
-        serde_json::json!({"name": "Renamed", "cpus": 2, "resolution": "1280x720", "dry_run": true}),
+        serde_json::json!({"name": "Renamed", "cpus": 2, "resolution": "1280x720", "shm_mb": 1024, "dry_run": true}),
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert_eq!(body["live"], serde_json::json!(["name", "cpus"]));
-    assert_eq!(body["restart"], serde_json::json!(["resolution"]));
+    assert_eq!(
+        body["live"],
+        serde_json::json!(["name", "resolution", "cpus"])
+    );
+    assert_eq!(body["restart"], serde_json::json!(["shm_mb"]));
     // A feature the installation switched off cannot be turned on, but a desktop that has one
     // (GPU here, created before the switch) can still change its other settings.
     for (request, expected) in [

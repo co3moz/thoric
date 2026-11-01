@@ -371,7 +371,6 @@ export const es: Messages = {
   "scriptSteps.cached": "En caché",
   "stages.layerHint":
     "Docker no informa del progreso mientras guarda la capa. Un cambio grande puede tardar varios minutos.",
-  "restart.field.resolution": "la resolución",
   "restart.field.gpu": "la GPU",
   "restart.field.audio": "el audio",
   "restart.field.microphone": "el micrófono",
