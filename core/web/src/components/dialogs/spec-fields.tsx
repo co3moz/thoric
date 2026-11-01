@@ -57,6 +57,11 @@ import type { ContainerSpec, Mount, Settings, Volume } from "@/lib/types"
 import { mountableVolumes } from "@/lib/volume-files"
 
 const RESOLUTIONS = ["1920x1080", "1600x900", "1280x720", "2560x1440", "3840x2160"]
+/** The select's entry for a size of one's own, which no `WIDTHxHEIGHT` can be. */
+const CUSTOM = "custom"
+/** The sides the manager accepts (`ContainerSpec::validate`). */
+const WIDTH = { min: 320, max: 7680 }
+const HEIGHT = { min: 240, max: 4320 }
 const FLAGS = FEATURES
 type Flag = Feature
 
@@ -178,9 +183,13 @@ export function SpecFields({
 }) {
   const id = React.useId()
   const [open, setOpen] = React.useState(advancedOpen)
-  const resolutions = RESOLUTIONS.includes(draft.resolution)
-    ? RESOLUTIONS
-    : [...RESOLUTIONS, draft.resolution]
+  // A size off the list is custom; a listed one only once Custom is picked, so typing a listed
+  // size into the fields does not close them.
+  const [customPicked, setCustomPicked] = React.useState(
+    () => !RESOLUTIONS.includes(draft.resolution)
+  )
+  const custom = customPicked || !RESOLUTIONS.includes(draft.resolution)
+  const [width = "", height = ""] = draft.resolution.split("x")
   const enabled: Record<Flag, boolean> = {
     gpu: settings?.gpu_enabled ?? true,
     audio: settings?.audio_enabled ?? true,
@@ -284,22 +293,67 @@ export function SpecFields({
               <Field>
                 <FieldLabel htmlFor={`${id}-resolution`}>{t("spec.resolution")}</FieldLabel>
                 <Select
-                  value={draft.resolution}
-                  onValueChange={(resolution) => set({ resolution })}
+                  value={custom ? CUSTOM : draft.resolution}
+                  onValueChange={(value) => {
+                    setCustomPicked(value === CUSTOM)
+                    if (value !== CUSTOM) set({ resolution: value })
+                  }}
                 >
                   <SelectTrigger id={`${id}-resolution`} className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
-                      {resolutions.map((value) => (
+                      {RESOLUTIONS.map((value) => (
                         <SelectItem key={value} value={value}>
                           {value}
                         </SelectItem>
                       ))}
+                      <SelectItem value={CUSTOM}>{t("spec.resolution.custom")}</SelectItem>
                     </SelectGroup>
                   </SelectContent>
                 </Select>
+                {custom && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={WIDTH.min}
+                        max={WIDTH.max}
+                        step={1}
+                        required
+                        aria-label={t("spec.resolution.width")}
+                        aria-describedby={`${id}-resolution-hint`}
+                        placeholder={t("spec.resolution.width")}
+                        value={width}
+                        onChange={(event) => set({ resolution: `${event.target.value}x${height}` })}
+                        className="min-w-0 flex-1"
+                      />
+                      <span aria-hidden className="text-muted-foreground">
+                        ×
+                      </span>
+                      <Input
+                        type="number"
+                        min={HEIGHT.min}
+                        max={HEIGHT.max}
+                        step={1}
+                        required
+                        aria-label={t("spec.resolution.height")}
+                        aria-describedby={`${id}-resolution-hint`}
+                        placeholder={t("spec.resolution.height")}
+                        value={height}
+                        onChange={(event) => set({ resolution: `${width}x${event.target.value}` })}
+                        className="min-w-0 flex-1"
+                      />
+                    </div>
+                    <FieldDescription id={`${id}-resolution-hint`} className="text-xs">
+                      {t("spec.resolution.customHint", {
+                        min: `${WIDTH.min}x${HEIGHT.min}`,
+                        max: `${WIDTH.max}x${HEIGHT.max}`,
+                      })}
+                    </FieldDescription>
+                  </>
+                )}
               </Field>
               <Field>
                 <FieldLabel htmlFor={`${id}-shm`}>{t("spec.sharedMemory")}</FieldLabel>
