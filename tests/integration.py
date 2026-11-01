@@ -2415,9 +2415,9 @@ try:
     applied = mcp_job(tool("update_container", {"container_id": edit, "audio": True, "cpus": None}))
     assert "Open applications close" in applied["log"] and "Its files were kept" in applied["log"], applied["log"]
     # The running desktop was stopped first, so every stage ran, in order.
-    assert [stage["name"] for stage in applied["stages"] if "started_at" in stage] == ["stop", "commit", "create", "cleanup"], applied["stages"]
+    assert [stage["name"] for stage in applied["stages"] if "started_at" in stage] == ["stop", "commit", "create", "start", "cleanup"], applied["stages"]
     assert all(a["finished_at"] == b["started_at"] for a, b in zip(applied["stages"], applied["stages"][1:])), applied["stages"]
-    assert "Stage 2/4: Committing the container layer\n" in applied["log"], applied["log"]
+    assert "Stage 2/5: Committing the container layer\n" in applied["log"], applied["log"]
     carried =api(f"containers/{edit}")["working_image"]["reference"]
     image_refs.append(carried)
     ready(edit_container)
