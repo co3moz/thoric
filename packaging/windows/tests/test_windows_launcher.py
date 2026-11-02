@@ -1,8 +1,9 @@
 """The Windows launcher, packaging/windows/thoric.ps1, which releases attach next to the package
 and nothing else runs before a user does: that Windows PowerShell 5.1 reads it as written, that its
 auto-start brings the manager back, that it parses, that its administrator side, the copy of itself that 'lan' starts through UAC, runs
-nothing from the distribution, whose user has passwordless sudo, and that the settings it offers
-for .wslconfig fit the computer and leave the rest of the file alone.
+nothing from the distribution, whose user has passwordless sudo, that the settings it offers
+for .wslconfig fit the computer and leave the rest of the file alone, and that it downloads the
+package of Windows' architecture under the name the release attaches it with.
 
 All but the first need PowerShell: pwsh on Linux, or Windows PowerShell from Windows or WSL.
 """
@@ -126,6 +127,37 @@ class WindowsLauncherTest(unittest.TestCase):
         self.assertEqual(inserted, lines[:4] + ["memory=96GB", "swap=8GB"] + lines[4:])
         self.assertEqual(appended, ["[boot]", "systemd=true", "", "[wsl2]", "memory=96GB", "swap=8GB"])
         self.assertEqual(created, ["[wsl2]", "memory=96GB", "swap=8GB"])
+
+    def test_the_release_attaches_the_package_of_each_platform(self):
+        # build.sh names a package after its platform, the workflow builds each platform's under that
+        # name and attaches every one beside the launcher.
+        self.assertEqual(built_packages(), {"amd64": "thoric.wsl", "arm64": "thoric-arm64.wsl"})
+        workflow = (ROOT / ".github/workflows/publish.yml").read_text()
+        matrix = re.findall(r"(?m)^ +- arch: (\S+)\n +runner: \S+\n +package: (\S+)$", workflow)
+        self.assertEqual(dict(matrix), built_packages())
+        attached = re.search(r"(?m)^ +gh release upload \S+ (.+) --clobber$", workflow).group(1).split()
+        self.assertEqual(attached, [f"dist/{name}" for name in built_packages().values()] + ["packaging/windows/thoric.ps1"])
+
+    @unittest.skipUnless(POWERSHELL, "needs PowerShell")
+    def test_install_downloads_the_package_of_windows_architecture(self):
+        x64, arm, lower, other = call(
+            "Get-PackageName AMD64", "Get-PackageName ARM64", "Get-PackageName arm64",
+            "try { Get-PackageName x86 } catch { $_.Exception.Message }",
+            functions=("Get-PackageName",),
+        )
+        self.assertEqual([x64, arm], [built_packages()["amd64"], built_packages()["arm64"]])
+        # PROCESSOR_ARCHITECTURE is upper case, but a name is not refused for its case.
+        self.assertEqual(lower, arm)
+        self.assertEqual(other, "WSL 2 runs on x64 and ARM64 Windows, not on x86.")
+        # The download takes the name of the machine's architecture, never a fixed one.
+        script = SCRIPT.read_text()
+        self.assertIn('$packageUrl = "$releaseUrl/$(Get-PackageName (Get-WindowsArchitecture))"', script)
+        self.assertNotRegex(script, r"download/thoric(-\w+)?\.wsl")
+
+
+def built_packages():
+    """The package build.sh writes for each platform when no output is named, by architecture."""
+    return dict(re.findall(r"(?m)^    linux/(\w+)\) package=(\S+) ;;$", (ROOT / "packaging/wsl/build.sh").read_text()))
 
 
 if __name__ == "__main__":

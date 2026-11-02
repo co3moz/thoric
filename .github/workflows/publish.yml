@@ -625,22 +625,57 @@ jobs:
           printf '### %s\n\n```text\n%s\n```\n' "$TITLE" "$TAGS" >> "$GITHUB_STEP_SUMMARY"
 
   # The package installs the manager published under its tag, so the release appears only once
-  # every image of that tag is published.
+  # every image of that tag is published. There is a package for x86_64 Windows and one for
+  # Windows on ARM, each built on a runner of its architecture, and the job after them attaches
+  # both, so a release never offers one without the other.
   wsl-package:
     needs: [checks, publish, publish-desktops]
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+            package: thoric.wsl
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            package: thoric-arm64.wsl
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build the WSL distribution package
+        run: packaging/wsl/build.sh --platform linux/${{ matrix.arch }} dist/${{ matrix.package }}
+      # The package is xz already, so the artifact stores it as it is.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: wsl-package-${{ matrix.arch }}
+          path: dist/${{ matrix.package }}
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+  # The PowerShell helper goes with the packages: it installs and starts the one of the computer's
+  # architecture and opens it to other devices.
+  wsl-release:
+    needs: wsl-package
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Build the WSL distribution package
-        run: packaging/wsl/build.sh dist/thoric.wsl
-      # The PowerShell helper goes with it: it installs and starts the package and opens it to other devices.
-      - name: Attach the package and the PowerShell helper to the release
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: wsl-package-*
+          path: dist
+          merge-multiple: true
+      - name: Attach the packages and the PowerShell helper to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes "Thoric $GITHUB_REF_NAME"
-          gh release upload "$GITHUB_REF_NAME" dist/thoric.wsl packaging/windows/thoric.ps1 --clobber
+          gh release upload "$GITHUB_REF_NAME" dist/thoric.wsl dist/thoric-arm64.wsl packaging/windows/thoric.ps1 --clobber

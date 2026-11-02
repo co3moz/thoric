@@ -2,7 +2,7 @@
 
 [Back to the README](../README.md)
 
-The `thoric.wsl` package is a ready-made WSL distribution: Ubuntu 24.04 with Docker Engine, Compose, Buildx, the NVIDIA Container Toolkit and the Thoric installation files. Installing it replaces the "install Ubuntu, install Docker, configure the GPU, prepare Compose" steps with one command. The distribution runs its own Docker Engine, with images and containers separate from Docker in any other WSL distribution; only the network is shared, see [Docker in other WSL distributions](#docker-in-other-wsl-distributions).
+The `thoric.wsl` package is a ready-made WSL distribution: Ubuntu 24.04 with Docker Engine, Compose, Buildx, the NVIDIA Container Toolkit and the Thoric installation files. `thoric-arm64.wsl` is the same distribution for [Windows on ARM](#windows-on-arm). Installing it replaces the "install Ubuntu, install Docker, configure the GPU, prepare Compose" steps with one command. The distribution runs its own Docker Engine, with images and containers separate from Docker in any other WSL distribution; only the network is shared, see [Docker in other WSL distributions](#docker-in-other-wsl-distributions).
 
 The package contains no application images. The first start downloads the manager from GHCR, and each catalog image downloads the first time a container is created from it. This keeps the package small, leaves images you never use off the disk and lets `thoric update` fetch newer images later.
 
@@ -10,7 +10,7 @@ Each package installs the manager release it belongs to. The package from releas
 
 ## Requirements
 
-- Windows 11 or Windows 10 with WSL 2.4.4 or newer (`wsl --version`), updated with `wsl --update`. The [Windows helper](#option-1-the-windows-helper) installs or updates WSL when it finds none or an older one.
+- Windows 11 or Windows 10 with WSL 2.4.4 or newer (`wsl --version`), updated with `wsl --update`, on an x64 or an ARM64 processor. The [Windows helper](#option-1-the-windows-helper) installs or updates WSL when it finds none or an older one.
 - For GPU containers, a Windows GPU driver with WSL support. The NVIDIA Windows driver provides CUDA inside WSL; no Linux display driver is installed in the package. See [NVIDIA's WSL guide](https://docs.nvidia.com/cuda/wsl-user-guide/index.html).
 - About 2 GB of disk space for the distribution, plus the manager image, each catalog image you use (XFCE about 1.2 GB, GNOME about 2.3 GB, sharing their base layers) and your containers.
 
@@ -28,7 +28,7 @@ irm https://github.com/co3moz/thoric/releases/latest/download/thoric.ps1 | iex
 
 `irm` downloads the helper and `iex` runs it, so nothing is saved and no script policy is in the way. While Thoric is not installed, it first checks WSL. Without WSL 2.4.4 or newer, or with the Virtual Machine Platform feature WSL 2 runs on turned off, it offers `wsl --install --no-distribution`, or `wsl --update` for an older WSL; both ask for administrator rights themselves. A feature they turn on works only after Windows restarts, and so does a Windows hypervisor that is not running yet, so the helper then stops and asks for a restart: run the line again afterwards. When the hypervisor still does not run, virtualization (Intel VT-x or AMD-V) is off in the computer's firmware settings.
 
-Next it shows the memory, processors and swap of WSL's virtual machine and offers values for those `%UserProfile%\.wslconfig` does not set, see [Memory and processors](#memory-and-processors). Then it asks for a folder for the distribution's disk, which holds every image, container and volume (Enter keeps it under `%LOCALAPPDATA%\wsl`), and for the disk's maximum size (Enter for 1 TB, see [Disk](#disk)). It then downloads `thoric.wsl` from the latest release, registers the **Thoric** distribution and runs its first start in the same window. The first start ends in a shell of the distribution; once you leave it with `exit`, the helper starts Thoric and keeps it running, as its `start` does, and offers to start it at every Windows sign-in, see [Keep it running](#keep-it-running). Run the line again later for [everything else it does](#the-windows-helper).
+Next it shows the memory, processors and swap of WSL's virtual machine and offers values for those `%UserProfile%\.wslconfig` does not set, see [Memory and processors](#memory-and-processors). Then it asks for a folder for the distribution's disk, which holds every image, container and volume (Enter keeps it under `%LOCALAPPDATA%\wsl`), and for the disk's maximum size (Enter for 1 TB, see [Disk](#disk)). It then downloads the package of Windows' architecture from the latest release, `thoric.wsl` or on Windows on ARM `thoric-arm64.wsl`, registers the **Thoric** distribution and runs its first start in the same window. The first start ends in a shell of the distribution; once you leave it with `exit`, the helper starts Thoric and keeps it running, as its `start` does, and offers to start it at every Windows sign-in, see [Keep it running](#keep-it-running). Run the line again later for [everything else it does](#the-windows-helper).
 
 ### Option 2: the package by hand
 
@@ -39,7 +39,7 @@ curl.exe -fLo thoric.wsl https://github.com/co3moz/thoric/releases/latest/downlo
 wsl --install --from-file .\thoric.wsl
 ```
 
-Then open the new **Thoric** entry from the Start menu or run `wsl -d Thoric` for the first start.
+On Windows on ARM, download `thoric-arm64.wsl` from the same place instead. Then open the new **Thoric** entry from the Start menu or run `wsl -d Thoric` for the first start.
 
 ### First start
 
@@ -63,6 +63,10 @@ Next it asks for the dashboard's port, `PORT`: Enter keeps 8080, or type another
 The setup then detects the WSL GPU device and CUDA libraries, writes the settings to `/opt/thoric/.env` and asks whether to start Thoric now, with the same kind of menu and **Yes** as the default. Starting downloads the manager and brings it up; the dashboard is then at [localhost:8080](http://localhost:8080), or at the port you chose. With agent access on, the setup ends by printing the agent endpoint and client settings, which `thoric mcp` shows again later.
 
 A first start with piped input, such as an automated installation, reads one line for each question in the order they are asked. A menu's line holds the answer's first word (`yes`, `no`, `random`, `custom`, `none`, `this`, `other`) or its first letter, the port's a number and the names' a list separated by commas; an empty line or the end of the input picks the default. An answer it cannot use ends the setup before anything is created. It is not asked whether to start, and leaves that to `thoric start`.
+
+### Windows on ARM
+
+On a computer with an ARM64 processor, such as a laptop with a Snapdragon processor, WSL runs arm64 distributions only, so releases after 0.9.1 attach `thoric-arm64.wsl` beside `thoric.wsl`. It is the same distribution built for arm64 and installs, starts and updates the same way, and its manager and desktops are the `linux/arm64` images published under the same names. What differs on an ARM host, such as templates that download programs built only for x86_64, is in [Raspberry Pi and Mac](INSTALLATION.md#raspberry-pi-and-mac). GPU containers need a Windows GPU driver with WSL support there too, and have not been tried with one. The arm64 package has so far been built under emulation on an x86_64 host, but not yet installed on Windows on ARM.
 
 ## The Windows helper
 
@@ -386,10 +390,11 @@ After the cause is fixed, `sudo systemctl restart docker` and `thoric start` bri
 The package is produced from `packaging/wsl/Dockerfile` with Docker:
 
 ```bash
-packaging/wsl/build.sh dist/thoric.wsl
+packaging/wsl/build.sh
+packaging/wsl/build.sh --platform linux/arm64
 ```
 
-The script builds the root filesystem image, exports it with `docker export` and compresses it with `xz -9e`, which makes the package about 40% smaller than gzip; `WSL_COMPRESS=gzip` builds faster but produces a larger file. The package installs the manager version in `core/manager/Cargo.toml`; `THORIC_VERSION=1.2.0` builds one for another published release, and `THORIC_VERSION=edge` one that follows `master`. It refuses to package a world-writable file, which a `COPY` without `--chmod` produces from a checkout on a Windows drive, or a directory its owner cannot enter, which `COPY --chmod=0644` produces when it creates the destination directory. Release tags publish the package and the Windows helper, `packaging/windows/thoric.ps1`, as GitHub release assets once the tag's images are published. The files under `packaging/wsl/` define the distribution: `wsl.conf` enables systemd, `wsl-distribution.conf` names the distribution and points WSL at the first-start script, `oobe.sh` performs that setup, `thoric` is the management command, `keepalive.sh` is the process the Windows launcher keeps open, `daemon.json` configures Docker and `firewall-watch.sh` with `thoric-firewall.service` restores Docker's firewall rules. The image masks `systemd-firstboot`, which would otherwise wait on the console for a machine ID and block every other unit, `kmod-static-nodes`, which has no module tree in WSL, and `nftables`, which flushes the firewall shared by all distributions; it also installs the systemd user-session packages so launches do not warn about a missing user session.
+The package is for the platform of the Docker host unless `--platform` names `linux/amd64` or `linux/arm64`, the package for Windows on ARM, and goes to `dist/thoric.wsl` or `dist/thoric-arm64.wsl`, the names of the release assets the Windows helper downloads, unless the command names another file. On an x86_64 host the arm64 package builds under QEMU, which `docker run --privileged --rm tonistiigi/binfmt:qemu-v10.2.3-68 --install arm64` registers with the kernel until WSL or the machine restarts, and the build takes several times as long. The script builds the root filesystem image, exports it with `docker export` and compresses it with `xz -9e`, which makes the package about 40% smaller than gzip; `WSL_COMPRESS=gzip` builds faster but produces a larger file. The package installs the manager version in `core/manager/Cargo.toml`; `THORIC_VERSION=1.2.0` builds one for another published release, and `THORIC_VERSION=edge` one that follows `master`. The managers of 0.9.1 and earlier are published for `linux/amd64` alone, so an arm64 package for one of them cannot start its manager; until a later release, build it with `THORIC_VERSION=edge`. It refuses to package a world-writable file, which a `COPY` without `--chmod` produces from a checkout on a Windows drive, or a directory its owner cannot enter, which `COPY --chmod=0644` produces when it creates the destination directory. Release tags publish both packages, each built on a runner of its own architecture, and the Windows helper, `packaging/windows/thoric.ps1`, as GitHub release assets once the tag's images are published. The files under `packaging/wsl/` define the distribution: `wsl.conf` enables systemd, `wsl-distribution.conf` names the distribution and points WSL at the first-start script, `oobe.sh` performs that setup, `thoric` is the management command, `keepalive.sh` is the process the Windows launcher keeps open, `daemon.json` configures Docker and `firewall-watch.sh` with `thoric-firewall.service` restores Docker's firewall rules. The image masks `systemd-firstboot`, which would otherwise wait on the console for a machine ID and block every other unit, `kmod-static-nodes`, which has no module tree in WSL, and `nftables`, which flushes the firewall shared by all distributions; it also installs the systemd user-session packages so launches do not warn about a missing user session.
 
 ## Remove
 

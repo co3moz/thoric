@@ -35,8 +35,8 @@ function Invoke-Thoric {
     # 'start' and the keep-alive task write without them.
     $lanTaskName = "Thoric LAN"
     $addressFile = Join-Path $env:LOCALAPPDATA "Thoric\wsl-address"
-    $helperUrl = "https://github.com/co3moz/thoric/releases/latest/download/thoric.ps1"
-    $packageUrl = "https://github.com/co3moz/thoric/releases/latest/download/thoric.wsl"
+    $releaseUrl = "https://github.com/co3moz/thoric/releases/latest/download"
+    $helperUrl = "$releaseUrl/thoric.ps1"
     # The first WSL that installs a .wsl package.
     $minimumWsl = [version]"2.4.4"
     # WSL's settings for its virtual machine, which every distribution shares.
@@ -73,7 +73,8 @@ A command runs without saving the helper too:
 'install' needs WSL $minimumWsl or newer on the Virtual Machine Platform. It offers 'wsl --install
 --no-distribution' where WSL or that feature is missing and 'wsl --update' for an older WSL, then
 values for .wslconfig, which WSL reads when its virtual machine starts. A newly enabled feature
-needs a restart of Windows before the package installs.
+needs a restart of Windows before the package installs. It downloads the package of Windows'
+architecture: thoric.wsl on x64 Windows, thoric-arm64.wsl on Windows on ARM.
 
 WSL stops a distribution shortly after its last Windows-started process ends, so 'start' and the
 auto-start task keep a hidden keep-alive process open while Docker and the manager run inside. Both
@@ -99,6 +100,24 @@ whenever WSL restarts, and 'start' and the auto-start task point the port proxy 
         if (-not $folder) { $folder = Join-Path $env:ProgramFiles "WSL" }
         $file = Get-Item -LiteralPath (Join-Path $folder "wsl.exe") -ErrorAction SilentlyContinue
         if ($file -and $file.VersionInfo.FileVersion -match '^[0-9]+(\.[0-9]+){1,3}') { return [version]$Matches[0] }
+    }
+    # The architecture of Windows itself, AMD64 or ARM64. On Windows on ARM a process that runs under
+    # emulation, such as an x64 PowerShell 7, finds AMD64 or x86 in its own PROCESSOR_ARCHITECTURE, so
+    # the machine's value in the registry comes first.
+    function Get-WindowsArchitecture {
+        $machine = (Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -ErrorAction SilentlyContinue).PROCESSOR_ARCHITECTURE
+        if ($machine) { return $machine }
+        if ($env:PROCESSOR_ARCHITEW6432) { return $env:PROCESSOR_ARCHITEW6432 }
+        return $env:PROCESSOR_ARCHITECTURE
+    }
+    # The release asset with the package for an architecture of Windows, which WSL 2 runs on x64 and ARM64.
+    function Get-PackageName {
+        param([string]$Architecture)
+        switch ($Architecture) {
+            "AMD64" { return "thoric.wsl" }
+            "ARM64" { return "thoric-arm64.wsl" }
+        }
+        throw "WSL 2 runs on x64 and ARM64 Windows, not on $Architecture."
     }
     function Test-Registered {
         if (-not (Get-WslVersion)) { return $false }
@@ -647,6 +666,7 @@ whenever WSL restarts, and 'start' and the auto-start task point the port proxy 
             }
             $file = $Package
             if (-not $file) {
+                $packageUrl = "$releaseUrl/$(Get-PackageName (Get-WindowsArchitecture))"
                 $file = Join-Path $env:TEMP "thoric-$PID.wsl"
                 Write-Host "Downloading $packageUrl"
                 & curl.exe -fL --progress-bar -o $file $packageUrl

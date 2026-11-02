@@ -1,12 +1,36 @@
 #!/usr/bin/env bash
 # Build the Thoric WSL distribution package from packaging/wsl/Dockerfile.
-# Usage: packaging/wsl/build.sh [output.wsl]   (set WSL_COMPRESS=gzip for a faster, larger build)
+# Usage: packaging/wsl/build.sh [--platform linux/amd64|linux/arm64] [output.wsl]
+# (set WSL_COMPRESS=gzip for a faster, larger build)
 # The package installs the manager release THORIC_VERSION, by default the version in
-# core/manager/Cargo.toml.
+# core/manager/Cargo.toml. It is for the platform of the Docker host unless --platform names the
+# other one; linux/arm64 is the package for Windows on ARM. Without an output it is written under
+# the name of its release asset, which the Windows helper downloads: dist/thoric.wsl for
+# linux/amd64 and dist/thoric-arm64.wsl for linux/arm64.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
-output=${1:-dist/thoric.wsl}
-image=thoric/wsl-rootfs:local
+platform=
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --platform)
+            if [[ $# -lt 2 ]]; then echo "--platform needs a value such as linux/arm64" >&2; exit 2; fi
+            platform=$2
+            shift 2
+            ;;
+        --platform=*) platform=${1#*=}; shift ;;
+        -*) echo "Unknown option $1" >&2; exit 2 ;;
+        *) break ;;
+    esac
+done
+host=$(docker version --format '{{.Server.Os}}/{{.Server.Arch}}')
+platform=${platform:-$host}
+case $platform in
+    linux/amd64) package=thoric.wsl ;;
+    linux/arm64) package=thoric-arm64.wsl ;;
+    *) echo "WSL runs linux/amd64 and linux/arm64 distributions, not '$platform'" >&2; exit 2 ;;
+esac
+output=${1:-dist/$package}
+image=thoric/wsl-rootfs:local-${platform#linux/}
 version=${THORIC_VERSION:-$(awk -F'"' '/^version = /{ print $2; exit }' core/manager/Cargo.toml)}
 # The version becomes an image tag: letters, digits, underscores, periods and dashes.
 if ! [[ $version =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
@@ -20,8 +44,13 @@ case ${WSL_COMPRESS:-xz} in
     gzip) compress=(gzip -9) ;;
     *) echo "WSL_COMPRESS must be xz or gzip" >&2; exit 2 ;;
 esac
-docker build --pull --build-arg "THORIC_VERSION=$version" -t "$image" -f packaging/wsl/Dockerfile .
-container=$(docker create "$image")
+# Another platform's build runs its commands under emulation, which QEMU registered with the
+# kernel's binfmt_misc provides (docs/WSL_PACKAGE.md#build-the-package).
+if [[ $platform != "$host" ]]; then
+    echo "Building the $platform package on a $host host, under emulation."
+fi
+docker build --pull --platform "$platform" --build-arg "THORIC_VERSION=$version" -t "$image" -f packaging/wsl/Dockerfile .
+container=$(docker create --platform "$platform" "$image")
 trap 'docker rm -f "$container" >/dev/null' EXIT
 # A COPY without --chmod takes its mode from the checkout, which is 0777 on a Windows drive, and one
 # with --chmod=0644 gives that mode to a directory it creates. Nothing in the package may be writable
@@ -35,4 +64,4 @@ fi
 mkdir -p "$(dirname "$output")"
 docker export "$container" | "${compress[@]}" > "$output"
 ls -lh "$output"
-echo "The package installs manager $version."
+echo "The $platform package installs manager $version."
