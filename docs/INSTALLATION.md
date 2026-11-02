@@ -111,7 +111,7 @@ A host without any of them gives desktops no GPU: new containers start without i
 
 ## Raspberry Pi and Mac
 
-The manager and both desktop images are published for `linux/amd64` and `linux/arm64` under the same names, so on an ARM host Docker downloads the arm64 images by itself and the [README's Compose example](../README.md#custom-installation) works as it is. The manager logs the architecture of the images it runs when it starts, `Docker runs linux/arm64 images`. The WSL package is for x86_64 Windows only. Releases up to 0.9.1 published `linux/amd64` alone, so an ARM host needs a later release or an `edge` build. The arm64 images have been checked under QEMU on an x86_64 host, where the arm64 manager created XFCE and GNOME desktops from them that came up ready, but not yet on a Raspberry Pi or a Mac.
+The manager and both desktop images are published for `linux/amd64` and `linux/arm64` under the same names, so on an ARM host Docker downloads the arm64 images by itself and the [README's Compose example](../README.md#custom-installation) works as it is. The manager logs the architecture of the images it runs when it starts, `Docker runs linux/arm64 images`. Windows on ARM has a WSL package of its own, `thoric-arm64.wsl`, see [Windows on ARM](WSL_PACKAGE.md#windows-on-arm). Releases up to 0.9.1 published `linux/amd64` alone, so an ARM host needs a later release or an `edge` build. The arm64 images have been checked under QEMU on an x86_64 host, where the arm64 manager created XFCE and GNOME desktops from them that came up ready, but not yet on a Raspberry Pi or a Mac.
 
 What a desktop runs is the same on both architectures, Ubuntu 24.04 with its own packages, with two things to keep in mind:
 

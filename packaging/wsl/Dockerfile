@@ -1,7 +1,9 @@
 # Root filesystem for the Thoric WSL distribution: Ubuntu 24.04 with Docker Engine, Compose,
 # Buildx, the NVIDIA Container Toolkit and the Thoric installation files. The image is
 # exported with `packaging/wsl/build.sh` into a `.wsl` package that `wsl --install --from-file`
-# accepts. The base is a dated build of Ubuntu 24.04, which Dependabot raises.
+# accepts. The base is a dated build of Ubuntu 24.04, which Dependabot raises. It is built for
+# linux/amd64 and for linux/arm64, Windows on ARM, and installs the same packages on both: Docker's
+# and NVIDIA's repositories publish each of them for both architectures, so apt takes the build's own.
 FROM ubuntu:noble-20261024.1
 ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -11,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN install -m 0755 -d /etc/apt/keyrings \
     && curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc \
     && chmod a+r /etc/apt/keyrings/docker.asc \
-    && echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable" > /etc/apt/sources.list.d/docker.list \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable" > /etc/apt/sources.list.d/docker.list \
     && curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
     && curl -fsSL https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
        | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
