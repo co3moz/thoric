@@ -7,9 +7,11 @@ system packages, tools, downloads and workflow actions) from the Dockerfiles, th
 and the workflows. The manager image's build runs it, so the list is the one that image was built
 from.
 
-    python3 core/manager/dependencies.py [--strict] [--output FILE]
+    python3 core/manager/dependencies.py [--strict] [--platform linux/arm64] [--output FILE]
 
 With --strict it fails when a package that ships in the interface or the manager names no license.
+--platform names the platform the image is built for, linux/amd64 by default, whose interface
+packages and crates are listed.
 """
 import argparse
 import json
@@ -30,9 +32,14 @@ COMPOSE_FILES = ("compose.yml", "compose.ghcr.yml")
 WORKFLOWS = ".github/workflows"
 PLACES = ("manager", "desktop", "wsl", "compose", "ci")
 KINDS = ("image", "package", "tool", "download", "action", "runner")
-# The images and the interface are built for linux/amd64; packages for other platforms are not used.
-NPM_PLATFORM = {"os": "linux", "cpu": "x64"}
-CARGO_TARGET = "x86_64-unknown-linux-gnu"
+# The platforms the images are built for, each with the `os` and `cpu` its interface packages are
+# installed for and the target cargo builds the manager for. Packages of other platforms are not
+# used, and each platform's manager image lists its own.
+PLATFORMS = {
+    "linux/amd64": ({"os": "linux", "cpu": "x64"}, "x86_64-unknown-linux-gnu"),
+    "linux/arm64": ({"os": "linux", "cpu": "arm64"}, "aarch64-unknown-linux-gnu"),
+}
+NPM_PLATFORM, CARGO_TARGET = PLATFORMS["linux/amd64"]
 CRATES_IO = "registry+https://github.com/rust-lang/crates.io-index"
 # The images Thoric publishes or builds itself are not its dependencies.
 OWN_IMAGE = re.compile(r"^(?:(?:ghcr\.io|docker\.io)/)?(?:co3moz/)?thoric(?:[/:-]|$)")
@@ -113,14 +120,14 @@ def installed_manifest(node_modules, key, name, version):
     return None
 
 
-def ui_dependencies(lock, node_modules):
-    """Every package of the lockfile on linux/amd64: runtime when the interface's own
+def ui_dependencies(lock, node_modules, platform=NPM_PLATFORM):
+    """Every package of the lockfile on the platform: runtime when the interface's own
     dependencies reach it, development when only the build tools do."""
     workspace = lock["workspaces"][""]
     packages = {}
     for key, value in lock["packages"].items():
         meta = next((item for item in value if isinstance(item, dict)), {})
-        if all(runs_on(meta, field, wanted) for field, wanted in NPM_PLATFORM.items()):
+        if all(runs_on(meta, field, wanted) for field, wanted in platform.items()):
             packages[key] = (value[0], meta)
 
     def resolve(parent, name):
@@ -187,9 +194,9 @@ def ui_dependencies(lock, node_modules):
 # Manager
 
 
-def cargo_metadata(manifest):
+def cargo_metadata(manifest, target=CARGO_TARGET):
     output = subprocess.run(
-        ["cargo", "metadata", "--format-version", "1", "--locked", "--filter-platform", CARGO_TARGET,
+        ["cargo", "metadata", "--format-version", "1", "--locked", "--filter-platform", target,
          "--manifest-path", str(manifest)],
         check=True,
         stdout=subprocess.PIPE,
@@ -413,7 +420,8 @@ def workflow_dependencies(text):
         found.append(entry("infrastructure", tool, version, kind="tool", used_in=["ci"]))
     for version in re.findall(r"rustup toolchain install (\w[\w.-]*)", text):
         found.append(entry("infrastructure", "rust", version, kind="tool", used_in=["ci"]))
-    for runner in re.findall(r"^\s*runs-on:\s*[\"']?([\w.-]+)", text, re.M):
+    # A job's runner, or each runner of its matrix, which names them as `runner`.
+    for runner in re.findall(r"^\s*(?:runs-on|(?:-\s*)?runner):\s*[\"']?([\w.-]+)", text, re.M):
         found.append(entry("infrastructure", runner, None, kind="runner", used_in=["ci"]))
     return found
 
@@ -442,19 +450,19 @@ def infrastructure_dependencies(root):
 # The list
 
 
-def dependency_list(root, metadata):
+def dependency_list(root, metadata, platform="linux/amd64"):
     lock = json.loads(without_trailing_commas((root / "core/web/bun.lock").read_text(encoding="utf-8")))
     version = next(
         package["version"] for package in metadata["packages"] if package["id"] == metadata["resolve"]["root"]
     )
     groups = {"ui": 0, "backend": 1, "infrastructure": 2}
     found = (
-        ui_dependencies(lock, root / "core/web/node_modules")
+        ui_dependencies(lock, root / "core/web/node_modules", PLATFORMS[platform][0])
         + backend_dependencies(metadata)
         + infrastructure_dependencies(root)
     )
     found.sort(key=lambda item: (groups[item["group"]], item["name"].lower(), item.get("version") or ""))
-    return {"format": FORMAT, "version": version, "dependencies": found}
+    return {"format": FORMAT, "version": version, "platform": platform, "dependencies": found}
 
 
 def unlicensed(listing):
@@ -472,8 +480,13 @@ def main(argv=None):
     parser.add_argument(
         "--strict", action="store_true", help="fail when a shipped package names no license"
     )
+    parser.add_argument(
+        "--platform", choices=sorted(PLATFORMS), default="linux/amd64",
+        help="the platform the image is built for, whose packages are listed",
+    )
     args = parser.parse_args(argv)
-    listing = dependency_list(ROOT, cargo_metadata(ROOT / "core/manager/Cargo.toml"))
+    metadata = cargo_metadata(ROOT / "core/manager/Cargo.toml", PLATFORMS[args.platform][1])
+    listing = dependency_list(ROOT, metadata, args.platform)
     missing = unlicensed(listing)
     if missing:
         print(

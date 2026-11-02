@@ -17,7 +17,8 @@ ignore = []
 deny = ["unsound"]
 quiet = false
 
-# The manager is built for linux/amd64 only, so advisories for other systems do not apply.
+# The manager is built for linux/amd64 and linux/arm64 only, so advisories for other systems do not
+# apply.
 [target]
-arch = ["x86_64"]
+arch = ["x86_64", "aarch64"]
 os = ["linux"]

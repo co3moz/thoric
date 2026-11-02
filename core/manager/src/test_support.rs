@@ -57,6 +57,7 @@ impl config::Config {
             gpu_host: Default::default(),
             // Docker's own default.
             log_driver: Some("json-file".into()),
+            architecture: "amd64".into(),
             user_namespaces: true,
             pids_limit: desktop_limits::DEFAULT_PIDS_LIMIT,
             allowed_hosts: vec![],

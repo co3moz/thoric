@@ -461,10 +461,13 @@ async fn main() -> anyhow::Result<()> {
     for notice in &config.notices {
         tracing::warn!("{notice}");
     }
-    // One look at the daemon serves the GPU routes and the desktops' log options.
+    // One look at the daemon serves the GPU routes, the desktops' log options and the
+    // architecture of the images it runs.
     let docker_info = desktop_limits::docker_info(&config.docker_bin).await;
     config.gpu_host = gpu::Host::detect(&config, docker_info.as_ref());
     config.log_driver = desktop_limits::log_driver(docker_info.as_ref());
+    config.architecture = pulls::image_architecture(docker_info.as_ref());
+    tracing::info!("Docker runs linux/{} images", config.architecture);
     gpu::log_routes(&config);
     desktop_limits::log_logging(&config);
     if config.mcp_token.is_none() && config.root_mcp_enabled {

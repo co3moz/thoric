@@ -1,7 +1,8 @@
 //! How a GPU desktop reaches the host's GPU. `WSL_GPU`, `NVIDIA_COMPUTE` and `DRI_GPU` each allow
 //! a route, and a route is used where the host has it ([`host`]): a WSL distribution gets the WSL
 //! GPU, a Linux host with NVIDIA's driver and the NVIDIA Container Toolkit gets the NVIDIA GPU, and
-//! one with an AMD or Intel GPU gets its render devices. Where the manager cannot see the host,
+//! one with an AMD or Intel GPU, or a board's own such as a Raspberry Pi's, gets its render
+//! devices. Docker Desktop on a Mac shows none of these. Where the manager cannot see the host,
 //! the WSL and NVIDIA settings apply as they are written, as they did before routes were chosen,
 //! and `/dev/dri` is never passed, since inside WSL it would push the WSL GPU aside.
 use crate::config::Config;
@@ -18,7 +19,7 @@ pub(crate) enum Route {
     Wsl,
     /// The NVIDIA Container Toolkit: CUDA, and OpenGL through NVIDIA's EGL library.
     Nvidia,
-    /// `/dev/dri`, for Mesa's own drivers such as AMD's and Intel's.
+    /// `/dev/dri`, for Mesa's own drivers such as AMD's, Intel's and the Raspberry Pi's V3D.
     Dri,
 }
 

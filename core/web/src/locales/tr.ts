@@ -1093,7 +1093,7 @@ export const tr: Messages = {
   "settings.about.NVIDIA_COMPUTE":
     "NVIDIA Container Toolkit ile NVIDIA GPU'su: CUDA, WSL dışında OpenGL de.",
   "settings.about.DRI_GPU":
-    "WSL dışında AMD ve Intel GPU'ları, /dev/dri altındaki render aygıtlarıyla (deneysel).",
+    "WSL dışında AMD ve Intel GPU'ları ya da Raspberry Pi gibi bir kartın kendi GPU'su, /dev/dri altındaki render aygıtlarıyla (deneysel).",
   "settings.about.GPU_ADAPTER":
     "Render yapılacak GPU, üreticiye ya da WSL'de model adının bir kısmına göre; boşsa biri seçilir.",
   "settings.gpu.uses": "GPU'lu masaüstleri {routes} alır.",

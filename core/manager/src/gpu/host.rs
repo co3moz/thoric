@@ -31,7 +31,7 @@ pub(crate) struct Seen {
     /// Docker did not answer.
     pub toolkit: Option<bool>,
     /// The vendors of the render devices under `/dev/dri` that Mesa's own drivers run, such as
-    /// `AMD` or `Intel`, each once.
+    /// `AMD`, `Intel` or the Raspberry Pi's `Broadcom`, each once.
     pub render: Vec<String>,
 }
 
@@ -71,11 +71,19 @@ impl Seen {
                     .is_some_and(|name| name.to_string_lossy().starts_with("renderD"))
             })
             .map(|node| node.join("device"))
-            // A virtual device such as WSL's vgem has no PCI vendor, and NVIDIA's own driver
-            // renders only through the toolkit.
-            .filter(|device| driver(device).as_deref() != Some("nvidia"))
-            .filter_map(|device| file(&device, "vendor"))
-            .map(|vendor| vendor_name(&vendor))
+            .filter_map(|device| {
+                let driver = driver(&device);
+                // NVIDIA's own driver renders only through the toolkit.
+                if driver.as_deref() == Some("nvidia") {
+                    return None;
+                }
+                match file(&device, "vendor") {
+                    Some(vendor) => Some(vendor_name(&vendor)),
+                    // A board's GPU is no PCI device, so its driver names it. A virtual device
+                    // such as WSL's vgem has neither a vendor nor one of those drivers.
+                    None => driver.as_deref().and_then(board_gpu).map(str::to_owned),
+                }
+            })
             .collect();
         render.sort();
         render.dedup();
@@ -121,6 +129,20 @@ fn vendor_name(vendor: &str) -> String {
         NVIDIA => "NVIDIA".into(),
         other => other.into(),
     }
+}
+
+/// The vendor of a GPU that is part of its board rather than a PCI device, by the kernel driver
+/// that runs it, for those Mesa has a driver of its own for: the Raspberry Pi's V3D (and the VC4
+/// of the boards before the Pi 4), Arm's Mali, Qualcomm's Adreno, Vivante's and Apple's.
+fn board_gpu(driver: &str) -> Option<&'static str> {
+    Some(match driver {
+        "v3d" | "vc4-drm" => "Broadcom",
+        "panfrost" | "panthor" | "lima" => "Arm",
+        "msm" => "Qualcomm",
+        "etnaviv" => "Vivante",
+        "asahi" => "Apple",
+        _ => return None,
+    })
 }
 
 /// Whether `docker info` names the NVIDIA Container Toolkit: the `nvidia` runtime its Docker

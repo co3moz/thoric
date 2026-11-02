@@ -1116,7 +1116,7 @@ export const en = {
   "settings.about.NVIDIA_COMPUTE":
     "The NVIDIA GPU through the NVIDIA Container Toolkit: CUDA, and OpenGL outside WSL.",
   "settings.about.DRI_GPU":
-    "AMD and Intel GPUs outside WSL through their render devices under /dev/dri (experimental).",
+    "AMD and Intel GPUs, or a board's own such as the Raspberry Pi's, outside WSL through their render devices under /dev/dri (experimental).",
   "settings.about.GPU_ADAPTER":
     "The GPU to render on by vendor, or in WSL by part of its model name; empty picks one.",
   "settings.gpu.uses": "GPU desktops get {routes}.",

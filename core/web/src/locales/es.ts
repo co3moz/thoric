@@ -1102,7 +1102,7 @@ export const es: Messages = {
   "settings.about.NVIDIA_COMPUTE":
     "La GPU NVIDIA mediante NVIDIA Container Toolkit: CUDA y, fuera de WSL, también OpenGL.",
   "settings.about.DRI_GPU":
-    "GPU AMD e Intel fuera de WSL mediante sus dispositivos de renderizado en /dev/dri (experimental).",
+    "GPU AMD e Intel, o la propia de una placa como la Raspberry Pi, fuera de WSL mediante sus dispositivos de renderizado en /dev/dri (experimental).",
   "settings.about.GPU_ADAPTER":
     "La GPU en la que renderizar por fabricante, o en WSL por parte del nombre del modelo; vacío elige una.",
   "settings.gpu.uses": "Los escritorios con GPU reciben {routes}.",

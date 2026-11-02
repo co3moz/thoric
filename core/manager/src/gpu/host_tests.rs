@@ -1,6 +1,7 @@
 //! Pins down what the manager reads from a host's `/sys`: the WSL GPU device, an NVIDIA display
-//! device only while NVIDIA's own driver runs it, render devices only with a PCI vendor and
-//! another driver, and the NVIDIA Container Toolkit as `docker info` names it.
+//! device only while NVIDIA's own driver runs it, render devices with a PCI vendor and another
+//! driver or a board's GPU by its driver, and the NVIDIA Container Toolkit as `docker info` names
+//! it.
 use super::*;
 use serde_json::json;
 
@@ -114,6 +115,27 @@ fn render_devices_are_named_by_vendor_once_each() {
         // A primary node is not a render node.
         .render("card0", Some("0x8086"), "i915");
     assert_eq!(sys.read().render, ["0x1af4", "AMD", "Intel"]);
+}
+
+#[test]
+fn a_boards_gpu_is_named_by_its_driver() {
+    // As a Raspberry Pi 5 shows it: V3D renders, and the display controller has primary nodes only.
+    let sys = Sys::new();
+    sys.render("renderD128", None, "v3d")
+        .render("card0", None, "v3d")
+        .render("card1", None, "vc4-drm");
+    assert_eq!(
+        sys.read(),
+        Seen {
+            render: vec!["Broadcom".into()],
+            ..Default::default()
+        }
+    );
+    // A board with a Mali GPU, and a virtual render device beside it that counts for nothing.
+    let sys = Sys::new();
+    sys.render("renderD128", None, "panthor")
+        .render("renderD129", None, "vgem");
+    assert_eq!(sys.read().render, ["Arm"]);
 }
 
 #[test]
