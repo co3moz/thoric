@@ -166,12 +166,22 @@ jobs:
         working-directory: core/web
         run: bun run audit
 
-  # The manager downloads the desktop images published with it, so it is published after them and
-  # none of its tags names desktop images that are not there yet.
-  publish:
-    needs: [checks, publish-desktops]
+  # Every image is published for linux/amd64 and linux/arm64, the second for hosts such as a
+  # Raspberry Pi or a Mac's Docker Desktop. Each platform builds on a runner of its own
+  # architecture, since an emulated build of the manager or a desktop takes hours, and pushes its
+  # image by digest alone, without a tag. The job after the builds gives the tags to one index of
+  # both, so no tag ever names one platform without the other.
+  build-manager:
+    needs: checks
     if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     permissions:
       contents: read
@@ -206,6 +216,7 @@ jobs:
           else
             echo "release=sha-$GITHUB_SHA" >> "$GITHUB_OUTPUT"
           fi
+      # The labels of the image, whose version is its first tag; the publish job gives the tags.
       - name: Tags and labels
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
@@ -227,41 +238,138 @@ jobs:
             org.opencontainers.image.title=Thoric
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.licenses=GPL-3.0-or-later
-      - name: Build and publish
+      - name: Build and push by digest
         id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: core/manager/Dockerfile
-          platforms: linux/amd64
+          platforms: linux/${{ matrix.arch }}
           build-args: THORIC_RELEASE=${{ steps.names.outputs.release }}
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: |
+            ${{ steps.names.outputs.image }}
+            ${{ steps.names.outputs.hub }}
+          outputs: type=image,push-by-digest=true,name-canonical=true,push=true
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=manager
-          cache-to: type=gha,scope=manager,mode=max
+          cache-from: type=gha,scope=manager-${{ matrix.arch }}
+          cache-to: type=gha,scope=manager-${{ matrix.arch }},mode=max
+      - name: Keep the digest
+        env:
+          ARCH: ${{ matrix.arch }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          echo "$DIGEST" > "$RUNNER_TEMP/digests/manager-$ARCH"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: digest-manager-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests/
+          if-no-files-found: error
+          retention-days: 1
+
+  # The manager downloads the desktop images published with it, so its tags come after theirs and
+  # none of them names desktop images that are not there yet.
+  publish:
+    needs: [checks, build-manager, publish-desktops]
+    if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Log in to GHCR
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Log in to Docker Hub
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: docker.io
+          username: ${{ env.DOCKER_HUB_USER }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+      - name: Image names
+        id: names
+        env:
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          echo "image=ghcr.io/${REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          hub="docker.io/$DOCKER_HUB_USER/${REPOSITORY#*/}"
+          echo "hub=${hub,,}" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: digest-manager-*
+          path: ${{ runner.temp }}/digests
+          merge-multiple: true
+      # The tags of the build job's labels.
+      - name: Tags
+        id: tags
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: |
+            ${{ steps.names.outputs.image }}
+            ${{ steps.names.outputs.hub }}
+          flavor: latest=false
+          tags: |
+            type=raw,value=edge,enable=${{ github.ref == 'refs/heads/master' }}
+            type=raw,value=latest,enable=${{ needs.checks.outputs.newest == 'true' }}
+            type=sha,format=long
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+      - name: Publish the index of both platforms
+        id: index
+        env:
+          IMAGE: ${{ steps.names.outputs.image }}
+          TAGS: ${{ steps.tags.outputs.tags }}
+          DIGESTS: ${{ runner.temp }}/digests
+        run: |
+          args=()
+          while IFS= read -r tag; do
+            if [[ -n $tag ]]; then args+=(--tag "$tag"); fi
+          done <<< "$TAGS"
+          docker buildx imagetools create "${args[@]}" \
+            "$IMAGE@$(< "$DIGESTS/manager-amd64")" "$IMAGE@$(< "$DIGESTS/manager-arm64")"
+          echo "digest=$(docker buildx imagetools inspect "${args[1]}" --format '{{json .Manifest}}' | jq -r .digest)" >> "$GITHUB_OUTPUT"
+      # Both registries hold the index, and it names an image of each platform.
       - name: Verify the registry manifests
         env:
           IMAGE: ${{ steps.names.outputs.image }}
           HUB: ${{ steps.names.outputs.hub }}
-          DIGEST: ${{ steps.build.outputs.digest }}
+          DIGEST: ${{ steps.index.outputs.digest }}
         run: |
-          docker buildx imagetools inspect "$IMAGE@$DIGEST"
-          docker buildx imagetools inspect "$HUB@$DIGEST"
+          for name in "$IMAGE" "$HUB"; do
+            platforms=$(docker buildx imagetools inspect --raw "$name@$DIGEST" |
+              jq -r '[.manifests[].platform | select(.os == "linux") | .architecture] | sort | join(" ")')
+            echo "$name@$DIGEST: $platforms"
+            if [[ $platforms != "amd64 arm64" ]]; then
+              echo "::error::$name@$DIGEST names the platforms '$platforms', not amd64 and arm64"
+              exit 1
+            fi
+          done
       - name: Published image
         env:
-          TAGS: ${{ steps.meta.outputs.tags }}
+          TAGS: ${{ steps.tags.outputs.tags }}
         run: |
           printf '### %s\n\n```text\n%s\n```\n' 'Thoric' "$TAGS" >> "$GITHUB_STEP_SUMMARY"
 
-  # Both desktop images build in one job on one builder, so the second takes the `common` stage of
-  # images/desktop/Dockerfile from the first and the two publish the same layers for it, which a
-  # host then downloads and stores once. Built in separate jobs, each image installed `common` on
-  # its own.
-  publish-desktops:
+  # Both desktop images of a platform build in one job on one builder, so the second takes the
+  # `common` stage of images/desktop/Dockerfile from the first and the two publish the same layers
+  # for it, which a host then downloads and stores once. Built in separate jobs, each image
+  # installed `common` on its own.
+  build-desktops:
     needs: checks
     if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     permissions:
       contents: read
@@ -291,6 +399,7 @@ jobs:
           hub="docker.io/$DOCKER_HUB_USER/${REPOSITORY#*/}"
           echo "xfce-hub=${hub,,}-ubuntu-xfce" >> "$GITHUB_OUTPUT"
           echo "gnome-hub=${hub,,}-ubuntu-gnome" >> "$GITHUB_OUTPUT"
+      # The labels of each image, whose version is its first tag; the publish job gives the tags.
       - name: XFCE tags and labels
         id: xfce-meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
@@ -314,34 +423,23 @@ jobs:
             org.opencontainers.image.licenses=GPL-3.0-or-later
       # Each build reads the cache of both images, so a scope the cache evicted still finds `common`
       # in the other one and both images keep the same layers for it.
-      - name: Build and publish XFCE
+      - name: Build and push XFCE by digest
         id: xfce
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: images/desktop
           file: images/desktop/Dockerfile
           target: xfce
-          platforms: linux/amd64
-          push: true
-          tags: ${{ steps.xfce-meta.outputs.tags }}
+          platforms: linux/${{ matrix.arch }}
+          tags: |
+            ${{ steps.names.outputs.xfce }}
+            ${{ steps.names.outputs.xfce-hub }}
+          outputs: type=image,push-by-digest=true,name-canonical=true,push=true
           labels: ${{ steps.xfce-meta.outputs.labels }}
           cache-from: |
-            type=gha,scope=desktop-xfce
-            type=gha,scope=desktop-gnome
-          cache-to: type=gha,scope=desktop-xfce,mode=max
-      - name: Verify the XFCE registry manifests
-        env:
-          IMAGE: ${{ steps.names.outputs.xfce }}
-          HUB: ${{ steps.names.outputs.xfce-hub }}
-          DIGEST: ${{ steps.xfce.outputs.digest }}
-        run: |
-          docker buildx imagetools inspect "$IMAGE@$DIGEST"
-          docker buildx imagetools inspect "$HUB@$DIGEST"
-      - name: Published XFCE image
-        env:
-          TAGS: ${{ steps.xfce-meta.outputs.tags }}
-        run: |
-          printf '### %s\n\n```text\n%s\n```\n' 'Ubuntu 24.04 · Lightweight XFCE' "$TAGS" >> "$GITHUB_STEP_SUMMARY"
+            type=gha,scope=desktop-xfce-${{ matrix.arch }}
+            type=gha,scope=desktop-gnome-${{ matrix.arch }}
+          cache-to: type=gha,scope=desktop-xfce-${{ matrix.arch }},mode=max
       - name: GNOME tags and labels
         id: gnome-meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
@@ -361,48 +459,38 @@ jobs:
             org.opencontainers.image.title=Ubuntu 24.04 · GNOME
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.licenses=GPL-3.0-or-later
-      - name: Build and publish GNOME
+      - name: Build and push GNOME by digest
         id: gnome
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: images/desktop
           file: images/desktop/Dockerfile
           target: gnome
-          platforms: linux/amd64
-          push: true
-          tags: ${{ steps.gnome-meta.outputs.tags }}
+          platforms: linux/${{ matrix.arch }}
+          tags: |
+            ${{ steps.names.outputs.gnome }}
+            ${{ steps.names.outputs.gnome-hub }}
+          outputs: type=image,push-by-digest=true,name-canonical=true,push=true
           labels: ${{ steps.gnome-meta.outputs.labels }}
           cache-from: |
-            type=gha,scope=desktop-gnome
-            type=gha,scope=desktop-xfce
-          cache-to: type=gha,scope=desktop-gnome,mode=max
-      - name: Verify the GNOME registry manifests
-        env:
-          IMAGE: ${{ steps.names.outputs.gnome }}
-          HUB: ${{ steps.names.outputs.gnome-hub }}
-          DIGEST: ${{ steps.gnome.outputs.digest }}
-        run: |
-          docker buildx imagetools inspect "$IMAGE@$DIGEST"
-          docker buildx imagetools inspect "$HUB@$DIGEST"
-      - name: Published GNOME image
-        env:
-          TAGS: ${{ steps.gnome-meta.outputs.tags }}
-        run: |
-          printf '### %s\n\n```text\n%s\n```\n' 'Ubuntu 24.04 · GNOME' "$TAGS" >> "$GITHUB_STEP_SUMMARY"
+            type=gha,scope=desktop-gnome-${{ matrix.arch }}
+            type=gha,scope=desktop-xfce-${{ matrix.arch }}
+          cache-to: type=gha,scope=desktop-gnome-${{ matrix.arch }},mode=max
       # The steps the two images run alike from their base image on must have left the same layers,
       # otherwise `common` was built twice again and every host stores it twice.
       - name: Check the shared layers
         shell: bash
         env:
+          ARCH: ${{ matrix.arch }}
           XFCE: ${{ steps.names.outputs.xfce }}@${{ steps.xfce.outputs.digest }}
           GNOME: ${{ steps.names.outputs.gnome }}@${{ steps.gnome.outputs.digest }}
         run: |
-          # The build steps and the layer digests of the amd64 image a reference names.
+          # The build steps and the layer digests of the image of this platform a reference names.
           describe() {
             local manifest
             manifest=$(docker buildx imagetools inspect --raw "$1")
             if jq -e 'has("manifests")' <<< "$manifest" > /dev/null; then
-              manifest=$(docker buildx imagetools inspect --raw "${1%@*}@$(jq -r '.manifests[] | select(.platform.architecture == "amd64").digest' <<< "$manifest")")
+              manifest=$(docker buildx imagetools inspect --raw "${1%@*}@$(jq -r --arg arch "$ARCH" '.manifests[] | select(.platform.architecture == $arch).digest' <<< "$manifest")")
             fi
             docker buildx imagetools inspect "$1" --format '{{json .Image}}' | jq -c --argjson manifest "$manifest" \
               '{steps: [.history[] | {created_by, empty: (.empty_layer // false)}], layers: [$manifest.layers[].digest]}'
@@ -423,6 +511,118 @@ jobs:
               end')
           echo "$result"
           ! grep -q '^::error::' <<< "$result"
+      - name: Keep the digests
+        env:
+          ARCH: ${{ matrix.arch }}
+          XFCE: ${{ steps.xfce.outputs.digest }}
+          GNOME: ${{ steps.gnome.outputs.digest }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          echo "$XFCE" > "$RUNNER_TEMP/digests/ubuntu-xfce-$ARCH"
+          echo "$GNOME" > "$RUNNER_TEMP/digests/ubuntu-gnome-$ARCH"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: digest-desktops-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests/
+          if-no-files-found: error
+          retention-days: 1
+
+  publish-desktops:
+    needs: [checks, build-desktops]
+    if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
+    strategy:
+      matrix:
+        include:
+          - image: ubuntu-xfce
+            title: Ubuntu 24.04 · Lightweight XFCE
+          - image: ubuntu-gnome
+            title: Ubuntu 24.04 · GNOME
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Log in to GHCR
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Log in to Docker Hub
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: docker.io
+          username: ${{ env.DOCKER_HUB_USER }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+      - name: Image names
+        id: names
+        env:
+          REPOSITORY: ${{ github.repository }}
+          NAME: ${{ matrix.image }}
+        run: |
+          echo "image=ghcr.io/${REPOSITORY,,}/$NAME" >> "$GITHUB_OUTPUT"
+          hub="docker.io/$DOCKER_HUB_USER/${REPOSITORY#*/}-$NAME"
+          echo "hub=${hub,,}" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: digest-desktops-*
+          path: ${{ runner.temp }}/digests
+          merge-multiple: true
+      # The tags of the build job's labels.
+      - name: Tags
+        id: tags
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: |
+            ${{ steps.names.outputs.image }}
+            ${{ steps.names.outputs.hub }}
+          flavor: latest=false
+          tags: |
+            type=raw,value=edge,enable=${{ github.ref == 'refs/heads/master' }}
+            type=raw,value=latest,enable=${{ needs.checks.outputs.newest == 'true' }}
+            type=raw,value=24.04,enable=${{ needs.checks.outputs.newest == 'true' }}
+            type=sha,format=long
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+      - name: Publish the index of both platforms
+        id: index
+        env:
+          IMAGE: ${{ steps.names.outputs.image }}
+          NAME: ${{ matrix.image }}
+          TAGS: ${{ steps.tags.outputs.tags }}
+          DIGESTS: ${{ runner.temp }}/digests
+        run: |
+          args=()
+          while IFS= read -r tag; do
+            if [[ -n $tag ]]; then args+=(--tag "$tag"); fi
+          done <<< "$TAGS"
+          docker buildx imagetools create "${args[@]}" \
+            "$IMAGE@$(< "$DIGESTS/$NAME-amd64")" "$IMAGE@$(< "$DIGESTS/$NAME-arm64")"
+          echo "digest=$(docker buildx imagetools inspect "${args[1]}" --format '{{json .Manifest}}' | jq -r .digest)" >> "$GITHUB_OUTPUT"
+      # Both registries hold the index, and it names an image of each platform.
+      - name: Verify the registry manifests
+        env:
+          IMAGE: ${{ steps.names.outputs.image }}
+          HUB: ${{ steps.names.outputs.hub }}
+          DIGEST: ${{ steps.index.outputs.digest }}
+        run: |
+          for name in "$IMAGE" "$HUB"; do
+            platforms=$(docker buildx imagetools inspect --raw "$name@$DIGEST" |
+              jq -r '[.manifests[].platform | select(.os == "linux") | .architecture] | sort | join(" ")')
+            echo "$name@$DIGEST: $platforms"
+            if [[ $platforms != "amd64 arm64" ]]; then
+              echo "::error::$name@$DIGEST names the platforms '$platforms', not amd64 and arm64"
+              exit 1
+            fi
+          done
+      - name: Published image
+        env:
+          TITLE: ${{ matrix.title }}
+          TAGS: ${{ steps.tags.outputs.tags }}
+        run: |
+          printf '### %s\n\n```text\n%s\n```\n' "$TITLE" "$TAGS" >> "$GITHUB_STEP_SUMMARY"
 
   # The package installs the manager published under its tag, so the release appears only once
   # every image of that tag is published.

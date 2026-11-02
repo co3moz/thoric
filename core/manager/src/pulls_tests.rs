@@ -226,20 +226,28 @@ fn a_pull_error_message_fails_with_dockers_explanation() {
 }
 
 #[test]
-fn manifest_sizes_pick_the_amd64_image_and_ignore_attestations() {
+fn manifest_sizes_pick_the_host_architecture_and_ignore_attestations() {
     let layers = json!({"layers": [
         {"digest": "sha256:aaaaaaaaaaaa0000", "size": 100},
         {"digest": "sha256:bbbbbbbbbbbb1111", "size": 300},
     ]});
+    let arm = json!({"layers": [{"digest": "sha256:dddddddddddd3333", "size": 70}]});
     let index = json!([
         {"Descriptor": {"platform": {"os": "linux", "architecture": "amd64"}}, "OCIManifest": layers},
+        {"Descriptor": {"platform": {"os": "linux", "architecture": "arm64", "variant": "v8"}}, "OCIManifest": arm},
         {"Descriptor": {"platform": {"os": "unknown", "architecture": "unknown"}}, "OCIManifest": {"layers": [{"digest": "sha256:cccccccccccc2222", "size": 9}]}},
     ]);
     let expected = HashMap::from([("aaaaaaaaaaaa".into(), 100), ("bbbbbbbbbbbb".into(), 300)]);
-    assert_eq!(manifest_sizes(&index), expected);
+    assert_eq!(manifest_sizes(&index, "amd64"), expected);
+    assert_eq!(
+        manifest_sizes(&index, "arm64"),
+        HashMap::from([("dddddddddddd".into(), 70)])
+    );
+    // An image without the host's architecture has no sizes to show.
+    assert!(manifest_sizes(&index, "riscv64").is_empty());
     // A single-platform image is printed as one entry, and older images use the Docker schema.
     assert_eq!(
-        manifest_sizes(&json!({"SchemaV2Manifest": layers})),
+        manifest_sizes(&json!({"SchemaV2Manifest": layers}), "amd64"),
         expected
     );
     // Two candidates would be a guess; the stream's own totals are used instead.
@@ -247,14 +255,32 @@ fn manifest_sizes_pick_the_amd64_image_and_ignore_attestations() {
         {"Descriptor": {"platform": {"os": "linux", "architecture": "amd64"}}, "OCIManifest": layers},
         {"Descriptor": {"platform": {"os": "linux", "architecture": "amd64"}}, "OCIManifest": layers},
     ]);
-    assert!(manifest_sizes(&ambiguous).is_empty());
+    assert!(manifest_sizes(&ambiguous, "amd64").is_empty());
     assert!(
         manifest_sizes(
-            &json!({"OCIManifest": {"layers": [{"digest": "sha256:short", "size": 1}]}})
+            &json!({"OCIManifest": {"layers": [{"digest": "sha256:short", "size": 1}]}}),
+            "amd64"
         )
         .is_empty()
     );
-    assert!(manifest_sizes(&json!("not a manifest")).is_empty());
+    assert!(manifest_sizes(&json!("not a manifest"), "amd64").is_empty());
+}
+
+#[test]
+fn the_image_architecture_follows_docker_and_falls_back_to_the_manager() {
+    let info = |machine: &str| json!({"Architecture": machine});
+    assert_eq!(image_architecture(Some(&info("x86_64"))), "amd64");
+    // A Raspberry Pi's kernel and the virtual machine of a Mac's Docker Desktop.
+    assert_eq!(image_architecture(Some(&info("aarch64"))), "arm64");
+    assert_eq!(image_architecture(Some(&info("armv7l"))), "arm");
+    assert_eq!(image_architecture(Some(&info("riscv64"))), "riscv64");
+    let own = image_architecture(None);
+    assert_eq!(image_architecture(Some(&info(""))), own);
+    assert_eq!(image_architecture(Some(&json!({}))), own);
+    #[cfg(target_arch = "x86_64")]
+    assert_eq!(own, "amd64");
+    #[cfg(target_arch = "aarch64")]
+    assert_eq!(own, "arm64");
 }
 
 #[test]

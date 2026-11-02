@@ -43,8 +43,10 @@ RUN cargo build --release --locked && mv target/release/thoric /thoric && rm -rf
 # The list of the Dependencies page, from this build's lockfiles, installed interface packages,
 # Dockerfiles, Compose manifests and workflows, so it cannot fall behind them. It fails when a
 # package that ships names no license. `cargo metadata` reads the crates the cooked stage holds and
-# needs only the binary's entry point; the interface stage is mounted, not copied.
+# needs only the binary's entry point; the interface stage is mounted, not copied. Each platform's
+# image lists the packages and crates of its own, which BuildKit names in TARGETPLATFORM.
 FROM cooked AS dependencies
+ARG TARGETPLATFORM
 COPY Cargo.toml Cargo.lock compose.yml compose.ghcr.yml ./
 COPY core/manager/Cargo.toml core/manager/Dockerfile core/manager/dependencies.py core/manager/
 COPY core/manager/src/main.rs core/manager/src/main.rs
@@ -52,7 +54,7 @@ COPY images/desktop/Dockerfile images/desktop/Dockerfile
 COPY packaging/wsl/Dockerfile packaging/wsl/Dockerfile
 COPY .github/workflows .github/workflows
 RUN --mount=type=bind,from=ui,source=/build/core/web,target=/build/core/web \
-    python3 core/manager/dependencies.py --strict --output /dependencies.json
+    python3 core/manager/dependencies.py --strict --platform "${TARGETPLATFORM:-linux/amd64}" --output /dependencies.json
 
 FROM docker:28.5.2-cli AS dockercli
 # The Debian release the rust image above is built on, so the manager finds the C library it was

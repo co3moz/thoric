@@ -10,7 +10,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     pulseaudio pulseaudio-utils mesa-utils mesa-utils-extra libgl1-mesa-dri libegl1 \
     mesa-vulkan-drivers vulkan-tools fonts-dejavu fonts-noto-color-emoji fonts-noto-cjk locales \
     && locale-gen en_US.UTF-8 && rm -rf /var/lib/apt/lists/*
-RUN curl -fL --retry 3 "https://github.com/VirtualGL/virtualgl/releases/download/${VIRTUALGL_VERSION}/virtualgl_${VIRTUALGL_VERSION}_amd64.deb" -o /tmp/virtualgl.deb \
+# VirtualGL publishes a package for each architecture the images are built for, amd64 and arm64.
+RUN curl -fL --retry 3 "https://github.com/VirtualGL/virtualgl/releases/download/${VIRTUALGL_VERSION}/virtualgl_${VIRTUALGL_VERSION}_$(dpkg --print-architecture).deb" -o /tmp/virtualgl.deb \
     && apt-get update && apt-get install -y /tmp/virtualgl.deb && rm /tmp/virtualgl.deb && rm -rf /var/lib/apt/lists/*
 RUN useradd --create-home --shell /bin/bash --uid 1001 desktop \
     && mkdir -p /shared /workspace && chown desktop:desktop /shared /workspace \

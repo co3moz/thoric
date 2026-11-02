@@ -82,6 +82,18 @@ class InterfaceTest(unittest.TestCase):
         self.assertEqual(found[("types", "1.0.0")]["scope"], "development")
         self.assertTrue(found[("types", "1.0.0")]["direct"])
 
+    def test_each_platform_lists_its_own_native_packages(self):
+        packages = {
+            "tool": ["tool@1.0.0", "", {"optionalDependencies": {"tool-x64": "1", "tool-arm64": "1"}}, "sha"],
+            "tool-x64": ["tool-x64@1.0.0", "", {"os": "linux", "cpu": "x64"}, "sha"],
+            "tool-arm64": ["tool-arm64@1.0.0", "", {"os": "linux", "cpu": "arm64"}, "sha"],
+        }
+        missing = Path(tempfile.gettempdir()) / "thoric-missing-node-modules"
+        for platform, native in (("linux/amd64", "tool-x64"), ("linux/arm64", "tool-arm64")):
+            npm, _ = dependencies.PLATFORMS[platform]
+            found = dependencies.ui_dependencies(lock(packages, dev={"tool": "1.0.0"}), missing, npm)
+            self.assertEqual({item["name"] for item in found}, {"tool", native}, platform)
+
     def test_every_package_of_the_lockfile_is_reached(self):
         """A package the walk misses would be left off the page without a word. Across every
         platform, since some packages are only needed by another platform's."""
@@ -225,8 +237,18 @@ jobs:
       - uses: github/codeql-action/init@abc # v3
       - uses: ./.github/actions/local
       - run: rustup toolchain install stable --profile minimal
+  build:
+    strategy:
+      matrix:
+        include:
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
 """
         found = by_name(dependencies.workflow_dependencies(text))
+        # A runner the matrix names, and nothing for the expression that picks it.
+        runners = {name for (name, _), item in found.items() if item["kind"] == "runner"}
+        self.assertEqual(runners, {"ubuntu-24.04", "ubuntu-24.04-arm"})
         checkout = found[("actions/checkout", "v7.0.1")]
         self.assertEqual(checkout["pin"], "3d3c42e5aac5ba805825da76410c181273ba90b1")
         self.assertEqual(found[("oven-sh/setup-bun", "v2")].get("pin"), None)

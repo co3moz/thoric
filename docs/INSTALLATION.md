@@ -42,7 +42,7 @@ In the [WSL package](WSL_PACKAGE.md#settings-from-the-dashboard) the page also c
 | `MCP_AUTH_MODE` | `token` | Use `none` to accept agent requests without a token, on `/mcp` and on every MCP endpoint, whether or not `/mcp` is on. Anyone who can reach the manager's address can then control every container that `/mcp` or an endpoint reaches, so keep it on localhost. |
 | `WSL_GPU` | `true` | Gives GPU containers the WSL GPU (`/dev/dxg` and `/usr/lib/wsl`) where the host has it. See [GPU on a Linux host](#gpu-on-a-linux-host) for how the routes are chosen. |
 | `NVIDIA_COMPUTE` | `true` | Gives GPU containers an NVIDIA GPU through the NVIDIA Container Toolkit: CUDA, and outside WSL OpenGL too. |
-| `DRI_GPU` | `true` | Experimental. Gives GPU containers the render devices under `/dev/dri` of AMD and Intel GPUs, for Mesa's own drivers, on a host outside WSL. The Management page shows it but does not change it, since the WSL package never uses it. |
+| `DRI_GPU` | `true` | Experimental. Gives GPU containers the render devices under `/dev/dri` of AMD and Intel GPUs, or of a board such as the Raspberry Pi, for Mesa's own drivers, on a host outside WSL. The Management page shows it but does not change it, since the WSL package never uses it. |
 | `GPU_ADAPTER` | Empty | The GPU to render on: in WSL a Mesa D3D12 adapter by vendor or part of its model name, with `/dev/dri` the `AMD` or `Intel` card. Empty leaves the choice to Mesa. |
 | `AUDIO_ENABLED` | `true` | Allows containers to use browser sound. |
 | `MICROPHONE_ENABLED` | `true` | Allows microphone input when audio is also enabled. |
@@ -105,9 +105,30 @@ When it starts, the manager reads its host's `/sys`, which a container shares wi
 
 - **WSL GPU** (`WSL_GPU`): a WSL2 distribution's `/dev/dxg`, on which Mesa's D3D12 driver renders. There `NVIDIA_COMPUTE` adds CUDA beside it.
 - **NVIDIA on a Linux host** (`NVIDIA_COMPUTE`): an NVIDIA GPU that NVIDIA's own driver runs, while Docker lists the NVIDIA Container Toolkit, as its `nvidia` runtime or an `nvidia.com/gpu` CDI device. Install the driver and the [toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html), then register it with `sudo nvidia-ctk runtime configure --runtime=docker` and restart Docker. GPU containers get the GPU with the toolkit's `graphics` capability, and the desktop image names NVIDIA's EGL library to glvnd, so OpenGL renders on NVIDIA's driver. Docker 29.2 and later hand `--gpus` to the toolkit's CDI devices where they exist, which carry the graphics libraries in any case.
-- **AMD and Intel on a Linux host** (`DRI_GPU`, experimental): the render devices under `/dev/dri` of a GPU that NVIDIA's driver does not run. The desktop user joins groups with the devices' group IDs, and Mesa's own drivers render. `GPU_ADAPTER=AMD` or `Intel` picks that vendor's card on a host with both. Usage charts read `nvidia-smi`, so these GPUs have none.
+- **AMD and Intel on a Linux host** (`DRI_GPU`, experimental): the render devices under `/dev/dri` of a GPU that NVIDIA's driver does not run. The desktop user joins groups with the devices' group IDs, and Mesa's own drivers render. `GPU_ADAPTER=AMD` or `Intel` picks that vendor's card on a host with both. Usage charts read `nvidia-smi`, so these GPUs have none. The same route serves a GPU that is part of its board rather than a PCI card, which the manager names by its kernel driver: the Raspberry Pi's V3D as `Broadcom`, Mali (`panfrost`, `panthor`, `lima`) as `Arm`, and Adreno (`msm`), Vivante (`etnaviv`) and Apple's (`asahi`).
 
 A host without any of them gives desktops no GPU: new containers start without it, and a request for it is refused with each setting and what the host lacks. Only the WSL route has been verified on hardware, with an NVIDIA RTX 4080 in WSL2. The NVIDIA and `/dev/dri` routes on a Linux host follow the documented behavior of the toolkit, Mesa and VirtualGL but have not been run on such a host yet; the [development guide](DEVELOPMENT.md#gpu-on-a-linux-host) lists what to check there.
+
+## Raspberry Pi and Mac
+
+The manager and both desktop images are published for `linux/amd64` and `linux/arm64` under the same names, so on an ARM host Docker downloads the arm64 images by itself and the [README's Compose example](../README.md#custom-installation) works as it is. The manager logs the architecture of the images it runs when it starts, `Docker runs linux/arm64 images`. The WSL package is for x86_64 Windows only. Releases up to 0.9.1 published `linux/amd64` alone, so an ARM host needs a later release or an `edge` build. The arm64 images have been checked under QEMU on an x86_64 host, where the arm64 manager created XFCE and GNOME desktops from them that came up ready, but not yet on a Raspberry Pi or a Mac.
+
+What a desktop runs is the same on both architectures, Ubuntu 24.04 with its own packages, with two things to keep in mind:
+
+- Software a template or a script downloads must exist for arm64. A template that installs a program built only for x86_64 fails to build on an ARM host; its script on the templates page says what it downloads.
+- An image keeps the architecture it was built on. A saved image, a snapshot, an image archive and the images of a backup from an x86_64 installation do not run on an ARM host, or the other way round, unless the host runs other architectures under emulation, as Docker Desktop can, and then slowly.
+
+### Raspberry Pi
+
+Use a Raspberry Pi 4 or 5 with a 64-bit system, such as the 64-bit Raspberry Pi OS or Ubuntu Server; a 32-bit system cannot run the images. Every desktop takes memory of its own, so prefer a board with 8 GB, and XFCE, which needs less than GNOME. Install Docker Engine and its Compose plugin from [Docker's Debian or Ubuntu repository](https://docs.docker.com/engine/install/), add your user to the `docker` group, then follow the README.
+
+- When `docker info` warns `No memory limit support`, the kernel's memory controller is off and Docker discards every container's memory limit. On Raspberry Pi OS, add `cgroup_enable=memory` to the single line of `/boot/firmware/cmdline.txt` and reboot.
+- A GPU container renders on the Pi's V3D GPU through the `/dev/dri` route above, which is experimental and has not been run on a Pi yet. A program that needs more OpenGL than V3D offers falls back to software or does not start; turn GPU access off for such a container.
+- The Pi 5's own kernel uses 16 KB memory pages. A program built for 4 KB pages can fail to start there; `kernel=kernel8.img` in `/boot/firmware/config.txt` starts the Pi's 4 KB kernel instead.
+
+### Mac
+
+On a Mac, Thoric runs in [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/), whose Linux virtual machine runs the manager and the desktops: arm64 images on Apple silicon, amd64 images on an Intel Mac. Install it, then follow the README; the Docker socket the example mounts is the virtual machine's. Desktops use the virtual machine's memory, CPUs and disk, which **Settings > Resources** sets, so give it enough for the desktops you run, such as 8 GB of memory or more. Docker Desktop passes no GPU into its virtual machine, so desktops render in software, and the GPU option is unavailable when creating one. The dashboard and the desktop screens open at [localhost:8080](http://localhost:8080) as on any host.
 
 ## Access from another device
 

@@ -48,6 +48,10 @@ pub struct Config {
     /// the manager started, or `None` when it did not answer. Not a setting: desktops get log
     /// options of their own only under json-file; see [`crate::desktop_limits`].
     pub log_driver: Option<String>,
+    /// The architecture of the images the Docker host runs, such as `amd64` or `arm64`, as
+    /// `docker info` said when the manager started. Not a setting: a download measures the image
+    /// of this architecture; see [`crate::pulls::image_architecture`].
+    pub architecture: String,
     /// Whether desktops may create user namespaces, which is how Chromium-based browsers and
     /// Electron applications sandbox their processes. See [`Config::seccomp_profile`].
     pub user_namespaces: bool,
@@ -413,6 +417,7 @@ impl Config {
             adapter: var("GPU_ADAPTER").unwrap_or_default(),
             gpu_host: crate::gpu::Host::default(),
             log_driver: None,
+            architecture: crate::pulls::image_architecture(None),
             user_namespaces: flag("DESKTOP_USER_NAMESPACES", true)?,
             pids_limit: crate::desktop_limits::pids_limit(var("DESKTOP_PIDS_LIMIT").as_deref())?,
             allowed_hosts: host_names(var("ALLOWED_HOSTS").as_deref()),

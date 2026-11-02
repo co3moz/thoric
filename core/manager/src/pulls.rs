@@ -156,14 +156,34 @@ impl PullProgress {
     }
 }
 
+/// The architecture of the images a Docker host runs, as an image index names it: `amd64` for
+/// an x86_64 host and `arm64` for an aarch64 one, such as a Raspberry Pi or a Mac's Docker
+/// Desktop. `docker info` gives the kernel's name for it; without an answer, the manager's own
+/// architecture stands in, since it runs on that host.
+pub(crate) fn image_architecture(docker_info: Option<&Value>) -> String {
+    let machine = docker_info
+        .and_then(|info| info["Architecture"].as_str())
+        .filter(|machine| !machine.is_empty())
+        .unwrap_or(std::env::consts::ARCH);
+    match machine {
+        "x86_64" => "amd64",
+        "aarch64" => "arm64",
+        "i386" | "i686" | "x86" => "386",
+        other if other.starts_with("armv") => "arm",
+        other => other,
+    }
+    .to_owned()
+}
+
 /// Layer sizes from `docker manifest inspect --verbose`. An index lists one entry per platform
-/// and attestation; the catalog images are published for linux/amd64 only.
-pub(crate) fn manifest_sizes(output: &Value) -> HashMap<String, u64> {
+/// and attestation; the sizes are those of the Linux image for `architecture`, the one the Docker
+/// host runs ([`image_architecture`]).
+pub(crate) fn manifest_sizes(output: &Value, architecture: &str) -> HashMap<String, u64> {
     let manifest = match output {
         Value::Array(entries) => {
             let mut matching = entries.iter().filter(|entry| {
                 let platform = &entry["Descriptor"]["platform"];
-                platform["os"] == "linux" && platform["architecture"] == "amd64"
+                platform["os"] == "linux" && platform["architecture"] == architecture
             });
             match (matching.next(), matching.next()) {
                 (Some(entry), None) => entry,
@@ -438,7 +458,7 @@ impl App {
         .await
         {
             Ok(output) if output.status.success() => serde_json::from_slice(&output.stdout)
-                .map(|value| manifest_sizes(&value))
+                .map(|value| manifest_sizes(&value, &self.config.architecture))
                 .unwrap_or_default(),
             _ => HashMap::new(),
         }

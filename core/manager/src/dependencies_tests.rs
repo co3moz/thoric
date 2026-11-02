@@ -31,9 +31,10 @@ async fn hands_over_the_list_the_build_wrote() {
 fn the_image_build_writes_the_list_where_the_route_reads_it() {
     let dockerfile = include_str!("../Dockerfile");
     assert!(
-        dockerfile
-            .contains("python3 core/manager/dependencies.py --strict --output /dependencies.json"),
-        "the image build must write the list"
+        dockerfile.contains(
+            r#"python3 core/manager/dependencies.py --strict --platform "${TARGETPLATFORM:-linux/amd64}" --output /dependencies.json"#
+        ),
+        "the image build must write the list of the platform it builds for"
     );
     assert!(
         dockerfile.contains(&format!(
