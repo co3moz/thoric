@@ -4,7 +4,8 @@
 //
 //   index.json   {"templates": [{"id": "unity", "name": "Unity Hub", "description": "…",
 //                                "tags": ["games"], "requires": "0.5.0"},
-//                               {"id": "node", "name": "Node.js", "kind": "environment"}]}
+//                               {"id": "node", "name": "Node.js", "kind": "environment",
+//                                "architectures": ["amd64", "arm64"]}]}
 //   unity.json   the build configuration
 //   unity.png    the icon, at most 256 by 256 pixels
 //
@@ -13,7 +14,7 @@
 import { readBuildConfig, TEMPLATE_ID, type ImportedBuild } from "./build-config"
 import { composeSteps } from "./compose"
 import { iconFromBlob } from "./icons"
-import { t } from "./i18n"
+import { formatList, t } from "./i18n"
 import type { ComposeStep, DraftPart, ServerDeclaration } from "./types"
 
 /**
@@ -33,9 +34,20 @@ export type Template = {
   kind: TemplateKind
   /** The oldest Thoric release that can build it, such as `0.5.0`. */
   requires?: string
+  /**
+   * The architectures of the Docker hosts it builds on, such as `amd64` and `arm64`, as Docker
+   * names them. `DEFAULT_ARCHITECTURES` when the list names none.
+   */
+  architectures?: string[]
   /** The names of the desktop MCP servers an image built from it declares. */
   mcp?: string[]
 }
+
+/**
+ * What a template builds on when its entry names nothing: every template written before the field
+ * was tried on x86_64 only, and most download programs made for it.
+ */
+export const DEFAULT_ARCHITECTURES = ["amd64"]
 
 /** A list entry the page cannot offer, and why. */
 export type BrokenTemplate = { id: string; reason: string }
@@ -45,6 +57,27 @@ export type TemplateList = { templates: Template[]; broken: BrokenTemplate[] }
 const VERSION = /^\d+\.\d+\.\d+$/
 const TAG_LIMIT = 8
 const SERVER_NAME = /^[a-z0-9][a-z0-9-]{0,31}$/
+const ARCHITECTURE_LIMIT = 8
+// Docker's names, as `docker info` reports them to the manager. The kernel's names for the two
+// common ones would never match a host, so they are refused rather than leaving the template
+// unoffered without a word.
+const ARCHITECTURE = /^[a-z0-9]{1,16}$/
+const KERNEL_NAMES = new Set(["x86_64", "aarch64"])
+
+/** The architecture names of an entry, or throws when they are not a short list of Docker's. */
+function readArchitectures(value: unknown) {
+  if (value === undefined) return undefined
+  if (
+    !Array.isArray(value) ||
+    !value.length ||
+    value.length > ARCHITECTURE_LIMIT ||
+    value.some(
+      (name) => typeof name !== "string" || !ARCHITECTURE.test(name) || KERNEL_NAMES.has(name)
+    )
+  )
+    throw new Error(t("templates.broken.architectures", { count: ARCHITECTURE_LIMIT }))
+  return [...new Set(value as string[])]
+}
 
 /** Reads one list entry, or throws why it cannot be offered. */
 function readTemplate(value: unknown): Template {
@@ -57,6 +90,7 @@ function readTemplate(value: unknown): Template {
     tags = [],
     kind = "application",
     requires,
+    architectures,
     mcp = [],
   } = value as Record<string, unknown>
   if (typeof id !== "string" || !TEMPLATE_ID.test(id)) throw new Error(t("templates.broken.id"))
@@ -74,6 +108,7 @@ function readTemplate(value: unknown): Template {
   if (!TEMPLATE_KINDS.includes(kind as TemplateKind)) throw new Error(t("templates.broken.kind"))
   if (requires !== undefined && (typeof requires !== "string" || !VERSION.test(requires)))
     throw new Error(t("templates.broken.requires"))
+  const platforms = readArchitectures(architectures)
   // Only names, for the card; the declarations come with the template's configuration.
   const servers = Array.isArray(mcp)
     ? mcp.filter(
@@ -87,6 +122,7 @@ function readTemplate(value: unknown): Template {
     tags: (tags as string[]).map((tag) => tag.trim()),
     kind: kind as TemplateKind,
     ...(requires ? { requires } : {}),
+    ...(platforms ? { architectures: platforms } : {}),
     ...(servers.length ? { mcp: servers } : {}),
   }
 }
@@ -129,6 +165,18 @@ export function compareVersions(a: string, b: string) {
 /** Whether this manager can build the template. */
 export const buildable = (template: Pick<Template, "requires">, version: string) =>
   !template.requires || compareVersions(version, template.requires) >= 0
+
+/** The architectures a template builds on. */
+export const architecturesOf = (template: Pick<Template, "architectures">) =>
+  template.architectures ?? DEFAULT_ARCHITECTURES
+
+/**
+ * Whether a template builds on a Docker host that runs `architecture` images, the
+ * `architecture` of `/api/settings`. One that downloads programs made for another architecture
+ * fails its build there, or builds an image whose programs do not start.
+ */
+export const fits = (template: Pick<Template, "architectures">, architecture: string) =>
+  architecturesOf(template).includes(architecture)
 
 /** A template's file beside the list: its configuration or its icon. */
 export const templateFile = (list: string, id: string, extension: "json" | "png") =>
@@ -235,8 +283,10 @@ function clipBytes(text: string, limit: number) {
  * script may expect that desktop. A template merged from others brings its parts and steps.
  * The desktop MCP servers they declare are all written into the image, so two templates may not
  * declare one name. A template's options stay with its part, whose script gets their values.
+ * A template that does not build on the Docker host's `architecture` is refused, since its part
+ * would fail the whole build.
  */
-export function mergeTemplates(loaded: LoadedTemplate[]): ImportedBuild {
+export function mergeTemplates(loaded: LoadedTemplate[], architecture: string): ImportedBuild {
   const parts: DraftPart[] = []
   const steps: ComposeStep[] = []
   const servers: ServerDeclaration[] = []
@@ -250,6 +300,14 @@ export function mergeTemplates(loaded: LoadedTemplate[]): ImportedBuild {
     list.push(item)
   }
   for (const { template, config } of loaded) {
+    if (!fits(template, architecture))
+      throw new Error(
+        t("templates.merge.architecture", {
+          name: template.name,
+          architectures: formatList(architecturesOf(template)),
+          architecture,
+        })
+      )
     for (const part of config.parts ?? [
       {
         id: template.id,

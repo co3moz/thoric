@@ -819,6 +819,13 @@ export const es: Messages = {
   "templates.installed.one": "Instalada",
   "templates.installed.other": "Instalada {count} veces",
   "templates.requires": "Requiere Thoric {version}",
+  "templates.architecture.only": "Solo para {architectures}",
+  "templates.architecture.heading": "Para otras arquitecturas",
+  "templates.architecture.hint":
+    "Estas plantillas descargan programas hechos para otros procesadores, así que no se construyen en este host de Docker, que ejecuta imágenes {architecture}.",
+  "templates.architecture.show.one": "Mostrar {count} plantilla",
+  "templates.architecture.show.other": "Mostrar {count} plantillas",
+  "templates.architecture.hide": "Ocultar",
   "templates.broken.one": "{count} plantilla de la lista no se puede ofrecer",
   "templates.broken.other": "{count} plantillas de la lista no se pueden ofrecer",
   "templates.broken.entry": "la entrada no es un objeto",
@@ -829,6 +836,8 @@ export const es: Messages = {
   "templates.broken.requires": "requires debe ser una versión como 0.5.0",
   "templates.broken.duplicate": "otra plantilla tiene el mismo id",
   "templates.broken.kind": "kind debe ser application o environment",
+  "templates.broken.architectures":
+    "architectures debe tener como máximo {count} nombres de arquitectura de Docker, como amd64 y arm64",
   "templates.merge.start": "Combinar e instalar",
   "templates.merge.go": "Combinar",
   "templates.merge.choose": "Elegir {name}",
@@ -843,6 +852,8 @@ export const es: Messages = {
     "{name} se hizo para {base}. La imagen combinada se construye sobre la base de la primera plantilla, así que compruebe que su script sirve para ese escritorio.",
   "templates.merge.mcpTwice":
     "{first} y {second} declaran el mismo servidor MCP del escritorio, {name}; elige solo una de las dos.",
+  "templates.merge.architecture":
+    "{name} solo se construye en {architectures}, y este host de Docker ejecuta imágenes {architecture}.",
   "dependencies.heading": "Thoric {version}",
   "dependencies.description":
     "Todo aquello con lo que se construye esta versión, tal como lo listó la compilación de la imagen del gestor.",

@@ -115,7 +115,7 @@ The manager and both desktop images are published for `linux/amd64` and `linux/a
 
 What a desktop runs is the same on both architectures, Ubuntu 24.04 with its own packages, with two things to keep in mind:
 
-- Software a template or a script downloads must exist for arm64. A template that installs a program built only for x86_64 fails to build on an ARM host; its script on the templates page says what it downloads.
+- Software a template or a script downloads must exist for arm64. A template that installs a program built only for x86_64 fails to build on an ARM host, so each entry of the template list names the architectures its template builds on, and a template without them counts as x86_64 only. On an ARM host the **Templates** page offers only the templates that name `arm64` and folds the others away under **For other architectures**, without **Install** ([Install a template](USAGE.md#install-a-template)). Most of the wiki's templates download a vendor's x86_64 build, such as Google Chrome or an AppImage, and stay x86_64 only until their scripts pick the arm64 download. A script of your own says what it downloads.
 - An image keeps the architecture it was built on. A saved image, a snapshot, an image archive and the images of a backup from an x86_64 installation do not run on an ARM host, or the other way round, unless the host runs other architectures under emulation, as Docker Desktop can, and then slowly.
 
 ### Raspberry Pi

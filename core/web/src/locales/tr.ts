@@ -816,6 +816,13 @@ export const tr: Messages = {
   "templates.installed.one": "Yüklü",
   "templates.installed.other": "{count} kez yüklendi",
   "templates.requires": "Thoric {version} gerekli",
+  "templates.architecture.only": "Yalnızca {architectures}",
+  "templates.architecture.heading": "Diğer mimariler için",
+  "templates.architecture.hint":
+    "Bu şablonlar başka işlemciler için yapılmış programlar indirir, bu yüzden {architecture} imajları çalıştıran bu Docker ana makinesinde oluşturulamaz.",
+  "templates.architecture.show.one": "{count} şablonu göster",
+  "templates.architecture.show.other": "{count} şablonu göster",
+  "templates.architecture.hide": "Gizle",
   "templates.broken.one": "Listedeki {count} şablon sunulamıyor",
   "templates.broken.other": "Listedeki {count} şablon sunulamıyor",
   "templates.broken.entry": "kayıt bir nesne değil",
@@ -826,6 +833,8 @@ export const tr: Messages = {
   "templates.broken.requires": "requires 0.5.0 gibi bir sürüm olmalı",
   "templates.broken.duplicate": "aynı kimliğe sahip başka bir şablon var",
   "templates.broken.kind": "kind application ya da environment olmalı",
+  "templates.broken.architectures":
+    "architectures en fazla {count} Docker mimari adı içermeli, örneğin amd64 ve arm64",
   "templates.merge.start": "Birleştir ve yükle",
   "templates.merge.go": "Birleştir",
   "templates.merge.choose": "{name} şablonunu seç",
@@ -840,6 +849,8 @@ export const tr: Messages = {
     "{name}, {base} için hazırlandı. Birleştirilen imaj ilk şablonun temeli üzerinde oluşturulur; betiğinin o masaüstüne uyduğunu kontrol edin.",
   "templates.merge.mcpTwice":
     "{first} ve {second} aynı masaüstü MCP sunucusunu ({name}) tanımlıyor; bunlardan yalnızca birini seçin.",
+  "templates.merge.architecture":
+    "{name} yalnızca {architectures} üzerinde oluşturulabilir, bu Docker ana makinesi ise {architecture} imajları çalıştırır.",
   "dependencies.heading": "Thoric {version}",
   "dependencies.description":
     "Bu sürümün üzerine kurulduğu her şey, yönetici imajının derlemesinin listelediği hâliyle.",

@@ -4,8 +4,10 @@ import assert from "node:assert/strict"
 import { composeSteps } from "../src/lib/compose"
 import { dataUrlBytes, iconUrl, readIcon } from "../src/lib/icons"
 import {
+  architecturesOf,
   buildable,
   compareVersions,
+  fits,
   groupByKind,
   loadTemplate,
   matches,
@@ -120,6 +122,41 @@ test("a template needs at least the release it names", () => {
   assert.ok(buildable(unity, "0.5.0") && buildable(unity, "1.0.0"))
   assert.ok(!buildable(unity, "0.4.9"))
   assert.ok(buildable({}, "0.1.0"))
+})
+
+test("an entry names the architectures it builds on, and amd64 when it names none", () => {
+  const list = readTemplateList({
+    templates: [
+      { ...unity, architectures: ["amd64", "arm64", "arm64"] },
+      { id: "pi", name: "Pi only", architectures: ["arm64"] },
+      { id: "node", name: "Node.js" },
+      { id: "empty", name: "Empty", architectures: [] },
+      { id: "word", name: "Word", architectures: "arm64" },
+      { id: "kernel", name: "Kernel names", architectures: ["x86_64"] },
+      { id: "aarch", name: "Kernel names", architectures: ["amd64", "aarch64"] },
+      { id: "many", name: "Many", architectures: Array.from({ length: 9 }, (_, i) => `a${i}`) },
+      { id: "number", name: "Number", architectures: [64] },
+    ],
+  })
+  assert.deepEqual(
+    list.templates.map((template) => [template.id, template.architectures]),
+    [
+      ["unity", ["amd64", "arm64"]],
+      ["pi", ["arm64"]],
+      ["node", undefined],
+    ]
+  )
+  // Misspelled names would leave the template off every host without a word, so they are refused.
+  assert.deepEqual(
+    list.broken.map((entry) => entry.id),
+    ["empty", "word", "kernel", "aarch", "many", "number"]
+  )
+  assert.match(list.broken[0].reason, /amd64 and arm64/)
+  const [both, pi, node] = list.templates
+  assert.deepEqual(architecturesOf(node), ["amd64"])
+  assert.ok(fits(both, "amd64") && fits(both, "arm64"))
+  assert.ok(fits(node, "amd64") && !fits(node, "arm64"))
+  assert.ok(fits(pi, "arm64") && !fits(pi, "amd64"))
 })
 
 test("a template's files sit beside the list", () => {
@@ -255,29 +292,32 @@ const vscode = {
 }
 
 test("merging templates runs each script as a part and each compose as a step", () => {
-  const merged = mergeTemplates([
-    {
-      template: unity,
-      config: {
-        base_image: BASE,
-        script: "install unity",
-        internet: true,
-        compose: step("WORKSPACE", "setup unity"),
-        icon: "data:image/png;base64,AA==",
-        template_id: "unity",
+  const merged = mergeTemplates(
+    [
+      {
+        template: unity,
+        config: {
+          base_image: BASE,
+          script: "install unity",
+          internet: true,
+          compose: step("WORKSPACE", "setup unity"),
+          icon: "data:image/png;base64,AA==",
+          template_id: "unity",
+        },
       },
-    },
-    { template: chrome, config: { base_image: BASE, script: "install chrome", internet: false } },
-    {
-      template: vscode,
-      config: {
-        base_image: BASE,
-        script: "install code",
-        internet: false,
-        compose: step("GIT_NAME", "setup code"),
+      { template: chrome, config: { base_image: BASE, script: "install chrome", internet: false } },
+      {
+        template: vscode,
+        config: {
+          base_image: BASE,
+          script: "install code",
+          internet: false,
+          compose: step("GIT_NAME", "setup code"),
+        },
       },
-    },
-  ])
+    ],
+    "amd64"
+  )
   assert.deepEqual(merged.parts, [
     { id: "unity", name: "Unity Hub", script: "install unity" },
     { id: "chrome", name: "Google Chrome", script: "install chrome" },
@@ -301,10 +341,13 @@ test("merging templates runs each script as a part and each compose as a step", 
 })
 
 test("a merge warns about another base and refuses a template it already has", () => {
-  const merged = mergeTemplates([
-    { template: chrome, config: { base_image: BASE, script: "a" } },
-    { template: vscode, config: { base_image: "example/gnome:1", script: "b" } },
-  ])
+  const merged = mergeTemplates(
+    [
+      { template: chrome, config: { base_image: BASE, script: "a" } },
+      { template: vscode, config: { base_image: "example/gnome:1", script: "b" } },
+    ],
+    "amd64"
+  )
   assert.equal(merged.base_image, BASE)
   assert.match(merged.warnings?.[0] ?? "", /VS Code was made for example\/gnome:1/)
   // A template merged from others brings its parts, so choosing one of them again is refused.
@@ -319,11 +362,11 @@ test("a merge warns about another base and refuses a template it already has", (
     },
   }
   assert.throws(
-    () => mergeTemplates([both, { template: chrome, config: { script: "a" } }]),
+    () => mergeTemplates([both, { template: chrome, config: { script: "a" } }], "amd64"),
     /Google Chrome is in more than one/
   )
   assert.deepEqual(
-    mergeTemplates([both, { template: unity, config: { script: "c" } }]).template_ids,
+    mergeTemplates([both, { template: unity, config: { script: "c" } }], "amd64").template_ids,
     ["chrome-and-code", "chrome", "vscode", "unity"]
   )
 })
@@ -332,35 +375,59 @@ const chromeServer = { name: "chrome", command: "chrome-mcp", args: ["--port", "
 const xServer = { name: "x", url: "http://127.0.0.1:9000/mcp" }
 
 test("a merge writes every template's desktop MCP servers into the image, each name once", () => {
-  const merged = mergeTemplates([
-    { template: chrome, config: { script: "a", mcp: [chromeServer] } },
-    { template: unity, config: { script: "b" } },
-    { template: vscode, config: { script: "c", mcp: [xServer] } },
-  ])
+  const merged = mergeTemplates(
+    [
+      { template: chrome, config: { script: "a", mcp: [chromeServer] } },
+      { template: unity, config: { script: "b" } },
+      { template: vscode, config: { script: "c", mcp: [xServer] } },
+    ],
+    "amd64"
+  )
   assert.deepEqual(merged.mcp, [chromeServer, xServer])
   assert.equal(
-    "mcp" in mergeTemplates([{ template: unity, config: { script: "b" } }]),
+    "mcp" in mergeTemplates([{ template: unity, config: { script: "b" } }], "amd64"),
     false,
     "a merge without servers declares none"
   )
   assert.throws(
     () =>
-      mergeTemplates([
-        { template: chrome, config: { script: "a", mcp: [chromeServer] } },
-        { template: vscode, config: { script: "c", mcp: [xServer, { ...chromeServer }] } },
-      ]),
+      mergeTemplates(
+        [
+          { template: chrome, config: { script: "a", mcp: [chromeServer] } },
+          { template: vscode, config: { script: "c", mcp: [xServer, { ...chromeServer }] } },
+        ],
+        "amd64"
+      ),
     /Google Chrome and VS Code both declare the desktop MCP server chrome/
   )
+})
+
+test("a merge refuses a template that does not build on the Docker host's architecture", () => {
+  const node = { ...vscode, id: "node", name: "Node.js", architectures: ["amd64", "arm64"] }
+  const loaded = [
+    { template: node, config: { script: "a" } },
+    { template: chrome, config: { script: "b" } },
+  ]
+  assert.deepEqual(mergeTemplates(loaded, "amd64").template_ids, ["node", "chrome"])
+  assert.throws(
+    () => mergeTemplates(loaded, "arm64"),
+    /Google Chrome builds only on amd64, and this Docker host runs arm64 images/
+  )
+  const python = { template: { ...node, id: "python", name: "Python" }, config: { script: "c" } }
+  assert.deepEqual(mergeTemplates([loaded[0], python], "arm64").template_ids, ["node", "python"])
 })
 
 test("a merge keeps each template's options with its part, for its own script", () => {
   const wine = { name: "WINE", label: "Wine", default: false }
   const radare2 = { name: "RADARE2", label: "radare2", default: true, mcp: ["chrome"] }
-  const merged = mergeTemplates([
-    { template: chrome, config: { script: "a", mcp: [chromeServer], options: [radare2, wine] } },
-    { template: unity, config: { script: "b" } },
-    { template: vscode, config: { script: "c", options: [wine] } },
-  ])
+  const merged = mergeTemplates(
+    [
+      { template: chrome, config: { script: "a", mcp: [chromeServer], options: [radare2, wine] } },
+      { template: unity, config: { script: "b" } },
+      { template: vscode, config: { script: "c", options: [wine] } },
+    ],
+    "amd64"
+  )
   assert.deepEqual(merged.parts, [
     { id: "chrome", name: "Google Chrome", script: "a", options: [radare2, wine] },
     { id: "unity", name: "Unity Hub", script: "b" },

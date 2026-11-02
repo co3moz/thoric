@@ -1,4 +1,5 @@
-//! Pins down what the settings route tells of the installation's features and their defaults.
+//! Pins down what the settings route tells of the installation's features and their defaults,
+//! and of the Docker host's architecture.
 use crate::router;
 use crate::test_support::app;
 use axum::{body::Body, http::Request};
@@ -13,6 +14,7 @@ async fn the_settings_route_tells_the_features_and_their_defaults() {
         config.wsl_gpu = false;
         config.cuda = false;
         config.sudo = false;
+        config.architecture = "arm64".into();
     }
     let response = router(app)
         .oneshot(
@@ -50,4 +52,6 @@ async fn the_settings_route_tells_the_features_and_their_defaults() {
         body["gpu"],
         serde_json::json!({"routes": [], "unused": [{"route": "dri", "setting": "DRI_GPU", "reason": "unseen"}], "found": null})
     );
+    // The templates page offers only the templates that build on the Docker host's architecture.
+    assert_eq!(body["architecture"], "arm64");
 }
