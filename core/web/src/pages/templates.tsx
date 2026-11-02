@@ -2,7 +2,10 @@ import * as React from "react"
 import {
   RiAlertLine,
   RiApps2Line,
+  RiArrowDownSLine,
+  RiArrowRightSLine,
   RiCheckLine,
+  RiCpuLine,
   RiGitMergeLine,
   RiHammerLine,
   RiRefreshLine,
@@ -48,7 +51,10 @@ import { openDialog } from "@/lib/dialogs"
 import { formatList, formatNumber, plural, t } from "@/lib/i18n"
 import { useImages, useSettings, useTemplates } from "@/lib/queries"
 import {
+  architecturesOf,
   buildable,
+  DEFAULT_ARCHITECTURES,
+  fits,
   groupByKind,
   loadTemplate,
   matches,
@@ -62,15 +68,20 @@ import {
 
 const KIND_ICONS = { application: RiApps2Line, environment: RiTerminalBoxLine }
 
+const GRID =
+  "grid grid-cols-1 gap-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-3 @[100rem]/main:grid-cols-4"
+
 /**
  * One template: its icon, what it is, whether an image was built from it, and Install. A tag the
  * filter offers filters by it, or stops filtering when it is the chosen one. While templates are
- * chosen for a merge, the whole card chooses it and shows where it comes in.
+ * chosen for a merge, the whole card chooses it and shows where it comes in. One this manager
+ * cannot build, for its release or the Docker host's architecture, says why instead of Install.
  */
 function TemplateCard({
   list,
   template,
   version,
+  architecture,
   installed,
   filterTags,
   tag,
@@ -82,6 +93,8 @@ function TemplateCard({
   list: string
   template: Template
   version: string
+  /** The architecture of the images the Docker host runs. */
+  architecture: string
   installed: number
   /** The tags the filter offers. */
   filterTags: Set<string>
@@ -95,7 +108,14 @@ function TemplateCard({
 }) {
   const [busy, setBusy] = React.useState(false)
   const servers = template.mcp ?? []
-  const supported = buildable(template, version)
+  const blocker = !fits(template, architecture)
+    ? t("templates.architecture.only", {
+        architectures: formatList(architecturesOf(template)),
+      })
+    : !buildable(template, version)
+      ? t("templates.requires", { version: template.requires ?? "" })
+      : undefined
+  const supported = blocker === undefined
   const install = async () => {
     setBusy(true)
     try {
@@ -191,9 +211,9 @@ function TemplateCard({
             ) : (
               <span />
             )}
-            {!supported && (
+            {blocker && (
               <Badge variant="outline" className="border-warning/40 text-warning">
-                {t("templates.requires", { version: template.requires ?? "" })}
+                {blocker}
               </Badge>
             )}
           </>
@@ -225,7 +245,7 @@ function TemplateCard({
           </Button>
         ) : (
           <Badge variant="outline" className="border-warning/40 text-warning">
-            {t("templates.requires", { version: template.requires ?? "" })}
+            {blocker}
           </Badge>
         )}
       </CardFooter>
@@ -261,9 +281,63 @@ function TemplateSection({
           )}
         </div>
       )}
-      <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-3 @[100rem]/main:grid-cols-4">
-        {children}
+      <div className={GRID}>{children}</div>
+    </section>
+  )
+}
+
+/**
+ * The templates that do not build on the Docker host's architecture, below the others and folded
+ * until asked for, since none of them can be installed here.
+ */
+function OtherArchitectures({
+  architecture,
+  count,
+  children,
+}: {
+  architecture: string
+  count: number
+  children: React.ReactNode
+}) {
+  const [open, setOpen] = React.useState(false)
+  const id = "templates-other-architectures"
+  return (
+    <section aria-labelledby={id} className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <h3 id={id} className="flex items-center gap-2 text-sm font-medium">
+            <ConceptIcon concept="template" icon={RiCpuLine} className="size-4 shrink-0" />
+            {t("templates.architecture.heading")}
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            {t("templates.architecture.hint", { architecture })}
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          aria-expanded={open}
+          aria-controls={`${id}-cards`}
+          onClick={() => setOpen(!open)}
+        >
+          {open ? (
+            <RiArrowDownSLine data-icon="inline-start" />
+          ) : (
+            <RiArrowRightSLine data-icon="inline-start" />
+          )}
+          {open
+            ? t("templates.architecture.hide")
+            : plural(count, {
+                one: "templates.architecture.show.one",
+                other: "templates.architecture.show.other",
+              })}
+        </Button>
       </div>
+      {open && (
+        <div id={`${id}-cards`} className={GRID}>
+          {children}
+        </div>
+      )}
     </section>
   )
 }
@@ -307,14 +381,22 @@ export function TemplatesPage() {
   const shown = all.filter(
     (template) => matches(template, search) && (!tag || template.tags.includes(tag))
   )
-  // Search and tags narrow every section alike; a list of one kind shows no headings.
-  const groups = groupByKind(shown)
-  const sectioned = React.useMemo(() => groupByKind(all).length > 1, [all])
+  const architecture = settings?.architecture ?? DEFAULT_ARCHITECTURES[0]
+  // Templates for another architecture go below the others, apart from their kinds. Search and
+  // tags narrow every section alike; a list of one section shows no headings.
+  const groups = groupByKind(shown.filter((template) => fits(template, architecture)))
+  const elsewhere = shown.filter((template) => !fits(template, architecture))
+  const sectioned = React.useMemo(() => {
+    const here = all.filter((template) => fits(template, architecture))
+    return groupByKind(here).length + (here.length < all.length ? 1 : 0) > 1
+  }, [all, architecture])
   const installed = (id: string) =>
     images.filter((image) => image.template_ids?.includes(id)).length
   const source = list ? new URL(list).host : ""
   const version = settings?.version ?? "0.0.0"
-  const mergeable = all.filter((template) => buildable(template, version)).length >= 2
+  const mergeable =
+    all.filter((template) => buildable(template, version) && fits(template, architecture)).length >=
+    2
   // Choosing templates to merge: their ids in the order they were chosen, which is the order
   // their scripts run in.
   const [choosing, setChoosing] = React.useState(false)
@@ -338,7 +420,7 @@ export function TemplatesPage() {
         }))
       )
       // As for one template; advanced editing shows every script the merge runs.
-      openDialog({ kind: "build", config: mergeTemplates(loaded), simple: true })
+      openDialog({ kind: "build", config: mergeTemplates(loaded, architecture), simple: true })
       stopChoosing()
     } catch (error) {
       toast.error((error as Error).message)
@@ -346,6 +428,23 @@ export function TemplatesPage() {
       setMerging(false)
     }
   }
+  const card = (template: Template) =>
+    list && (
+      <TemplateCard
+        key={template.id}
+        list={list}
+        template={template}
+        version={version}
+        architecture={architecture}
+        installed={installed(template.id)}
+        filterTags={filterTags}
+        tag={tag}
+        onTag={toggleTag}
+        choosing={choosing}
+        order={chosen.indexOf(template.id) + 1}
+        onChoose={() => choose(template.id)}
+      />
+    )
 
   return (
     <PageBody>
@@ -479,27 +578,18 @@ export function TemplatesPage() {
                 <EmptyDescription>{t("templates.noneHint")}</EmptyDescription>
               </EmptyHeader>
             </Empty>
-          ) : groups.length ? (
+          ) : groups.length || elsewhere.length ? (
             <div className="flex flex-col gap-6">
               {groups.map((group) => (
                 <TemplateSection key={group.kind} kind={group.kind} heading={sectioned}>
-                  {group.templates.map((template) => (
-                    <TemplateCard
-                      key={template.id}
-                      list={list}
-                      template={template}
-                      version={version}
-                      installed={installed(template.id)}
-                      filterTags={filterTags}
-                      tag={tag}
-                      onTag={toggleTag}
-                      choosing={choosing}
-                      order={chosen.indexOf(template.id) + 1}
-                      onChoose={() => choose(template.id)}
-                    />
-                  ))}
+                  {group.templates.map(card)}
                 </TemplateSection>
               ))}
+              {elsewhere.length > 0 && (
+                <OtherArchitectures architecture={architecture} count={elsewhere.length}>
+                  {elsewhere.map(card)}
+                </OtherArchitectures>
+              )}
             </div>
           ) : (
             <p className="py-12 text-center text-sm text-muted-foreground">

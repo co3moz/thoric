@@ -420,6 +420,8 @@ export type Settings = {
   archive_limit_bytes: number
   /** The template list the templates page reads, or `null` when the page is turned off. */
   templates_url: string | null
+  /** The architecture of the images the Docker host runs, such as `amd64` or `arm64`. */
+  architecture?: string
   /** The label a volume needs to be listed and mounted, or `null` when every volume is. */
   volume_filter: string | null
   /** Whether the root /mcp answers agents (ROOT_MCP_ENABLED); MCP endpoints answer either way. */

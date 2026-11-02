@@ -830,6 +830,13 @@ export const de: Messages = {
   "templates.installed.one": "Installiert",
   "templates.installed.other": "{count}-mal installiert",
   "templates.requires": "Benötigt Thoric {version}",
+  "templates.architecture.only": "Nur für {architectures}",
+  "templates.architecture.heading": "Für andere Architekturen",
+  "templates.architecture.hint":
+    "Diese Vorlagen laden Programme für andere Prozessoren herunter und lassen sich daher auf diesem Docker-Host, der {architecture}-Images ausführt, nicht bauen.",
+  "templates.architecture.show.one": "{count} Vorlage zeigen",
+  "templates.architecture.show.other": "{count} Vorlagen zeigen",
+  "templates.architecture.hide": "Ausblenden",
   "templates.broken.one": "{count} Vorlage der Liste kann nicht angeboten werden",
   "templates.broken.other": "{count} Vorlagen der Liste können nicht angeboten werden",
   "templates.broken.entry": "der Eintrag ist kein Objekt",
@@ -840,6 +847,8 @@ export const de: Messages = {
   "templates.broken.requires": "requires muss eine Version wie 0.5.0 sein",
   "templates.broken.duplicate": "eine andere Vorlage hat dieselbe ID",
   "templates.broken.kind": "kind muss application oder environment sein",
+  "templates.broken.architectures":
+    "architectures darf höchstens {count} Architekturnamen von Docker enthalten, etwa amd64 und arm64",
   "templates.merge.start": "Zusammenführen und installieren",
   "templates.merge.go": "Zusammenführen",
   "templates.merge.choose": "{name} auswählen",
@@ -854,6 +863,8 @@ export const de: Messages = {
     "{name} wurde für {base} erstellt. Das zusammengeführte Image wird auf der Basis der ersten Vorlage gebaut; prüfen Sie, ob sein Skript zu diesem Desktop passt.",
   "templates.merge.mcpTwice":
     "{first} und {second} deklarieren beide den Desktop-MCP-Server {name}; wählen Sie nur eine der beiden Vorlagen.",
+  "templates.merge.architecture":
+    "{name} lässt sich nur auf {architectures} bauen, und dieser Docker-Host führt {architecture}-Images aus.",
   "dependencies.heading": "Thoric {version}",
   "dependencies.description":
     "Alles, woraus diese Version gebaut ist, so wie der Build ihres Manager-Images es aufgelistet hat.",

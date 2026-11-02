@@ -164,13 +164,16 @@ templates/<id>.png     its icon, at most 256 by 256 pixels
       "name": "Node.js",
       "description": "Node.js LTS with npm for building and testing JavaScript.",
       "tags": ["javascript"],
-      "kind": "environment"
+      "kind": "environment",
+      "architectures": ["amd64", "arm64"]
     }
   ]
 }
 ```
 
 `id` is lowercase letters, digits and dashes, up to 64, and names the two files. `name` is 1 to 100 characters, `description` at most 500 and `tags` at most eight short texts. `kind` is `application`, the default, or `environment` for a language toolchain or another environment meant to be merged with an application; the page shows environments in a section of their own below the applications and refuses any other value. Releases before the field show every entry with the applications, so an environment needs no `requires` for it. `requires` is the oldest release that can build the template: set it when the template uses something newer than an installed release understands, such as a new compose parameter type, since that release would refuse the build. A release older than `requires` shows the template without **Install**.
+
+`architectures` names the architectures of the Docker hosts the template builds on, as Docker names them: `amd64` for x86_64 and `arm64` for a Raspberry Pi or a Mac's Docker Desktop, at most eight. Without it the template counts as `amd64` only, since every template before the field was written and tried on x86_64. The page compares the list with `architecture` in `/api/settings` and shows a template that leaves the host's out in a folded section of its own, without **Install**, and **Merge and install** refuses it. Name `arm64` only once every download of the script has a build for it that the script picks, such as through `dpkg --print-architecture`, and the build has run on an arm64 host or under QEMU, as [building from source](#build-and-run-from-source) describes; a download made for x86_64 alone, such as Google Chrome's `.deb`, keeps a template `amd64` only. Releases before the field show every template on every host.
 
 To make a template, build the image in the dashboard with **Build image**, give it its compose, description and icon, create a container from it and check that the setup works. Then **Export configuration** copies exactly the JSON `<id>.json` holds. Its `icon` line can be dropped, since the page takes the icon from `<id>.png`; the line is used only when that file is missing. Save the icon at 256 by 256 pixels.
 

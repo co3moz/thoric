@@ -830,6 +830,13 @@ export const en = {
   "templates.installed.one": "Installed",
   "templates.installed.other": "Installed {count} times",
   "templates.requires": "Needs Thoric {version}",
+  "templates.architecture.only": "For {architectures} only",
+  "templates.architecture.heading": "For other architectures",
+  "templates.architecture.hint":
+    "These templates download programs made for other processors, so they do not build on this Docker host, which runs {architecture} images.",
+  "templates.architecture.show.one": "Show {count} template",
+  "templates.architecture.show.other": "Show {count} templates",
+  "templates.architecture.hide": "Hide",
   "templates.broken.one": "{count} template in the list cannot be offered",
   "templates.broken.other": "{count} templates in the list cannot be offered",
   "templates.broken.entry": "the entry is not an object",
@@ -840,6 +847,8 @@ export const en = {
   "templates.broken.requires": "requires must be a version such as 0.5.0",
   "templates.broken.duplicate": "another template has the same id",
   "templates.broken.kind": "kind must be application or environment",
+  "templates.broken.architectures":
+    "architectures must be at most {count} of Docker's architecture names, such as amd64 and arm64",
   "templates.merge.start": "Merge and install",
   "templates.merge.go": "Merge",
   "templates.merge.choose": "Choose {name}",
@@ -854,6 +863,8 @@ export const en = {
     "{name} was made for {base}. The merged image is built on the first template's base, so check that its script suits that desktop.",
   "templates.merge.mcpTwice":
     "{first} and {second} both declare the desktop MCP server {name}; choose only one of them.",
+  "templates.merge.architecture":
+    "{name} builds only on {architectures}, and this Docker host runs {architecture} images.",
 
   "dependencies.heading": "Thoric {version}",
   "dependencies.description":

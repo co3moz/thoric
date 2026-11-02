@@ -828,6 +828,13 @@ export const fr: Messages = {
   "templates.installed.one": "Installé",
   "templates.installed.other": "Installé {count} fois",
   "templates.requires": "Nécessite Thoric {version}",
+  "templates.architecture.only": "Pour {architectures} uniquement",
+  "templates.architecture.heading": "Pour d'autres architectures",
+  "templates.architecture.hint":
+    "Ces modèles téléchargent des programmes conçus pour d'autres processeurs : ils ne se construisent donc pas sur cet hôte Docker, qui exécute des images {architecture}.",
+  "templates.architecture.show.one": "Afficher {count} modèle",
+  "templates.architecture.show.other": "Afficher {count} modèles",
+  "templates.architecture.hide": "Masquer",
   "templates.broken.one": "{count} modèle de la liste ne peut pas être proposé",
   "templates.broken.other": "{count} modèles de la liste ne peuvent pas être proposés",
   "templates.broken.entry": "l'entrée n'est pas un objet",
@@ -839,6 +846,8 @@ export const fr: Messages = {
   "templates.broken.requires": "requires doit être une version comme 0.5.0",
   "templates.broken.duplicate": "un autre modèle a le même identifiant",
   "templates.broken.kind": "kind doit être application ou environment",
+  "templates.broken.architectures":
+    "architectures doit contenir au plus {count} noms d'architecture de Docker, comme amd64 et arm64",
   "templates.merge.start": "Fusionner et installer",
   "templates.merge.go": "Fusionner",
   "templates.merge.choose": "Choisir {name}",
@@ -853,6 +862,8 @@ export const fr: Messages = {
     "{name} a été conçu pour {base}. L'image fusionnée est construite sur la base du premier modèle ; vérifiez que son script convient à ce bureau.",
   "templates.merge.mcpTwice":
     "{first} et {second} déclarent tous deux le serveur MCP du bureau {name} ; choisissez un seul des deux.",
+  "templates.merge.architecture":
+    "{name} ne se construit que sur {architectures}, et cet hôte Docker exécute des images {architecture}.",
   "dependencies.heading": "Thoric {version}",
   "dependencies.description":
     "Tout ce à partir de quoi cette version est construite, tel que l'a listé la construction de l'image du gestionnaire.",
