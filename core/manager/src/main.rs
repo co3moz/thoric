@@ -34,6 +34,7 @@ mod layers;
 mod lifecycle;
 mod mcp;
 mod media;
+mod metrics;
 mod model;
 mod mount_parents;
 mod ocr;
@@ -110,6 +111,8 @@ pub struct App {
     outbound: outbound::Outbound,
     /// When each container was last used, for its lifecycle's idle stop, in memory only.
     lifecycle: lifecycle::Activity,
+    /// What `/metrics` counts since the manager started.
+    metrics: metrics::Metrics,
 }
 /// The interface's content security policy. The templates page reads its list, the templates
 /// and their icons from another host, which is the one exception to `'self'`. No page needs a
@@ -392,6 +395,8 @@ fn router(app: Arc<App>) -> Router {
         )
         .route("/healthz", get(|| async { "ok" }))
         .route("/readyz", get(health::ready))
+        // Prometheus holds no session: METRICS_TOKEN opens it, and nothing while it is unset.
+        .route("/metrics", get(metrics::serve))
         .fallback_service(ServeDir::new(&app.config.web).append_index_html_on_directories(true))
         .layer(axum::extract::DefaultBodyLimit::max(1_100_000))
         .layer(middleware::from_fn_with_state(
@@ -540,6 +545,7 @@ async fn main() -> anyhow::Result<()> {
         human: human::Requests::default(),
         outbound: outbound::Outbound::default(),
         lifecycle: lifecycle::Activity::default(),
+        metrics: metrics::Metrics::default(),
     });
     usage::spawn(app.clone());
     events::docker::spawn(app.clone());

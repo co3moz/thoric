@@ -460,6 +460,7 @@ impl Call {
         error: Option<String>,
         job_id: Option<String>,
     ) {
+        app.metrics.called(self.source, &self.tool, outcome);
         let entry = self.entry(outcome, error, job_id);
         // The arguments stay out of the manager's log, which more people may read than the dashboard.
         let caller = match &entry.endpoint {

@@ -1,6 +1,7 @@
 //! Pins down the numbers a stats message becomes: Docker's own CPU formula measured against the
 //! host's CPUs, memory without the page cache on both cgroup versions, per-second rates from two
-//! messages, and Docker's timestamps read to the nanosecond.
+//! messages, the counters `/metrics` reports as Docker gives them, and Docker's timestamps read to
+//! the nanosecond.
 use super::*;
 use serde_json::json;
 
@@ -188,4 +189,34 @@ fn docker_timestamps_are_read_to_the_nanosecond_with_their_offset() {
     ] {
         assert_eq!(unix_nanos(invalid), None, "{invalid}");
     }
+}
+
+#[test]
+fn the_counters_are_docker_s_own_since_the_container_started() {
+    let mut sent = message(
+        "2026-10-16T09:30:00.000000000Z",
+        2_500_000_000,
+        108_000_000_000,
+        (4096, 8192),
+        (300, 200),
+    );
+    sent["pids_stats"] = json!({"current": 42, "limit": 16384});
+    let current = reading(&sent).unwrap();
+    assert_eq!(
+        counters(&current, &sent),
+        Counters {
+            cpu_time: 2_500_000_000,
+            cpu: cores(&current),
+            memory: 800 << 20,
+            memory_limit: 4 << 30,
+            disk_read: 4096,
+            disk_write: 8192,
+            net_rx: 300,
+            net_tx: 200,
+            pids: Some(42),
+        }
+    );
+    // A daemon that counts no processes says nothing about them.
+    sent["pids_stats"] = json!({});
+    assert_eq!(counters(&current, &sent).pids, None);
 }

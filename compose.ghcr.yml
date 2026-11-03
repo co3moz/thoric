@@ -30,6 +30,7 @@ services:
       MCP_ENABLED: ${MCP_ENABLED:-}
       MCP_TOKEN: ${MCP_TOKEN:-}
       MCP_AUTH_MODE: ${MCP_AUTH_MODE:-token}
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
       SECURE_COOKIE: ${SECURE_COOKIE:-false}
       DESKTOP_IMAGE: ${DESKTOP_IMAGE:-ghcr.io/co3moz/thoric/ubuntu-xfce:24.04}
       WSL_GPU: ${WSL_GPU:-true}

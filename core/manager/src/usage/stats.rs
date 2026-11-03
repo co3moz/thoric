@@ -35,6 +35,39 @@ pub(crate) struct Measure {
     pub net_tx: f32,
 }
 
+/// What `/metrics` reports of a container from its latest stats message: Docker's counters since
+/// the container started, and its CPU and memory at that moment.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(crate) struct Counters {
+    /// CPU time since the container started, in nanoseconds.
+    pub cpu_time: u64,
+    /// Cores in use since Docker's previous reading, as [`cores`] counts them.
+    pub cpu: f32,
+    pub memory: u64,
+    pub memory_limit: u64,
+    pub disk_read: u64,
+    pub disk_write: u64,
+    pub net_rx: u64,
+    pub net_tx: u64,
+    /// Processes and threads, where Docker counts them.
+    pub pids: Option<u64>,
+}
+
+/// The counters of `reading`, with the processes its `message` names.
+pub(crate) fn counters(reading: &Reading, message: &Value) -> Counters {
+    Counters {
+        cpu_time: reading.cpu,
+        cpu: cores(reading),
+        memory: reading.memory,
+        memory_limit: reading.memory_limit,
+        disk_read: reading.disk_read,
+        disk_write: reading.disk_write,
+        net_rx: reading.net_rx,
+        net_tx: reading.net_tx,
+        pids: message["pids_stats"]["current"].as_u64(),
+    }
+}
+
 /// The counters of a message, or `None` for the empty one Docker sends while a container is not
 /// running, which carries no host CPU time.
 pub(crate) fn reading(message: &Value) -> Option<Reading> {

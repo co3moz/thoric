@@ -423,6 +423,7 @@ pub(crate) fn finish(
     }
     app.events
         .job(&job, reported.as_ref().err().map(String::as_str));
+    app.metrics.job_ended(&job.kind, &job.status);
     if let Err(e) = app.db.prune_jobs(KEPT_JOBS) {
         tracing::debug!("Job history: {e:#}");
     }
