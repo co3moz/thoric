@@ -74,6 +74,7 @@ impl Scope {
                 "inspect_ui",
                 "find_text",
                 "wait_for_condition",
+                "get_clipboard",
             ],
             // Asking a person for help changes nothing in the container, and the agents that
             // need it are those that drive its screen.
@@ -84,6 +85,7 @@ impl Scope {
                 "set_window_geometry",
                 "gamepad_input",
                 "request_human",
+                "set_clipboard",
             ],
             Scope::Applications => &[
                 "launch_application",

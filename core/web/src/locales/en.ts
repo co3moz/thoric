@@ -1642,10 +1642,10 @@ export const en = {
   "mcp.servers.none": "none",
   "mcp.scope.view": "View",
   "mcp.scope.view.description":
-    "Screenshots, windows, the accessibility tree, waits, status and logs.",
+    "Screenshots, windows, the accessibility tree, reading the clipboard, waits, status and logs.",
   "mcp.scope.input": "Input",
   "mcp.scope.input.description":
-    "Mouse, keyboard, window placement, the gamepad and asking a person for help.",
+    "Mouse, keyboard, setting and pasting the clipboard, window placement, the gamepad and asking a person for help.",
   "mcp.scope.applications": "Applications",
   "mcp.scope.applications.description":
     "Launch and stop applications, and read their logs and metrics.",

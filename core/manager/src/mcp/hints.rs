@@ -35,7 +35,7 @@ pub(super) const IDEMPOTENT: [&str; 24] = [
 ];
 
 /// Every tool's title.
-pub(super) const TITLES: [(&str, &str); 80] = [
+pub(super) const TITLES: [(&str, &str); 82] = [
     ("get_settings", "Read installation settings"),
     ("get_system", "Check the Docker host"),
     ("pull_image", "Download a catalog image"),
@@ -99,6 +99,8 @@ pub(super) const TITLES: [(&str, &str); 80] = [
     ("export_artifacts", "Export recordings and logs"),
     ("capture_audio", "Record the desktop's sound"),
     ("inject_audio", "Play sound into the desktop"),
+    ("get_clipboard", "Read the desktop's clipboard"),
+    ("set_clipboard", "Set or paste the desktop's clipboard"),
     ("open_terminal", "Open a terminal"),
     ("list_terminals", "List terminals"),
     ("terminal_input", "Type into a terminal"),

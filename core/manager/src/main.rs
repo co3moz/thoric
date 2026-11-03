@@ -7,6 +7,7 @@ mod auth;
 mod backup;
 mod capture;
 mod catalog;
+mod clipboard;
 mod compose;
 mod config;
 mod db;
@@ -181,6 +182,10 @@ fn router(app: Arc<App>) -> Router {
         )
         .route("/api/containers/{id}/audio-capture", post(audio::capture))
         .route("/api/containers/{id}/audio-inject", post(audio::inject))
+        .route(
+            "/api/containers/{id}/clipboard",
+            get(clipboard::get).put(clipboard::set),
+        )
         .route(
             "/api/containers/{id}/terminals",
             get(terminal::list).post(terminal::open),

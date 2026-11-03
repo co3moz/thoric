@@ -1648,10 +1648,10 @@ export const de: Messages = {
   "mcp.servers.none": "keine",
   "mcp.scope.view": "Ansehen",
   "mcp.scope.view.description":
-    "Bildschirmfotos, Fenster, Barrierefreiheitsbaum, Wartebedingungen, Status und Protokolle.",
+    "Bildschirmfotos, Fenster, Barrierefreiheitsbaum, Lesen der Zwischenablage, Wartebedingungen, Status und Protokolle.",
   "mcp.scope.input": "Eingabe",
   "mcp.scope.input.description":
-    "Maus, Tastatur, Fensterplatzierung, Gamepad und die Bitte um menschliche Hilfe.",
+    "Maus, Tastatur, Setzen und Einfügen der Zwischenablage, Fensterplatzierung, Gamepad und die Bitte um menschliche Hilfe.",
   "mcp.scope.applications": "Anwendungen",
   "mcp.scope.applications.description":
     "Anwendungen starten und beenden, ihre Protokolle und Messwerte lesen.",

@@ -84,13 +84,13 @@ An accepted job is not a completed operation. `get_job` reports `queued`, `runni
 
 ## Tools
 
-The server currently exposes 80 tools:
+The server currently exposes 82 tools:
 
 | Work | Tools |
 | --- | --- |
 | Installation | `get_settings`, `get_system`, `get_usage` |
 | Container lifecycle | `list_containers`, `get_container`, `create_container`, `duplicate_container`, `update_container`, `container_action`, `set_internet`, `retry_container`, `reset_container`, `delete_container` |
-| Work inside a container | `exec_container`, `read_file`, `write_file`, `upload_file`, `download_file`, `list_files`, `move_file`, `delete_file`, `screenshot`, `save_screenshot`, `desktop_input`, `act_and_observe`, `wait_for_condition`, `inspect_ui`, `find_text`, `gamepad_input`, `capture_audio`, `inject_audio`, `container_logs`, `container_diagnostics` |
+| Work inside a container | `exec_container`, `read_file`, `write_file`, `upload_file`, `download_file`, `list_files`, `move_file`, `delete_file`, `screenshot`, `save_screenshot`, `desktop_input`, `act_and_observe`, `wait_for_condition`, `inspect_ui`, `find_text`, `gamepad_input`, `capture_audio`, `inject_audio`, `get_clipboard`, `set_clipboard`, `container_logs`, `container_diagnostics` |
 | Interactive terminals | `open_terminal`, `list_terminals`, `terminal_input`, `terminal_output`, `close_terminal` |
 | Applications and windows | `launch_application`, `list_applications`, `get_application`, `application_logs`, `application_diagnostics`, `sample_metrics`, `stop_application`, `list_windows`, `focus_window`, `set_window_geometry` |
 | Recordings and evidence | `start_recording`, `stop_recording`, `list_recordings`, `export_artifacts` |
@@ -200,6 +200,8 @@ Stopping a recording turns its frames into `recording.mp4` beside them, an H.264
 ## Listen, talk, type and press buttons
 
 `capture_audio` records what the desktop plays for up to 10 seconds and returns a WAV audio block plus `peak`, `rms` and `silent`, so an agent can tell whether sound is produced even without listening. With `source=microphone` it records what reaches the desktop's microphone. `inject_audio` plays 16-bit PCM WAV data into the microphone or the speakers to test voice input or playback. Both need audio enabled for the container; the microphone side also needs the microphone option.
+
+`set_clipboard` puts text on the desktop's clipboard, up to 512 KiB of UTF-8 in any language, emoji included, so an application gets a long text in one paste instead of `desktop_input` typing it a key at a time. With `paste=true` it then presses `paste_keys` through the desktop's VNC session, `ctrl+v` by default or `ctrl+shift+v` for a terminal, so one call does the whole paste; focus the field or window first. `selection=primary` sets the text last selected instead, which a middle click pastes, and `both` sets the two. `get_clipboard` reads the clipboard's text back, or with `selection=primary` the text last selected: `text` is null when nothing was copied or the clipboard holds something other than text, such as a picture, `bytes` is its size and `truncated` says it held more than 512 KiB, of which `text` is the start. Both run as the desktop user through GTK 3 in the desktop, and a set leaves a small process there that owns the clipboard and hands the text to every program that pastes it until something else is copied, since an X11 clipboard lives only as long as its owner. A desktop image from before Thoric 0.6.3 can lack GTK 3 for Python, and the tools then answer that they need a current image. The text is not written to the activity log, only its size.
 
 `open_terminal` starts bash on a pseudo-terminal and returns a `terminal_id`; `terminal_input` types text (with Enter by default) and `terminal_output` reads from a byte offset, returning `next_offset` for incremental reads and stripping escape sequences. Use it for installers that ask questions, debuggers and other interactive programs; `close_terminal` hangs up, kills a shell that ignores the hangup, and forgets the terminal with its output. `root=true` opens a root shell and is an explicit administrator choice. Terminal state lives in tmpfs and ends with a desktop restart; `list_terminals` then leaves such terminals out. A shell that exits by itself stays listed, with its output, until it is closed.
 
@@ -344,8 +346,8 @@ An agent on `/mcp` calls a server's tool without an endpoint through `call_mcp_s
 
 | Scope | Tools, bound to that container |
 | --- | --- |
-| `view` | `get_container`, `container_logs`, `container_diagnostics`, `get_usage`, `screenshot`, `list_windows`, `inspect_ui`, `find_text`, `wait_for_condition`, all of them read-only |
-| `input` | `desktop_input`, `act_and_observe`, `focus_window`, `set_window_geometry`, `gamepad_input`, and `request_human`, which changes nothing in the container but asks a person to take over its screen |
+| `view` | `get_container`, `container_logs`, `container_diagnostics`, `get_usage`, `screenshot`, `list_windows`, `inspect_ui`, `find_text`, `wait_for_condition`, `get_clipboard`, all of them read-only |
+| `input` | `desktop_input`, `act_and_observe`, `focus_window`, `set_window_geometry`, `gamepad_input`, `set_clipboard`, and `request_human`, which changes nothing in the container but asks a person to take over its screen |
 | `applications` | `launch_application`, `list_applications`, `get_application`, `application_logs`, `stop_application`, `application_diagnostics`, `sample_metrics` |
 | `files_read` | `list_files`, `read_file`, `download_file` |
 | `files_write` | `write_file`, `upload_file`, `move_file`, `delete_file`, and `save_screenshot`, which writes the image into the desktop |
@@ -389,7 +391,7 @@ A call's kind comes from its tool's annotations: `read` for `readOnlyHint`, `cha
 What is kept of the arguments:
 
 - Every Thoric tool has a list of the arguments whose values are kept: paths, names, IDs, options and limits, a text cut at 256 characters. `exec_container`'s `script`, the first thing to look at, is kept up to its first 4,096 characters, as is `build_image`'s.
-- Every other argument is kept as its type and size only. That covers what `write_file` writes; the base64 of `upload_file`, `inject_audio` and an image icon; compose values in `create_container` and the composes of `build_image` and `set_image_compose`; the `proxy_password` of `create_container` and `update_container`; the arguments, environment and headers of `register_mcp_server` and of the servers `build_image` declares and the environment of `launch_application`; text typed with `desktop_input` or `act_and_observe`, and every key of a single character they press, since a password can be typed a key at a time; and what `terminal_input` types, since a terminal is where a password prompt waits. An argument a later release adds is kept the same way until its tool's list names it.
+- Every other argument is kept as its type and size only. That covers what `write_file` writes; the base64 of `upload_file`, `inject_audio` and an image icon; compose values in `create_container` and the composes of `build_image` and `set_image_compose`; the `proxy_password` of `create_container` and `update_container`; the arguments, environment and headers of `register_mcp_server` and of the servers `build_image` declares and the environment of `launch_application`; text typed with `desktop_input` or `act_and_observe`, and every key of a single character they press, since a password can be typed a key at a time; the text of `set_clipboard`, since a clipboard can hold a password or a token; and what `terminal_input` types, since a terminal is where a password prompt waits. An argument a later release adds is kept the same way until its tool's list names it.
 - A desktop server's tool is opaque to Thoric, so its arguments keep their names and sizes and never their values, whatever the tool is called.
 - An error text loses every masked value it quotes before it is kept.
 
