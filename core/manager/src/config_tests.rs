@@ -110,10 +110,16 @@ fn a_secret_says_only_whether_it_is_set() {
         &mut Vec::new(),
     )
     .unwrap();
+    config.notify = crate::notify::settings(&|key: &str| {
+        (key == "NOTIFY_URL").then(|| "https://ntfy.sh/topic-of-the-phone?token=tk_notify".into())
+    })
+    .unwrap();
     let shown = serde_json::to_string(&config.shown()).unwrap();
     assert!(!shown.contains("stored-password-hash"), "{shown}");
     assert!(!shown.contains("token-of-the-agent-endpoint"), "{shown}");
     assert!(!shown.contains("password-of-the-proxy"), "{shown}");
+    assert!(!shown.contains("topic-of-the-phone"), "{shown}");
+    assert!(!shown.contains("tk_notify"), "{shown}");
     let setting = |config: &Config, name: &str| {
         config
             .shown()
@@ -128,6 +134,11 @@ fn a_secret_says_only_whether_it_is_set() {
     assert_eq!(setting(config, "ADMIN_PASSWORD")["set"], true);
     assert_eq!(setting(config, "PROXY_PASSWORD")["set"], true);
     assert_eq!(setting(config, "PROXY_USERNAME")["value"], "corp");
+    assert_eq!(
+        setting(config, "NOTIFY_URL"),
+        json!({"name": "NOTIFY_URL", "secret": true, "set": true})
+    );
+    assert_eq!(setting(config, "NOTIFY_EVENTS")["value"], "human_request");
     config.mcp_token = None;
     config.password_hash = None;
     assert_eq!(setting(config, "MCP_TOKEN")["set"], false);
@@ -304,6 +315,7 @@ fn the_page_edits_only_the_settings_it_may_change() {
         "MCP_AUTH_MODE",
         "MCP_TOKEN",
         "DESKTOP_HOST",
+        "NOTIFY_URL",
     ] {
         assert!(!EDITABLE.contains(&name), "{name}");
     }

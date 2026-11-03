@@ -398,14 +398,15 @@ pub(crate) async fn request(
     let id = match (ask.message, ask.request_id) {
         (Some(message), None) => {
             let container = app.container(container_id)?;
-            app.human
-                .ask(
-                    &container,
-                    &message,
-                    caller.endpoint.as_deref(),
-                    &app.events,
-                )?
-                .id
+            let request = app.human.ask(
+                &container,
+                &message,
+                caller.endpoint.as_deref(),
+                &app.events,
+            )?;
+            // Asked again, the request still waiting is joined, and its key sends nothing more.
+            crate::notify::send(app, crate::notify::notices::human_request(&request));
+            request.id
         }
         (None, Some(id)) => {
             // Only a request of this container asked through the same endpoint, so an agent

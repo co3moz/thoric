@@ -99,29 +99,38 @@ struct Check {
 
 impl Releases {
     /// Ask GitHub with `ask`, unless a look that ended while this one waited for its turn already
-    /// did: a second click, or the six-hourly look, answers for this one too.
-    pub(crate) async fn check(&self, ask: impl Future<Output = anyhow::Result<String>>) {
+    /// did: a second click, or the six-hourly look, answers for this one too. Returns a release
+    /// newer than this manager that this look is the first to see.
+    pub(crate) async fn check(
+        &self,
+        ask: impl Future<Output = anyhow::Result<String>>,
+    ) -> Option<String> {
         let before = self.last.lock().unwrap().looks;
         let _turn = self.asking.lock().await;
         if self.last.lock().unwrap().looks == before {
-            self.record(ask.await);
+            return self.record(ask.await);
         }
+        None
     }
-    fn record(&self, result: anyhow::Result<String>) {
+    fn record(&self, result: anyhow::Result<String>) -> Option<String> {
         let mut check = self.last.lock().unwrap();
         check.looks += 1;
         check.checked_at = Some(now());
         match result {
             Ok(version) => {
-                if newer(&version, VERSION) && check.newest.as_deref() != Some(version.as_str()) {
+                let seen =
+                    newer(&version, VERSION) && check.newest.as_deref() != Some(version.as_str());
+                if seen {
                     tracing::info!("Thoric {version} is available; this manager is {VERSION}");
                 }
-                check.newest = Some(version);
+                check.newest = Some(version.clone());
                 check.error = None;
+                seen.then_some(version)
             }
             Err(error) => {
                 tracing::debug!("Release check: {error:#}");
                 check.error = Some(format!("{error:#}"));
+                None
             }
         }
     }
@@ -139,10 +148,41 @@ pub(crate) fn spawn(app: Arc<App>) {
     }
     tokio::spawn(async move {
         loop {
-            app.releases.check(newest_release()).await;
+            let seen = app.releases.check(newest_release()).await;
+            announce(&app, seen).await;
             tokio::time::sleep(CHECK_EVERY).await;
         }
     });
+}
+
+/// The release whose notice was sent last, in the manager's data volume, so that a manager that
+/// starts again, as every settings change makes it, does not send it again.
+const ANNOUNCED: &str = "announced-release";
+
+/// Send the notice of a release a look was the first to see, unless one was sent for it before,
+/// also by an earlier manager.
+async fn announce(app: &App, seen: Option<String>) {
+    let Some(version) = seen else {
+        return;
+    };
+    if !crate::notify::wants(app, crate::notify::Kind::UpdateAvailable) {
+        return;
+    }
+    let file = app.config.data.join(ANNOUNCED);
+    if tokio::fs::read_to_string(&file)
+        .await
+        .is_ok_and(|sent| sent.trim() == version)
+    {
+        return;
+    }
+    if let Err(error) = tokio::fs::write(&file, &version).await {
+        tracing::debug!("Could not keep the release announced: {error}");
+    }
+    let notes = format!("{RELEASE_PAGE}{version}");
+    crate::notify::send(
+        app,
+        crate::notify::notices::update_available(&version, &notes),
+    );
 }
 
 async fn newest_release() -> anyhow::Result<String> {
@@ -245,7 +285,8 @@ pub async fn check(State(app): State<Arc<App>>) -> Result<Json<Value>> {
             "Release checks are turned off with UPDATE_CHECK=false".into(),
         ));
     }
-    app.releases.check(newest_release()).await;
+    let seen = app.releases.check(newest_release()).await;
+    announce(&app, seen).await;
     status(State(app)).await
 }
 
