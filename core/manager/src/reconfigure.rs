@@ -41,6 +41,7 @@ const EDITABLE: &[&str] = &[
     "memory_mb",
     "shm_mb",
     "mounts",
+    "lifecycle",
 ];
 
 /// The settings a request changes, split by how they apply.
@@ -69,6 +70,9 @@ pub(crate) fn merged_spec(
                     "The image of an existing container cannot change; a reset recreates the container from its image, and a snapshot can start a new container"
                 );
             }
+        } else if key == "lifecycle" {
+            // Only the fields it names change, so an agent extends an expiry alone.
+            value[key] = serde_json::to_value(current.lifecycle.requested(field, now())?)?;
         } else if EDITABLE.contains(&key.as_str()) {
             value[key] = field.clone();
         } else {
@@ -109,6 +113,8 @@ pub(crate) fn classify(old: &ContainerSpec, new: &ContainerSpec) -> Changes {
     // A group's network is joined and left, and its names given again, in place.
     note(old.groups != new.groups, true, "groups");
     note(old.aliases != new.aliases, true, "aliases");
+    // The manager carries the lifecycle out itself; Docker never sees it.
+    note(old.lifecycle != new.lifecycle, true, "lifecycle");
     // `docker update` changes or adds a limit, but silently ignores a request to remove one.
     note(old.cpus != new.cpus, new.cpus.is_some(), "cpus");
     note(
@@ -230,6 +236,16 @@ impl App {
         let result = json!({"container_id": id, "live": changes.live, "restart": changes.restart});
         if changes.live.is_empty() && changes.restart.is_empty() {
             self.append_log(job_id, "The settings are unchanged.")?;
+            return Ok(result);
+        }
+        // The lifecycle is the manager's alone, so a change of it alone needs nothing of Docker.
+        if changes.restart.is_empty() && changes.live == ["lifecycle"] {
+            env.spec = spec;
+            self.db.put(CONTAINERS, id, &env)?;
+            self.append_log(
+                job_id,
+                "Saved the lifecycle. The container was left as it is.",
+            )?;
             return Ok(result);
         }
         // The desktop's proxy reads the password when it is next given its settings.

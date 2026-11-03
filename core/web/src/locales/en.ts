@@ -75,6 +75,9 @@ export const en = {
   "job.backup": "Back up installation",
   "job.restore": "Restore backup",
 
+  "job.idle-stop": "Stop when idle",
+  "job.expiry-stop": "Stop at expiry",
+  "job.expiry-delete": "Delete at expiry",
   "jobs.target.container": "Container {id}",
   "jobs.target.image": "Image {id}",
   "jobs.log.queued": "Waiting to start…",
@@ -1118,6 +1121,8 @@ export const en = {
   "settings.about.GAMEPAD_DEFAULT":
     "Whether a new container gets the virtual gamepad unless it asks otherwise.",
   "settings.about.VPN_DEFAULT": "Whether a new container gets VPN access unless it asks otherwise.",
+  "settings.about.IDLE_STOP_DEFAULT":
+    "Minutes a new container's desktop may go unused before it is stopped, unless it asks otherwise; 0 for never.",
   "settings.about.PROXY_URL":
     "The proxy that containers following the installation's go through: http://, https:// or socks5:// with a host and a port. Empty for none.",
   "settings.about.PROXY_USERNAME": "The proxy's user name, when it asks for one.",
@@ -1156,7 +1161,7 @@ export const en = {
   "settings.about.NOTIFY_URL":
     "Where notices go: ntfy, Discord, Slack, Telegram or a JSON webhook. It holds credentials, so it changes only in .env, with thoric settings.",
   "settings.about.NOTIFY_EVENTS":
-    "What is sent: human_request, job_failed and update_available, separated by commas.",
+    "What is sent: human_request, job_failed, update_available and container_lifecycle, separated by commas.",
   "settings.about.DASHBOARD_URL":
     "The address you reach the dashboard at, so a notice links to the desktop that needs you.",
   "settings.section.notifications": "Notifications",
@@ -1173,6 +1178,7 @@ export const en = {
   "notify.event.human_request": "Requests for a person",
   "notify.event.job_failed": "Failed jobs",
   "notify.event.update_available": "New releases",
+  "notify.event.container_lifecycle": "Automatic stops and deletes",
   "notify.noLink": "Without DASHBOARD_URL a notice does not link to the dashboard.",
   "notify.test": "Send test notification",
   "notify.allTook": "Every address took the test notice.",
@@ -1388,6 +1394,34 @@ export const en = {
   "tagInput.clear": "Clear",
   "tagInput.new": "New",
 
+  "lifecycle.title": "Lifecycle",
+  "lifecycle.description":
+    "Thoric stops or deletes the container by itself. A change applies without a restart.",
+  "lifecycle.idle": "Stop when unused for (minutes)",
+  "lifecycle.idleHint": "Viewers, jobs, agents and a busy CPU count as use. Empty for never.",
+  "lifecycle.never": "Never",
+  "lifecycle.expires": "Expires",
+  "lifecycle.expiresHint": "Empty for never.",
+  "lifecycle.onExpiry": "At expiry",
+  "lifecycle.onExpiry.stop": "Stop",
+  "lifecycle.onExpiry.delete": "Delete",
+  "lifecycle.onExpiry.stopHint": "The container stays, and its expiry is cleared.",
+  "lifecycle.onExpiry.deleteHint": "The container and its files are deleted, as Delete does.",
+  "lifecycle.deleteVolumes": "Also delete the volumes created for it",
+  "lifecycle.badge.idle": "Stops after {duration} idle",
+  "lifecycle.badge.idleStops": "Idle, stopping {time}",
+  "lifecycle.badge.idleUnused":
+    "Nothing uses the desktop; Thoric stops it after {duration} without use.",
+  "lifecycle.badge.idleInUse": "In use. Thoric stops the desktop after {duration} without use.",
+  "lifecycle.badge.idleStopped":
+    "While it runs, Thoric stops the desktop after {duration} without use.",
+  "lifecycle.badge.expiring": "Expiring now",
+  "lifecycle.badge.expires": "Expires {time}",
+  "lifecycle.badge.deleted": "Deleting {time}",
+  "lifecycle.badge.stoppedAt": "Thoric stops it at {date} and clears its expiry.",
+  "lifecycle.badge.deletedAt": "Thoric deletes it at {date}; its volumes stay.",
+  "lifecycle.badge.deletedAtVolumes":
+    "Thoric deletes it at {date}, with the volumes created for it.",
   "identity.title": "Machine identity",
   "identity.description":
     "What software in the desktop, such as a license bound to one machine, sees of the machine. Resets and settings changes keep it. Change it only to take over the identity of a container this one replaces.",

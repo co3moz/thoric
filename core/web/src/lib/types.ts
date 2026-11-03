@@ -38,6 +38,22 @@ export type ContainerSpec = {
   memory_mb: number | null
   shm_mb: number
   mounts: Mount[]
+  /** When Thoric stops or deletes the container by itself; absent before a container exists. */
+  lifecycle?: Lifecycle
+}
+
+/** What an expired container becomes. */
+export type OnExpiry = "stop" | "delete"
+
+/** A container's lifecycle policy, as the manager keeps it. */
+export type Lifecycle = {
+  /** Minutes the desktop may go unused before it is stopped; 0 never. */
+  idle_stop_minutes: number
+  /** When the container expires, in Unix seconds; `null` never. */
+  expires_at: number | null
+  on_expiry: OnExpiry
+  /** With `on_expiry` delete, the volumes created for it go too. */
+  delete_volumes: boolean
 }
 
 /** What an image's labels say about its desktop; `catalog_id` names the catalog image it derives from. */
@@ -152,6 +168,13 @@ export type ContainerItem = Container & {
   status: string | null
   /** Whether its VNC server stays in its private network, away from its groups; `null` without a container. */
   vnc_private?: boolean | null
+  /** Whether something uses its running desktop now, which its idle stop waits for. */
+  in_use?: boolean
+  /**
+   * When its idle stop comes if nothing uses it from now on, in Unix seconds, a whole idle time
+   * ahead while it is in use; `null` without one or while it is stopped.
+   */
+  idle_stop_at?: number | null
 }
 
 /**
@@ -437,7 +460,10 @@ export type Settings = {
   defaults?: Record<
     "gpu" | "internet" | "sudo" | "audio" | "microphone" | "gamepad" | "vpn",
     boolean
-  >
+  > & {
+    /** The idle stop a new container gets, in minutes; 0 never (IDLE_STOP_DEFAULT). */
+    idle_stop_minutes?: number
+  }
 }
 
 /** `GET update`: this release, the newest one and whether the dashboard can update to it. */

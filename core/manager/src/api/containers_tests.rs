@@ -143,6 +143,7 @@ fn a_create_request_gets_the_installations_defaults_for_the_features_it_leaves_o
         microphone: true,
         gamepad: true,
         vpn: true,
+        idle_stop_minutes: 0,
     };
     let config = &*config;
     let request = |body: Value| creation_request(config, body).unwrap().spec;
@@ -178,6 +179,7 @@ fn a_switched_off_feature_is_never_a_default_and_stored_records_keep_theirs() {
         microphone: true,
         gamepad: true,
         vpn: true,
+        idle_stop_minutes: 0,
     };
     config.wsl_gpu = false;
     config.cuda = false;

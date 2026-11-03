@@ -90,7 +90,12 @@ pub async fn proxy(State(app): State<Arc<App>>, request: Request) -> Response {
         Ok::<_, Error>((open(&app, route.id, port).await?, port))
     };
     match target.await {
-        Ok((address, port)) => forward(address, port, request).await,
+        Ok((address, port)) => {
+            // A service of the desktop in use is the desktop in use, until its answer has been
+            // sent or a WebSocket it keeps open closes.
+            let using = route(&path).map(|route| app.lifecycle.open(route.id));
+            forward(address, port, request, using).await
+        }
         Err(error) => error.into_response(),
     }
 }
@@ -116,7 +121,13 @@ async fn open(app: &App, id: &str, port: u16) -> Result<SocketAddr> {
 
 /// Send `request` to the service at `address` and stream its answer back as it arrives. When the
 /// service switches protocols, as a WebSocket handshake does, the two connections are joined.
-pub(crate) async fn forward(address: SocketAddr, port: u16, mut request: Request) -> Response {
+/// `using` lasts until the answer has been sent or the joined connections close.
+pub(crate) async fn forward(
+    address: SocketAddr,
+    port: u16,
+    mut request: Request,
+    mut using: Option<crate::lifecycle::InUse>,
+) -> Response {
     let Some(route) = route(request.uri().path()) else {
         return crate::error::missing().into_response();
     };
@@ -175,7 +186,9 @@ pub(crate) async fn forward(address: SocketAddr, port: u16, mut request: Request
             .into_response();
         };
         let service = hyper::upgrade::on(&mut response);
+        let joined = using.take();
         tokio::spawn(async move {
+            let _using = joined;
             match tokio::try_join!(client, service) {
                 Ok((client, service)) => {
                     let _ = tokio::io::copy_bidirectional(
@@ -208,10 +221,14 @@ pub(crate) async fn forward(address: SocketAddr, port: u16, mut request: Request
         || status.is_informational()
         || status == StatusCode::NO_CONTENT
         || status == StatusCode::NOT_MODIFIED;
-    if mcp && !bodiless {
+    let response = if mcp && !bodiless {
         mcp::chunked(response)
     } else {
         response
+    };
+    match using {
+        Some(using) => crate::lifecycle::lasting(response, using),
+        None => response,
     }
 }
 

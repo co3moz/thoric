@@ -266,6 +266,8 @@ pub(crate) struct Call {
     arguments: Map<String, Value>,
     /// Refused before its tool ran, although the answer is a tool error the agent can correct.
     refused: bool,
+    /// The call uses its container until it is recorded (see `lifecycle`).
+    using: Option<crate::lifecycle::InUse>,
 }
 
 impl Call {
@@ -292,6 +294,7 @@ impl Call {
                 .map_or(Kind::Change, |tool| Kind::of(tool.annotations.as_ref())),
             arguments,
             refused: false,
+            using: None,
         };
         call.on_container(app, container);
         call
@@ -329,17 +332,20 @@ impl Call {
             kind,
             arguments,
             refused: false,
+            using: None,
         };
         call.on_container(app, container);
         call
     }
 
-    /// The container the call works on, with its name as it is now.
+    /// The container the call works on, with its name as it is now. The call uses it until it
+    /// is recorded.
     pub(crate) fn on_container(&mut self, app: &App, id: Option<String>) {
-        self.container_name = id
-            .as_deref()
-            .and_then(|id| app.container(id).ok())
-            .map(|container| container.spec.name);
+        let container = id.as_deref().and_then(|id| app.container(id).ok());
+        self.using = container
+            .as_ref()
+            .map(|container| app.lifecycle.open(&container.id));
+        self.container_name = container.map(|container| container.spec.name);
         self.container_id = id.map(|id| clip(&id, NAME));
     }
 
