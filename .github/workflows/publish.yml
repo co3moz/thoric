@@ -658,7 +658,8 @@ jobs:
           compression-level: 0
 
   # The PowerShell helper goes with the packages: it installs and starts the one of the computer's
-  # architecture and opens it to other devices.
+  # architecture and opens it to other devices. The Linux and macOS helper goes beside it, so both
+  # lines of the README download from the same release.
   wsl-release:
     needs: wsl-package
     if: startsWith(github.ref, 'refs/tags/v')
@@ -673,9 +674,9 @@ jobs:
           pattern: wsl-package-*
           path: dist
           merge-multiple: true
-      - name: Attach the packages and the PowerShell helper to the release
+      - name: Attach the packages and the helpers to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes "Thoric $GITHUB_REF_NAME"
-          gh release upload "$GITHUB_REF_NAME" dist/thoric.wsl dist/thoric-arm64.wsl packaging/windows/thoric.ps1 --clobber
+          gh release upload "$GITHUB_REF_NAME" dist/thoric.wsl dist/thoric-arm64.wsl packaging/windows/thoric.ps1 packaging/unix/thoric.sh --clobber

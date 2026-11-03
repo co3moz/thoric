@@ -130,13 +130,14 @@ class WindowsLauncherTest(unittest.TestCase):
 
     def test_the_release_attaches_the_package_of_each_platform(self):
         # build.sh names a package after its platform, the workflow builds each platform's under that
-        # name and attaches every one beside the launcher.
+        # name and attaches every one beside the launcher and the Linux and macOS helper.
         self.assertEqual(built_packages(), {"amd64": "thoric.wsl", "arm64": "thoric-arm64.wsl"})
         workflow = (ROOT / ".github/workflows/publish.yml").read_text()
         matrix = re.findall(r"(?m)^ +- arch: (\S+)\n +runner: \S+\n +package: (\S+)$", workflow)
         self.assertEqual(dict(matrix), built_packages())
         attached = re.search(r"(?m)^ +gh release upload \S+ (.+) --clobber$", workflow).group(1).split()
-        self.assertEqual(attached, [f"dist/{name}" for name in built_packages().values()] + ["packaging/windows/thoric.ps1"])
+        self.assertEqual(attached, [f"dist/{name}" for name in built_packages().values()]
+                         + ["packaging/windows/thoric.ps1", "packaging/unix/thoric.sh"])
 
     @unittest.skipUnless(POWERSHELL, "needs PowerShell")
     def test_install_downloads_the_package_of_windows_architecture(self):

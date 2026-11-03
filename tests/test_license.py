@@ -72,8 +72,9 @@ class LicenseTest(unittest.TestCase):
         for path in ("README.md", "images/desktop/copyright"):
             self.assertIn(OR_LATER, " ".join(read(path).split()), path)
         self.assertIn("version 3 or later", read("THIRD_PARTY_NOTICES.md"))
-        # The launcher is attached to releases on its own, away from the repository's LICENSE.
-        self.assertIn("GNU General Public\n# License, version 3 or later", read("packaging/windows/thoric.ps1").replace("\r\n", "\n"))
+        # The helpers are attached to releases on their own, away from the repository's LICENSE.
+        for helper in ("packaging/windows/thoric.ps1", "packaging/unix/thoric.sh"):
+            self.assertIn("GNU General Public\n# License, version 3 or later", read(helper).replace("\r\n", "\n"), helper)
 
     def test_every_image_and_package_carries_the_notice(self):
         self.assertIn("COPY LICENSE /usr/share/doc/thoric/LICENSE", read("core/manager/Dockerfile"))
