@@ -187,14 +187,60 @@ async fn a_check_asked_for_during_another_takes_its_answer() {
         tokio::task::yield_now().await;
     }
     answer.send(()).unwrap();
-    first.await.unwrap();
-    second.await.unwrap();
+    // The look that saw the release first is the one that announces it.
+    assert_eq!(first.await.unwrap().as_deref(), Some("999.0.0"));
+    assert_eq!(second.await.unwrap(), None);
     assert_eq!(asked.load(std::sync::atomic::Ordering::SeqCst), 1);
     assert_eq!(releases.available().as_deref(), Some("999.0.0"));
     // One asked for afterwards asks again.
-    releases.check(ask("1000.0.0", None)).await;
+    assert_eq!(
+        releases.check(ask("1000.0.0", None)).await.as_deref(),
+        Some("1000.0.0")
+    );
     assert_eq!(asked.load(std::sync::atomic::Ordering::SeqCst), 2);
     assert_eq!(releases.available().as_deref(), Some("1000.0.0"));
+    // A release seen before is not announced again.
+    assert_eq!(releases.check(ask("1000.0.0", None)).await, None);
+}
+
+#[tokio::test]
+async fn a_release_is_announced_once_also_across_restarts() {
+    let dir = folder();
+    let started = || {
+        let mut app = app_in(&dir, true);
+        Arc::get_mut(&mut app).unwrap().config.notify =
+            crate::notify::settings(&|key: &str| match key {
+                "NOTIFY_URL" => Some("https://example.com/hook".into()),
+                "NOTIFY_EVENTS" => Some("update_available".into()),
+                _ => None,
+            })
+            .unwrap();
+        app
+    };
+    let first = started();
+    announce(&first, Some("999.0.0".into())).await;
+    let sent = first.notifier.queued();
+    assert_eq!(sent.len(), 1, "{sent:?}");
+    assert_eq!(sent[0].title, "Thoric 999.0.0 is available");
+    assert_eq!(
+        sent[0].link.as_deref(),
+        Some("https://github.com/co3moz/thoric/releases/tag/v999.0.0")
+    );
+    // The next manager, which sees the same release first again, stays quiet about it.
+    let next = started();
+    announce(&next, Some("999.0.0".into())).await;
+    assert!(next.notifier.queued().is_empty());
+    announce(&next, Some("999.0.1".into())).await;
+    assert_eq!(next.notifier.queued().len(), 1);
+    // Without the kind chosen nothing is sent, nor kept as sent.
+    let quiet = app_in(&dir, true);
+    announce(&quiet, Some("999.1.0".into())).await;
+    assert!(quiet.notifier.queued().is_empty());
+    assert_eq!(
+        std::fs::read_to_string(data(&dir).join(ANNOUNCED)).unwrap(),
+        "999.0.1"
+    );
+    std::fs::remove_dir_all(&dir).unwrap();
 }
 
 #[tokio::test]

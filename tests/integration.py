@@ -129,12 +129,17 @@ absent_volume = f"thoric-test-absent-{tag}"
 outside_volume = f"thoric-test-outside-{tag}"
 password = uuid.uuid4().hex
 mcp_token = uuid.uuid4().hex + uuid.uuid4().hex
+metrics_token = uuid.uuid4().hex
 container_ids = []
 image_refs = []
 # Volumes the manager names after this run's containers, which exist only once they are created.
 own_volumes = []
 foreign = f"thoric-test-foreign-{tag}"
 holder = f"thoric-test-holder-{tag}"
+# A small HTTP server in a container of its own, which the manager's notices reach.
+receiver = f"thoric-test-notify-{tag}"
+notify_url = None
+dashboard_url = "https://thoric.test:8443"
 port = None
 cookies = http.cookiejar.CookieJar()
 client = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cookies))
@@ -284,8 +289,41 @@ def job(response):
 
 
 def start_manager():
-    docker("run", "-d", "--name", manager, "--label", "thoric.manager=true", "-e", f"MANAGER_CONTAINER={manager}", "-e", "AUTH_MODE=password", "-e", f"ADMIN_PASSWORD={password}", "-e", "ROOT_MCP_ENABLED=true", "-e", "GPU_DEFAULT=false", "-e", f"MCP_TOKEN={mcp_token}", "-e", "GPU_ADAPTER=NVIDIA", "-v", "/var/run/docker.sock:/var/run/docker.sock", "-v", f"{volume}:/data", "-p", f"127.0.0.1:{port or ''}:8080", "thoric/manager:local")
+    docker("run", "-d", "--name", manager, "--label", "thoric.manager=true", "-e", f"MANAGER_CONTAINER={manager}", "-e", "AUTH_MODE=password", "-e", f"ADMIN_PASSWORD={password}", "-e", "ROOT_MCP_ENABLED=true", "-e", "GPU_DEFAULT=false", "-e", f"MCP_TOKEN={mcp_token}", "-e", f"METRICS_TOKEN={metrics_token}", "-e", "GPU_ADAPTER=NVIDIA", "-e", f"NOTIFY_URL={notify_url}", "-e", "NOTIFY_EVENTS=human_request,job_failed", "-e", f"DASHBOARD_URL={dashboard_url}", "-v", "/var/run/docker.sock:/var/run/docker.sock", "-v", f"{volume}:/data", "-p", f"127.0.0.1:{port or ''}:8080", "thoric/manager:local")
     return int(docker("port", manager, "8080/tcp").decode().strip().rsplit(":", 1)[1])
+
+
+RECEIVER = r'''
+import http.server, sys
+class Receiver(http.server.BaseHTTPRequestHandler):
+    def do_POST(self):
+        body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+        sys.stdout.write(body.decode() + "\n")
+        sys.stdout.flush()
+        self.send_response(200)
+        self.send_header("Content-Length", "8")
+        self.end_headers()
+        self.wfile.write(b"received")
+    def log_message(self, *args):
+        pass
+http.server.HTTPServer(("0.0.0.0", 8000), Receiver).serve_forever()
+'''
+
+
+def start_receiver():
+    """The address of a receiver of the manager's notices, which prints each body it gets as a
+    line of its log. It runs on Docker's default bridge, as the manager does, from the manager's
+    image, which has Python."""
+    docker("run", "-d", "--name", receiver, "--label", f"thoric.test={tag}", "--no-healthcheck", "--entrypoint", "python3", "thoric/manager:local", "-u", "-c", RECEIVER)
+    address = docker("inspect", "-f", "{{.NetworkSettings.Networks.bridge.IPAddress}}", receiver).decode().strip()
+    assert address, "the receiver has no address on the default bridge"
+    return f"json+http://{address}:8000/notify"
+
+
+def notices():
+    """The notices the receiver got, oldest first."""
+    lines = docker("logs", receiver).decode().splitlines()
+    return [json.loads(line) for line in lines if line.startswith("{")]
 
 
 def login():
@@ -524,6 +562,7 @@ def gpu_renderer(diagnostics):
 
 
 try:
+    notify_url = start_receiver()
     port = start_manager()
     login()
     # GPU usage helpers of another manager on this Docker are not this run's to judge.
@@ -1179,6 +1218,36 @@ try:
     assert summary["containers"][0]["id"] == env_id and summary["containers"][0]["cpu_cores"]["peak"] >= 0, summary
     assert summary["gpu"]["devices"] and summary["gpu"]["devices"][0]["utilization_percent"] is not None, summary
     print("PASS resource usage history, cursor, per-container route, host GPU helper and MCP summary", flush=True)
+    # Prometheus scrapes /metrics with a token of its own: neither none nor the MCP token opens it.
+    for bearer in (None, mcp_token):
+        headers = {"Authorization": f"Bearer {bearer}"} if bearer else {}
+        try:
+            urllib.request.urlopen(urllib.request.Request(f"http://127.0.0.1:{port}/metrics", headers=headers), timeout=10)
+            raise AssertionError("metrics answered without their token")
+        except urllib.error.HTTPError as error:
+            assert error.code == 401, error.code
+    def scrape():
+        request = urllib.request.Request(f"http://127.0.0.1:{port}/metrics", headers={"Authorization": f"Bearer {metrics_token}"})
+        with urllib.request.urlopen(request, timeout=10) as response:
+            assert response.headers["Content-Type"] == "text/plain; version=0.0.4; charset=utf-8", response.headers
+            return response.read().decode()
+    # The collector's latest stats message of the running desktop, under its ID and name.
+    page = wait_for(lambda: (p if f'thoric_container_cpu_seconds_total{{id="{env_id}",' in (p := scrape()) else None), 30)
+    samples = [line for line in page.splitlines() if not line.startswith("#")]
+    assert any(line.startswith('thoric_info{version="') for line in samples), page
+    assert any(line.startswith('thoric_containers{state="running"} ') and float(line.split()[-1]) >= 1 for line in samples), page
+    mine = [line for line in samples if f'{{id="{env_id}",name="' in line]
+    for family in ("thoric_container_start_time_seconds", "thoric_container_memory_bytes", "thoric_container_network_receive_bytes_total", "thoric_container_block_read_bytes_total", "thoric_container_pids"):
+        assert any(line.startswith(family + "{") for line in mine), (family, mine)
+    limit = next(line for line in mine if line.startswith("thoric_container_memory_limit_bytes{"))
+    assert float(limit.split()[-1]) == 2048 * 1024 ** 2, limit
+    started = next(line for line in mine if line.startswith("thoric_container_start_time_seconds{"))
+    assert time.time() - 3600 < float(started.split()[-1]) <= time.time(), started
+    # The GPU desktop runs, so the host's GPU is sampled, and no container's series names a GPU.
+    assert 'thoric_host_gpu_state{state="sampling"} 1' in samples, page
+    assert any(line.startswith("thoric_host_gpu_utilization_ratio{") for line in samples), page
+    assert not any(line.startswith("thoric_container_") and "gpu" in line for line in samples), mine
+    print("PASS Prometheus metrics need their own token and report the running desktop and the host GPU", flush=True)
     # Script stdin is closed: a command reading input cannot consume the rest of the script.
     isolated = mcp_job(tool("exec_container", {"container_id":env_id,"script":"consumed=$(cat); echo \"stdin-bytes=${#consumed}\"\necho AFTER_STDIN\n"}))
     assert "stdin-bytes=0" in isolated["log"] and "AFTER_STDIN" in isolated["log"], isolated["log"]
@@ -1646,11 +1715,34 @@ try:
     assert api("human-requests")["items"] == []
     pending = tool("request_human", {"container_id": env_id, "message": f"Acceptance {tag}: decline", "wait_seconds": 0})["structuredContent"]
     assert pending["status"] == "pending", pending
+    # Asked again with the same message while it waits, the request is joined, not asked twice.
+    rejoined = tool("request_human", {"container_id": env_id, "message": f"Acceptance {tag}: decline", "wait_seconds": 0})["structuredContent"]
+    assert rejoined["request_id"] == pending["request_id"], rejoined
     api(f"human-requests/{pending['request_id']}/answer", {"answer": "decline"})
     resumed = tool("request_human", {"container_id": env_id, "request_id": pending["request_id"]})["structuredContent"]
     assert resumed["status"] == "declined" and resumed["reply"] is None, resumed
+    # Each request reached NOTIFY_URL once, with the container's name and a link to its desktop,
+    # also the one its agent asked again and waited on again by its id.
+    for message in [f"Acceptance {tag}: press Done", f"Acceptance {tag}: decline"]:
+        sent = wait_for(lambda: [n for n in notices() if n["kind"] == "human_request" and n["body"] == message], 30)
+        assert len(sent) == 1, sent
+        assert sent[0]["title"] == f"{arrived['container_name']} needs a person" and sent[0]["container"] == arrived["container_name"], sent
+        assert sent[0]["link"] == f"{dashboard_url}/#/desktop/{env_id}", sent
+    time.sleep(2)
+    assert len([n for n in notices() if n["kind"] == "human_request" and n["body"] == f"Acceptance {tag}: decline"]) == 1, notices()
+    # A failed job sends its kind and container, never its output; the test reaches every address.
+    failed_before = len([n for n in notices() if n["kind"] == "job_failed"])
+    failing = tool("exec_container", {"container_id": env_id, "script": f"echo acceptance-output-{tag}; exit 3"})["structuredContent"]["job_id"]
+    next_event("job", lambda event: event["job"]["id"] == failing and event["job"]["finished_at"])
+    failed = wait_for(lambda: [n for n in [n for n in notices() if n["kind"] == "job_failed"][failed_before:] if n["title"] == "Job failed: exec" and n["container"] == arrived["container_name"]], 30)
+    assert f"acceptance-output-{tag}" not in json.dumps(failed), failed
+    receiver_host = notify_url.split("://", 1)[1].split("/", 1)[0]
+    tried = api("settings/notify/test", {})["results"]
+    assert tried == [{"format": "json", "host": receiver_host, "ok": True, "status": 200, "answer": "received", "error": None}], tried
+    wait_for(lambda: [n for n in notices() if n["kind"] == "test"], 30)
+    assert {"name": "NOTIFY_URL", "secret": True, "set": True} in api("configuration")["variables"]
     events.close()
-    print("PASS the event stream carries jobs, Docker's own changes and an agent's request for a person, which the waiting call answers", flush=True)
+    print("PASS the event stream carries jobs, Docker's own changes and an agent's request for a person, which the waiting call answers and NOTIFY_URL hears of once", flush=True)
     docker("exec",container,"chown","1001:1001","/shared")
     volume_upload = upload(env_id,"project.txt",b"persistent-upload",destination="/shared/uploads")
     assert docker("exec",container,"cat",volume_upload["path"]) == b"persistent-upload"
@@ -2491,6 +2583,53 @@ try:
     assert machine(edit_container) == recorded(taken)
     assert docker("exec", edit_container, "cat", "/home/desktop/settings-marker") == b"kept"
     print("PASS machine identity survives a settings recreation and moves to the values a takeover sets", flush=True)
+    # Lifecycle: a desktop nothing uses stops after its idle minutes while an agent at work keeps
+    # its own running, and a throwaway container deletes itself at its expiry unless an agent moves
+    # the expiry, which applies in place. Each stop and delete is a job of its own kind.
+    lifecycle_base = {"image": xfce["reference"], "gpu": False, "internet": False}
+    idle_id = job(api("containers", {**lifecycle_base, "name": "Idle stop", "lifecycle": {"idle_stop_minutes": 1}}))["container_id"]
+    container_ids.append(idle_id)
+    worked_id = job(api("containers", {**lifecycle_base, "name": "Agent at work", "lifecycle": {"idle_stop_minutes": 1}}))["container_id"]
+    container_ids.append(worked_id)
+    ready(f"thoric-{idle_id}")
+    ready(f"thoric-{worked_id}")
+    idle_item = api(f"containers/{idle_id}")
+    assert idle_item["spec"]["lifecycle"] == {"idle_stop_minutes": 1, "expires_at": None, "on_expiry": "stop", "delete_volumes": False}, idle_item["spec"]
+    assert "idle_stop_at" in idle_item, idle_item
+    def idle_stopped():
+        # A tool call that names a container uses it; reading the list does not.
+        tool("list_windows", {"container_id": worked_id})
+        return api(f"containers/{idle_id}")["state"] == "exited"
+    # A desktop that is still settling keeps a CPU busy for a while, which counts as use too.
+    wait_for(idle_stopped, 300)
+    lifecycle_jobs = lambda kind, eid: [j for j in api("jobs") if j["kind"] == kind and j["resource"] == f"container:{eid}"]
+    idle_stops = lifecycle_jobs("idle-stop", idle_id)
+    assert len(idle_stops) == 1 and idle_stops[0]["status"] == "completed", idle_stops
+    assert "nothing used its desktop for 1 minutes" in api(f"jobs/{idle_stops[0]['id']}")["log"]
+    assert api(f"containers/{worked_id}")["state"] == "running" and not lifecycle_jobs("idle-stop", worked_id)
+    assert api(f"containers/{idle_id}")["spec"]["lifecycle"]["idle_stop_minutes"] == 1
+    throwaway_id = job(api("containers", {**lifecycle_base, "name": "Throwaway", "lifecycle": {"expires_in_minutes": 1, "on_expiry": "delete"}}))["container_id"]
+    container_ids.append(throwaway_id)
+    extended_policy = {"idle_stop_minutes": 0, "expires_in_minutes": 5, "on_expiry": "delete"}
+    extended_id = job(api("containers", {**lifecycle_base, "name": "Extended expiry", "lifecycle": extended_policy}))["container_id"]
+    container_ids.append(extended_id)
+    ready(f"thoric-{extended_id}")
+    extended_start = json.loads(docker("inspect", f"thoric-{extended_id}"))[0]["State"]["StartedAt"]
+    moved = {"container_id": extended_id, "lifecycle": {"expires_in_minutes": 60}}
+    assert tool("update_container", {**moved, "dry_run": True})["structuredContent"]["live"] == ["lifecycle"]
+    mcp_job(tool("update_container", moved))
+    wait_for(lambda: refused(f"containers/{throwaway_id}") == 404, 180)
+    deletes = lifecycle_jobs("expiry-delete", throwaway_id)
+    assert len(deletes) == 1 and deletes[0]["status"] == "completed", deletes
+    assert api(f"jobs/{deletes[0]['id']}")["result"]["deleted"] == throwaway_id
+    assert json.loads(docker("container", "inspect", f"thoric-{throwaway_id}", check=False) or b"[]") == []
+    extended_item = api(f"containers/{extended_id}")
+    assert extended_item["state"] == "running" and extended_item["spec"]["lifecycle"]["expires_at"] > time.time() + 50 * 60, extended_item
+    assert extended_item["spec"]["lifecycle"]["on_expiry"] == "delete"
+    assert json.loads(docker("inspect", f"thoric-{extended_id}"))[0]["State"]["StartedAt"] == extended_start
+    for eid in (idle_id, worked_id, extended_id):
+        job(api(f"containers/{eid}", method="DELETE"))
+    print("PASS an unused desktop stops after its idle minutes, an agent at work keeps its own, and an expired container deletes itself", flush=True)
     # Container groups: members reach each other on the group's own network by hostname, name and
     # alias, but not each other's VNC server; the network comes and goes with its members.
     group = f"g-{tag}"
@@ -2649,6 +2788,9 @@ finally:
     info=inspect_cleanup("container",holder)
     if info and info["Config"]["Labels"].get("thoric.test")==tag:
         docker("rm","--force",holder,check=False)
+    info=inspect_cleanup("container",receiver)
+    if info and info["Config"]["Labels"].get("thoric.test")==tag:
+        docker("rm","--force",receiver,check=False)
     # The backup manager goes first, so the networks of its containers have no member left.
     info=inspect_cleanup("container",backup_manager)
     if info and info["Config"]["Labels"].get("thoric.test")==tag:

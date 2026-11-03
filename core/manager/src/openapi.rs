@@ -87,6 +87,8 @@ enum Access {
     EndpointToken,
     /// The one-time token in the path, from the MCP tool `create_transfer`.
     TransferLink,
+    /// The metrics token, `METRICS_TOKEN`, which opens `/metrics` alone.
+    MetricsToken,
 }
 
 /// Makes the JSON Schema of the type a handler reads or answers with.
@@ -343,6 +345,8 @@ const INSTALLATION_DEFAULTS: &[&str] = &[
     "gamepad",
     "vpn",
     "proxy",
+    // Its idle_stop_minutes.
+    "lifecycle",
 ];
 
 /// Say of each field of [`INSTALLATION_DEFAULTS`] where its value comes from instead.
@@ -460,6 +464,11 @@ fn document() -> Value {
                     "type": "http",
                     "scheme": "bearer",
                     "description": "The MCP endpoint's own token, or the installation's MCP token.",
+                },
+                "metrics": {
+                    "type": "http",
+                    "scheme": "bearer",
+                    "description": "The installation's metrics token, `METRICS_TOKEN`, which opens `/metrics` alone.",
                 },
             },
         },
@@ -618,6 +627,7 @@ fn operation(
         Access::Session => json!([{"session": []}]),
         Access::McpToken => json!([{"mcp": []}]),
         Access::EndpointToken => json!([{"endpoint": []}]),
+        Access::MetricsToken => json!([{"metrics": []}]),
     };
     let mut operation = json!({
         "operationId": operation_id(method, route.path),

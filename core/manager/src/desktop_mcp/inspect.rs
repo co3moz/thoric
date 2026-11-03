@@ -160,7 +160,17 @@ async fn session(app: Arc<App>, socket: WebSocket) {
         )
         .await;
     };
-    let opened = match first_frame(&mut stream).await {
+    let target = first_frame(&mut stream).await;
+    // A desktop server's session uses its container while it is open; an endpoint's or `/mcp`'s
+    // calls count as their tool calls do.
+    let _using = match &target {
+        Ok(Target::Server { container, .. } | Target::Trial { container, .. }) => app
+            .container(container)
+            .ok()
+            .map(|record| app.lifecycle.open(&record.id)),
+        _ => None,
+    };
+    let opened = match target {
         Ok(target) => open(&app, target).await.map_err(|error| error.1),
         Err(reason) => Err(reason),
     };

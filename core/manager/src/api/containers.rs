@@ -58,14 +58,20 @@ pub async fn containers(State(app): State<Arc<App>>) -> Result<Json<Value>> {
             } else {
                 "unknown"
             };
-            let mut item = json!(record);
-            item["state"] = json!(if ids.is_err() {
+            let state = if ids.is_err() {
                 "unavailable"
             } else {
                 docker
                     .and_then(|d| d["State"].as_str())
                     .unwrap_or("missing")
-            });
+            };
+            // Whether something uses it, and when its idle stop comes if nothing does from now on.
+            let (in_use, idle_stop_at) =
+                crate::lifecycle::use_of(&app, &record, state == "running");
+            let mut item = json!(record);
+            item["state"] = json!(state);
+            item["in_use"] = json!(in_use);
+            item["idle_stop_at"] = json!(idle_stop_at);
             item["health"] = json!(health);
             item["status"] = json!(docker.map(|d| &d["Status"]));
             // Whether the members of its groups are kept from its screen.
@@ -131,6 +137,14 @@ pub(crate) fn creation_request(
         } else {
             Value::Null
         });
+        // Its idle stop is the installation's unless it names one, and an expiry in minutes
+        // counts from now.
+        let lifecycle = crate::lifecycle::for_creation(
+            request.get("lifecycle"),
+            defaults.idle_stop_minutes,
+            now(),
+        )?;
+        request.insert("lifecycle".into(), json!(lifecycle));
     }
     serde_json::from_value(body).map_err(|e| {
         Error(
@@ -230,26 +244,31 @@ pub async fn action(
         app,
         &body.action.clone(),
         format!("container:{id}"),
-        move |app, job_id| async move {
-            let env = app.container(&id).map_err(|e| anyhow::anyhow!(e.1))?;
-            let info = app.owned(&env).await?;
-            if body.action != "stop" {
-                app.before_start(&env, &info).await?;
-            }
-            app.docker(&[
-                &body.action,
-                info["Id"].as_str().context("Missing container ID")?,
-            ])
-            .await
-            .map_err(|error| app.device_error(&env, error))?;
-            // A started desktop is waited for beside the work that only uses it.
-            if body.action != "stop" {
-                crate::jobs::share_from_here();
-                app.desktop_ready(&env, &job_id).await?;
-            }
-            Ok(json!({"container_id":id}))
-        },
+        move |app, job_id| async move { run_action(&app, &id, &body.action, &job_id).await },
     )
+}
+/// Start, stop or restart the container `id` in a job that holds it: what `action` runs, and
+/// the lifecycle's stops too.
+pub(crate) async fn run_action(
+    app: &App,
+    id: &str,
+    action: &str,
+    job_id: &str,
+) -> anyhow::Result<Value> {
+    let env = app.container(id).map_err(|e| anyhow::anyhow!(e.1))?;
+    let info = app.owned(&env).await?;
+    if action != "stop" {
+        app.before_start(&env, &info).await?;
+    }
+    app.docker(&[action, info["Id"].as_str().context("Missing container ID")?])
+        .await
+        .map_err(|error| app.device_error(&env, error))?;
+    // A started desktop is waited for beside the work that only uses it.
+    if action != "stop" {
+        crate::jobs::share_from_here();
+        app.desktop_ready(&env, job_id).await?;
+    }
+    Ok(json!({"container_id":id}))
 }
 #[derive(Deserialize, schemars::JsonSchema)]
 pub struct Internet {

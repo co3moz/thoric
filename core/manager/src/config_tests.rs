@@ -1,8 +1,8 @@
 //! What the settings page is shown of the configuration: every setting Compose passes to the
 //! manager, as `.env.example` names it, and never a secret's value. Also how `TEMPLATES_URL`,
-//! `VOLUME_FILTER` and the MCP token are read, with the limits of a script request, that the
-//! desktop seccomp profile adds only user namespaces to Docker's default, and that the
-//! administrator's password is hashed with Argon2id only at startup.
+//! `VOLUME_FILTER`, the MCP token and the metrics token are read, with the limits of a script
+//! request, that the desktop seccomp profile adds only user namespaces to Docker's default, and
+//! that the administrator's password is hashed with Argon2id only at startup.
 use super::*;
 use crate::exec;
 use crate::test_support::DESKTOP_CONTEXT;
@@ -95,6 +95,7 @@ fn a_secret_says_only_whether_it_is_set() {
     let config = &mut Arc::get_mut(&mut app).unwrap().config;
     config.password_hash = Some("$argon2id$v=19$stored-password-hash".into());
     config.mcp_token = Some("token-of-the-agent-endpoint".into());
+    config.metrics_token = Some("token-of-the-prometheus-scraper".into());
     config.proxy = crate::outbound::installation(
         &|key: &str| {
             Some(
@@ -110,10 +111,20 @@ fn a_secret_says_only_whether_it_is_set() {
         &mut Vec::new(),
     )
     .unwrap();
+    config.notify = crate::notify::settings(&|key: &str| {
+        (key == "NOTIFY_URL").then(|| "https://ntfy.sh/topic-of-the-phone?token=tk_notify".into())
+    })
+    .unwrap();
     let shown = serde_json::to_string(&config.shown()).unwrap();
     assert!(!shown.contains("stored-password-hash"), "{shown}");
     assert!(!shown.contains("token-of-the-agent-endpoint"), "{shown}");
+    assert!(
+        !shown.contains("token-of-the-prometheus-scraper"),
+        "{shown}"
+    );
     assert!(!shown.contains("password-of-the-proxy"), "{shown}");
+    assert!(!shown.contains("topic-of-the-phone"), "{shown}");
+    assert!(!shown.contains("tk_notify"), "{shown}");
     let setting = |config: &Config, name: &str| {
         config
             .shown()
@@ -126,10 +137,21 @@ fn a_secret_says_only_whether_it_is_set() {
         json!({"name": "MCP_TOKEN", "secret": true, "set": true})
     );
     assert_eq!(setting(config, "ADMIN_PASSWORD")["set"], true);
+    assert_eq!(
+        setting(config, "METRICS_TOKEN"),
+        json!({"name": "METRICS_TOKEN", "secret": true, "set": true})
+    );
     assert_eq!(setting(config, "PROXY_PASSWORD")["set"], true);
     assert_eq!(setting(config, "PROXY_USERNAME")["value"], "corp");
+    assert_eq!(
+        setting(config, "NOTIFY_URL"),
+        json!({"name": "NOTIFY_URL", "secret": true, "set": true})
+    );
+    assert_eq!(setting(config, "NOTIFY_EVENTS")["value"], "human_request");
     config.mcp_token = None;
     config.password_hash = None;
+    config.metrics_token = None;
+    assert_eq!(setting(config, "METRICS_TOKEN")["set"], false);
     assert_eq!(setting(config, "MCP_TOKEN")["set"], false);
     assert_eq!(setting(config, "MCP_AUTH_MODE")["value"], "none");
     assert_eq!(setting(config, "ADMIN_PASSWORD")["set"], false);
@@ -304,6 +326,7 @@ fn the_page_edits_only_the_settings_it_may_change() {
         "MCP_AUTH_MODE",
         "MCP_TOKEN",
         "DESKTOP_HOST",
+        "NOTIFY_URL",
     ] {
         assert!(!EDITABLE.contains(&name), "{name}");
     }
@@ -582,4 +605,22 @@ fn the_desktop_seccomp_profile_adds_only_user_namespaces_to_dockers_default() {
                 && rule["errnoRet"] == 38
                 && rule["excludes"]["caps"] == serde_json::json!(["CAP_SYS_ADMIN"]))
     );
+}
+
+#[test]
+fn the_metrics_token_is_off_while_empty_and_one_header_value_otherwise() {
+    assert_eq!(metrics_token(None).unwrap(), None);
+    assert_eq!(metrics_token(Some("")).unwrap(), None);
+    assert_eq!(
+        metrics_token(Some("a$b#c-0123")).unwrap().as_deref(),
+        Some("a$b#c-0123")
+    );
+    for refused in [
+        "with space".to_owned(),
+        "line\nbreak".to_owned(),
+        "x".repeat(257),
+    ] {
+        let error = metrics_token(Some(&refused)).unwrap_err().to_string();
+        assert!(error.starts_with("METRICS_TOKEN must"), "{error}");
+    }
 }

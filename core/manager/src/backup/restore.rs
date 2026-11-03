@@ -468,6 +468,14 @@ impl App {
                     ),
                 )?;
             }
+            if crate::lifecycle::restored(&mut container.spec.lifecycle, crate::model::now()) {
+                self.append_log(
+                    job_id,
+                    &format!(
+                        "\"{name}\": its expiry passed while it was in the backup, so it was cleared and the container stays."
+                    ),
+                )?;
+            }
             if let Some(reason) = not_created(container, &volumes) {
                 container.last_error = Some(reason.clone());
                 skipped.insert(container.id.clone(), reason);

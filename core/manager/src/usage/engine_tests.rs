@@ -1,6 +1,7 @@
-//! Pins down what the collector asks Docker and believes of its answers: only running containers
-//! with the managed label are listed, one counts only when its name and owner both match a record,
-//! and a stats stream is read line by line however its chunks split.
+//! Pins down what the collector asks Docker and believes of its answers: every container with the
+//! managed label is listed, one counts only when its name and owner both match a record, only a
+//! running one is followed while each gives its record a state, and a stats stream is read line by
+//! line however its chunks split.
 use super::*;
 use crate::model::ContainerSpec;
 use serde_json::json;
@@ -32,18 +33,40 @@ fn listed(docker_id: &str, name: &str, owner: &str) -> Value {
 }
 
 #[test]
-fn the_list_asks_for_running_managed_containers_only() {
+fn the_list_asks_for_every_managed_container() {
     assert_eq!(
         list_path(),
-        "/containers/json?filters=%7B%22label%22:%5B%22thoric.managed%3Dtrue%22%5D%2C%22status%22:%5B%22running%22%5D%7D"
+        "/containers/json?all=1&filters=%7B%22label%22:%5B%22thoric.managed%3Dtrue%22%5D%7D"
     );
     assert_eq!(
         stats_path(DOCKER_ID).as_deref(),
         Some(format!("/containers/{DOCKER_ID}/stats?stream=true").as_str())
     );
+    assert_eq!(
+        inspect_path(DOCKER_ID).as_deref(),
+        Some(format!("/containers/{DOCKER_ID}/json").as_str())
+    );
     for invalid in ["", "abc", "../../info", &DOCKER_ID.replace('4', "g")] {
         assert_eq!(stats_path(invalid), None, "{invalid}");
+        assert_eq!(inspect_path(invalid), None, "{invalid}");
     }
+}
+
+#[test]
+fn only_a_running_container_is_followed_and_each_gives_its_record_a_state() {
+    let records = [record("a", false), record("b", false), record("c", false)];
+    let mut exited = listed(&DOCKER_ID.replace('4', "5"), "thoric-b", "b");
+    exited["State"] = json!("exited");
+    let list = json!([listed(DOCKER_ID, "thoric-a", "a"), exited]);
+    assert_eq!(running(&records, &list).keys().collect::<Vec<_>>(), ["a"]);
+    // Record c has no container Docker lists, which the metrics count as missing.
+    assert_eq!(
+        states(&records, &list),
+        BTreeMap::from([
+            ("a".to_owned(), "running".to_owned()),
+            ("b".to_owned(), "exited".to_owned())
+        ])
+    );
 }
 
 #[test]
@@ -201,6 +224,6 @@ async fn a_list_is_one_json_response() {
         server
             .await
             .unwrap()
-            .starts_with("GET /containers/json?filters=")
+            .starts_with("GET /containers/json?all=1&filters=")
     );
 }

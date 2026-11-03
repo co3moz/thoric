@@ -125,15 +125,18 @@ pub(crate) fn name_free(name: &str, containers: &[Container]) -> Result<()> {
 }
 
 /// The original's settings for a duplicate called `name`: all of them but its name and its
-/// machine identity, which the duplicate is given anew.
+/// machine identity, which the duplicate is given anew, and its expiry. The lifecycle's idle stop
+/// is a policy the duplicate keeps, while an expiry is a moment the original's own task ends.
 pub(crate) fn copied_spec(original: &ContainerSpec, name: &str) -> ContainerSpec {
-    ContainerSpec {
+    let mut spec = ContainerSpec {
         name: name.into(),
         hostname: None,
         mac_address: None,
         machine_id: None,
         ..original.clone()
-    }
+    };
+    spec.lifecycle.expires_at = None;
+    spec
 }
 
 /// A volume created for the original, and the one created for the duplicate in its place.

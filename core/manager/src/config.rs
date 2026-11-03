@@ -73,6 +73,9 @@ pub struct Config {
     /// too, or `None` when `MCP_AUTH_MODE=none` turns the check off for both. Empty when no token
     /// is set, which opens nothing.
     pub mcp_token: Option<String>,
+    /// The bearer token `/metrics` asks for, or `None` while `METRICS_TOKEN` is empty, which keeps
+    /// the route off; see [`crate::metrics`].
+    pub metrics_token: Option<String>,
     /// The template list the templates page reads in the browser, or `None` to turn it off.
     pub templates_url: Option<String>,
     /// The label a volume carries for a request to list and choose it, `key` or `key=value`, or
@@ -85,6 +88,9 @@ pub struct Config {
     pub update_check: bool,
     /// Where the WSL package takes update requests from the dashboard; see [`crate::releases`].
     pub update_dir: PathBuf,
+    /// Where notices go and which are sent, from `NOTIFY_URL`, `NOTIFY_EVENTS` and
+    /// `DASHBOARD_URL`; see [`crate::notify`].
+    pub notify: crate::notify::Settings,
     /// What startup has to say about the settings it was given, such as a renamed variable that
     /// is still set; logged once the manager starts.
     pub notices: Vec<String>,
@@ -104,6 +110,9 @@ pub struct Features {
     pub microphone: bool,
     pub gamepad: bool,
     pub vpn: bool,
+    /// Minutes a new container's desktop may go unused before it is stopped, `0` for never; see
+    /// [`crate::lifecycle`].
+    pub idle_stop_minutes: u32,
 }
 /// A variable a release renamed. An installation keeps its `.env` across upgrades, so the old name
 /// keeps its meaning while the new one is not set, and startup says to rename it.
@@ -144,6 +153,7 @@ pub(crate) const EDITABLE: &[&str] = &[
     "MICROPHONE_DEFAULT",
     "GAMEPAD_DEFAULT",
     "VPN_DEFAULT",
+    "IDLE_STOP_DEFAULT",
     "UPLOAD_MAX_MB",
     "IMAGE_ARCHIVE_MAX_MB",
     "TEMPLATES_URL",
@@ -152,6 +162,8 @@ pub(crate) const EDITABLE: &[&str] = &[
     "PROXY_USERNAME",
     "PROXY_BYPASS",
     "UPDATE_CHECK",
+    "NOTIFY_EVENTS",
+    "DASHBOARD_URL",
 ];
 /// The template list on the project's GitHub wiki.
 pub(crate) const TEMPLATES_URL: &str =
@@ -410,6 +422,9 @@ impl Config {
                 microphone: flag("MICROPHONE_DEFAULT", false)?,
                 gamepad: flag("GAMEPAD_DEFAULT", false)?,
                 vpn: flag("VPN_DEFAULT", false)?,
+                idle_stop_minutes: crate::lifecycle::idle_stop_default(
+                    var("IDLE_STOP_DEFAULT").as_deref(),
+                )?,
             },
             wsl_gpu: flag("WSL_GPU", true)?,
             cuda: flag("NVIDIA_COMPUTE", true)?,
@@ -428,11 +443,13 @@ impl Config {
             archive_limit: archive_mb * 1024 * 1024,
             root_mcp_enabled,
             mcp_token,
+            metrics_token: metrics_token(var("METRICS_TOKEN").as_deref())?,
             templates_url: templates_url(var("TEMPLATES_URL").as_deref())?,
             volume_filter: volume_filter(var("VOLUME_FILTER").as_deref())?,
             proxy,
             update_check: flag("UPDATE_CHECK", true)?,
             update_dir: crate::releases::UPDATE_DIR.into(),
+            notify: crate::notify::settings(&var)?,
             notices,
             environment: BTreeMap::new(),
         };
@@ -501,6 +518,7 @@ impl Config {
                     .as_ref()
                     .is_some_and(|token| !token.is_empty()),
             ),
+            secret("METRICS_TOKEN", self.metrics_token.is_some()),
             value("DESKTOP_IMAGE", json!(self.base_image)),
             value("DESKTOP_USER_NAMESPACES", json!(self.user_namespaces)),
             value("DESKTOP_PIDS_LIMIT", json!(self.pids_limit)),
@@ -521,6 +539,7 @@ impl Config {
             value("MICROPHONE_DEFAULT", json!(self.defaults.microphone)),
             value("GAMEPAD_DEFAULT", json!(self.defaults.gamepad)),
             value("VPN_DEFAULT", json!(self.defaults.vpn)),
+            value("IDLE_STOP_DEFAULT", json!(self.defaults.idle_stop_minutes)),
             value("UPLOAD_MAX_MB", mib(self.upload_limit)),
             value("IMAGE_ARCHIVE_MAX_MB", mib(self.archive_limit)),
             value(
@@ -554,6 +573,9 @@ impl Config {
                 json!(self.proxy.as_ref().map(|proxy| proxy.bypass.join(","))),
             ),
             value("UPDATE_CHECK", json!(self.update_check)),
+            secret("NOTIFY_URL", !self.notify.targets.is_empty()),
+            value("NOTIFY_EVENTS", json!(self.notify.events_text())),
+            value("DASHBOARD_URL", json!(self.notify.dashboard)),
         ]
     }
 
@@ -575,6 +597,7 @@ impl Config {
             microphone: self.defaults.microphone && self.microphone && audio,
             gamepad: self.defaults.gamepad && self.gamepad,
             vpn: self.defaults.vpn && self.vpn,
+            idle_stop_minutes: self.defaults.idle_stop_minutes,
         }
     }
 
@@ -591,6 +614,19 @@ impl Config {
         let host = url.find("://")? + 3;
         Some(&url[..url[host..].find('/').map_or(url.len(), |end| host + end)])
     }
+}
+
+/// `METRICS_TOKEN`: empty keeps `/metrics` off, and anything else is the token it asks for, held
+/// to what an `Authorization` header carries as it is.
+pub(crate) fn metrics_token(value: Option<&str>) -> Result<Option<String>> {
+    let token = value.unwrap_or_default();
+    if token.is_empty() {
+        return Ok(None);
+    }
+    if token.len() > 256 || !token.bytes().all(|b| b.is_ascii_graphic()) {
+        bail!("METRICS_TOKEN must be empty or 1 to 256 visible ASCII characters without spaces");
+    }
+    Ok(Some(token.into()))
 }
 
 /// `TEMPLATES_URL`: empty for the project wiki's list, `none` for no templates page, or the URL

@@ -58,6 +58,8 @@ const changes: Record<string, string[]> = {
   // A creation may make volumes for its parameters and an endpoint; a deletion may remove them.
   create: ["containers", "volumes", "mcp"],
   delete: ["containers", "volumes", "mcp"],
+  // The lifecycle deletes a container as `delete` does; its stops change the containers alone.
+  "expiry-delete": ["containers", "volumes", "mcp"],
   snapshot: ["containers", "images"],
   // A duplicate makes a container, the snapshot it starts from, copies of volumes and an endpoint.
   duplicate: ["containers", "images", "volumes", "mcp"],

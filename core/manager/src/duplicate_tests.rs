@@ -45,6 +45,8 @@ fn original() -> (Container, Pinned) {
         "machine_id": "0123456789abcdef0123456789abcdef",
         "proxy": {"mode": "custom", "url": "http://proxy.example:3128", "password": true},
         "mounts": [{"volume": "assets", "target": "/home/desktop/Assets", "readonly": true}],
+        "lifecycle": {"idle_stop_minutes": 30, "expires_at": 4_102_444_800_u64,
+            "on_expiry": "delete", "delete_volumes": true},
     }))
     .unwrap();
     let env = Container {
@@ -107,8 +109,24 @@ fn a_duplicate_has_every_setting_but_the_name_and_the_machine_identity() {
     same.hostname = original.spec.hostname.clone();
     same.mac_address = original.spec.mac_address.clone();
     same.machine_id = original.spec.machine_id.clone();
+    same.lifecycle.expires_at = original.spec.lifecycle.expires_at;
     assert_eq!(same, original.spec);
     env.spec.validate().unwrap();
+}
+
+#[test]
+fn a_duplicate_keeps_the_idle_stop_but_not_the_expiry() {
+    let (original, _) = original();
+    let spec = copied_spec(&original.spec, "Unity copy");
+    // The idle stop is how the desktop is to be used, which the copy is too.
+    assert_eq!(spec.lifecycle.idle_stop_minutes, 30);
+    // An expiry is when the original's own task ends; the copy would otherwise go with it.
+    assert!(original.spec.lifecycle.expires_at.is_some());
+    assert_eq!(spec.lifecycle.expires_at, None);
+    // What an expiry does stays, so one set later on the copy does what the original's did.
+    assert_eq!(spec.lifecycle.on_expiry, crate::lifecycle::OnExpiry::Delete);
+    assert!(spec.lifecycle.delete_volumes);
+    spec.validate().unwrap();
 }
 
 #[test]

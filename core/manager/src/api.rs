@@ -5,13 +5,13 @@
 mod containers;
 mod images;
 
+#[cfg(test)]
+pub(crate) use containers::creation_request;
 pub(crate) use containers::{
     Action, CreateContainer, Internet, Remove, action, container, containers, create,
-    creation_finished, diagnostics, internet, logs, remove, reset, retry, screenshot,
-    update_settings,
+    creation_finished, diagnostics, internet, logs, removal, remove, reset, retry, run_action,
+    screenshot, update_settings,
 };
-#[cfg(test)]
-pub(crate) use containers::{creation_request, removal};
 pub(crate) use images::{
     BuildImage, RegisterImage, Snapshot, build, build_catalog, image_config, image_list,
     image_summary, images, pull_catalog, register_image, snapshot,

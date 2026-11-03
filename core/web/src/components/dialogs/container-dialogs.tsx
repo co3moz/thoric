@@ -49,9 +49,11 @@ import { formatList, plural, t } from "@/lib/i18n"
 import { imageServers } from "@/lib/mcp"
 import { useContainers, useImages, useSettings, useVolumes } from "@/lib/queries"
 import { composeEntries, composeFor, composeSteps, parameterBody, stepTitle } from "@/lib/compose"
+import { lifecycleBody, lifecycleDraft, type LifecycleDraft } from "@/lib/lifecycle"
 import type { ImageItem, SettingsPreview } from "@/lib/types"
 import type { DialogProps } from "./side-drawer"
 import { identityBody, identityDraft, IdentityFields, type IdentityDraft } from "./identity-fields"
+import { LifecycleFields } from "./lifecycle-fields"
 import { ParameterField } from "./parameter-field"
 import { specBody, specDraft, SpecFields, type SpecDraft } from "./spec-fields"
 
@@ -161,13 +163,16 @@ export function CreateContainerDialog({ image, ...props }: DialogProps & { image
   const [name, setName] = React.useState("")
   const [selected, setSelected] = React.useState<string | undefined>()
   const [draft, setDraft] = React.useState<SpecDraft>(() => specDraft({}, settings))
+  const [lifecycle, setLifecycle] = React.useState<LifecycleDraft>(() =>
+    lifecycleDraft({}, settings)
+  )
   const chosen = selected ?? initialImage(choices, image ?? settings?.base_image)
   const compose = composeFor(images, chosen)
   // Values typed for one image are kept while another is chosen, and sent only for its own fields.
   const [values, setValues] = React.useState<Record<string, string>>({})
   const servers = imageServers(images, chosen)
   const [endpoint, setEndpoint] = React.useState(true)
-  useDraft({ name, selected, draft, values, endpoint })
+  useDraft({ name, selected, draft, lifecycle, values, endpoint })
   const { busy, error, submit } = useSubmit()
   const id = React.useId()
 
@@ -181,6 +186,7 @@ export function CreateContainerDialog({ image, ...props }: DialogProps & { image
               name,
               image: chosen,
               ...specBody(draft),
+              ...lifecycleBody(lifecycle),
               ...(compose ? { parameters: parameterBody(compose, values) } : {}),
               mcp_endpoint: endpoint,
             })
@@ -246,6 +252,7 @@ export function CreateContainerDialog({ image, ...props }: DialogProps & { image
               volumes={volumes}
               groups={groups}
             />
+            <LifecycleFields draft={lifecycle} onChange={setLifecycle} />
           </div>
           {/* Outside the scrolling fields, so a long form cannot hide the outcome. */}
           <FieldError>{error}</FieldError>
@@ -277,7 +284,11 @@ export function SettingsDialog({ id, ...props }: DialogProps & { id: string }) {
   const [identity, setIdentityState] = React.useState<IdentityDraft>(() =>
     identityDraft(spec ?? {})
   )
-  useDraft({ name, draft, identity })
+  // As the dialog opened: only what the form changes is sent, so a later expiry an agent set
+  // meanwhile stays.
+  const [lifecycleStart] = React.useState<LifecycleDraft>(() => lifecycleDraft(spec ?? {}))
+  const [lifecycle, setLifecycleState] = React.useState(lifecycleStart)
+  useDraft({ name, draft, identity, lifecycle })
   // A restart warning is confirmed for one set of values; editing the form asks again.
   const [notice, setNotice] = React.useState("")
   const { busy, error, submit } = useSubmit()
@@ -292,9 +303,18 @@ export function SettingsDialog({ id, ...props }: DialogProps & { id: string }) {
     setNotice("")
     setIdentityState(next)
   }
+  const setLifecycle = (next: LifecycleDraft) => {
+    setNotice("")
+    setLifecycleState(next)
+  }
 
   const save = async () => {
-    const body = { name, ...specBody(draft), ...identityBody(identity) }
+    const body = {
+      name,
+      ...specBody(draft),
+      ...identityBody(identity),
+      ...lifecycleBody(lifecycle, lifecycleStart),
+    }
     // The server decides what restarts the container; ask it first and warn once before applying.
     if (!notice) {
       const preview = await api<SettingsPreview>(`containers/${id}/settings`, {
@@ -348,6 +368,7 @@ export function SettingsDialog({ id, ...props }: DialogProps & { id: string }) {
               // These settings are what this dialog is for, so they start in view.
               advancedOpen
             />
+            <LifecycleFields draft={lifecycle} onChange={setLifecycle} start={lifecycleStart} />
             <IdentityFields draft={identity} onChange={setIdentity} spec={spec} />
           </div>
           {/* Outside the scrolling fields, next to the button whose label it changes. */}
