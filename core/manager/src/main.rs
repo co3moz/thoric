@@ -36,6 +36,7 @@ mod media;
 mod metrics;
 mod model;
 mod mount_parents;
+mod notify;
 mod ocr;
 mod openapi;
 mod outbound;
@@ -108,6 +109,8 @@ pub struct App {
     human: human::Requests,
     /// The proxies inside the desktops that use one.
     outbound: outbound::Outbound,
+    /// Notices on their way to `NOTIFY_URL`.
+    notifier: notify::Notifier,
     /// What `/metrics` counts since the manager started.
     metrics: metrics::Metrics,
 }
@@ -134,6 +137,7 @@ fn router(app: Arc<App>) -> Router {
         .route("/api/system", get(api::system))
         .route("/api/update", get(releases::status).post(releases::start))
         .route("/api/update/check", post(releases::check))
+        .route("/api/settings/notify/test", post(notify::test))
         .route(
             "/api/backup",
             get(backup::export).layer(middleware::from_fn(auth::same_origin)),
@@ -536,9 +540,11 @@ async fn main() -> anyhow::Result<()> {
         cancels: Default::default(),
         human: human::Requests::default(),
         outbound: outbound::Outbound::default(),
+        notifier: notify::Notifier::default(),
         metrics: metrics::Metrics::default(),
     });
     usage::spawn(app.clone());
+    notify::spawn(app.clone());
     events::docker::spawn(app.clone());
     desktop_mcp::spawn(app.clone());
     releases::spawn(app.clone());

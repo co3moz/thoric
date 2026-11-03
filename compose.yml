@@ -64,6 +64,9 @@ services:
       PROXY_PASSWORD: ${PROXY_PASSWORD:-}
       PROXY_BYPASS: ${PROXY_BYPASS:-}
       UPDATE_CHECK: ${UPDATE_CHECK:-true}
+      NOTIFY_URL: ${NOTIFY_URL:-}
+      NOTIFY_EVENTS: ${NOTIFY_EVENTS:-}
+      DASHBOARD_URL: ${DASHBOARD_URL:-}
       # Apart, so the Settings page edits ALLOWED_HOSTS as .env has it; the manager answers both.
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost}
       DESKTOP_HOST: ${DESKTOP_HOST:-localhost}

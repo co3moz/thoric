@@ -1155,6 +1155,38 @@ export const de: Messages = {
   "settings.about.MANAGER_CONTAINER":
     "Der eigene Container des Managers, den Thoric nicht anrührt.",
   "settings.about.UPDATE_CHECK": "Sucht alle sechs Stunden auf GitHub nach neuen Versionen.",
+  "settings.about.NOTIFY_URL":
+    "Wohin Benachrichtigungen gehen: ntfy, Discord, Slack, Telegram oder ein JSON-Webhook. Die Adresse enthält Zugangsdaten und ändert sich daher nur in .env, mit thoric settings.",
+  "settings.about.NOTIFY_EVENTS":
+    "Was gesendet wird: human_request, job_failed und update_available, durch Kommas getrennt.",
+  "settings.about.DASHBOARD_URL":
+    "Die Adresse, unter der Sie das Dashboard erreichen, damit eine Benachrichtigung auf den Desktop verlinkt, der Sie braucht.",
+  "settings.section.notifications": "Benachrichtigungen",
+  "settings.choice.humanRequests": "Anfragen an eine Person",
+  "notify.title": "Benachrichtigungen",
+  "notify.description":
+    "Anfragen von Agenten an eine Person erreichen Ihr Telefon, auch wenn niemand das Dashboard geöffnet hat.",
+  "notify.on": "Eingerichtet",
+  "notify.off": "Nicht eingerichtet",
+  "notify.notSet":
+    "Setzen Sie NOTIFY_URL in .env, im WSL-Paket mit thoric settings, um Benachrichtigungen über ntfy, Discord, Slack, Telegram oder einen eigenen Webhook zu erhalten.",
+  "notify.sends": "Sendet",
+  "notify.nothing": "Nichts",
+  "notify.event.human_request": "Anfragen an eine Person",
+  "notify.event.job_failed": "Fehlgeschlagene Jobs",
+  "notify.event.update_available": "Neue Versionen",
+  "notify.noLink": "Ohne DASHBOARD_URL verlinkt eine Benachrichtigung nicht auf das Dashboard.",
+  "notify.test": "Testbenachrichtigung senden",
+  "notify.allTook": "Jede Adresse hat die Testbenachrichtigung angenommen.",
+  "notify.someFailed":
+    "{failed} von {total} Adressen haben die Testbenachrichtigung nicht angenommen.",
+  "notify.took": "Angenommen, HTTP {status}",
+  "notify.target": "{format} auf {host}",
+  "notify.format.ntfy": "ntfy",
+  "notify.format.discord": "Discord",
+  "notify.format.slack": "Slack",
+  "notify.format.telegram": "Telegram",
+  "notify.format.json": "JSON-Webhook",
   "dashboard.running": "{count} laufend",
   "dashboard.attention.one": "{count} benötigt Aufmerksamkeit",
   "dashboard.attention.other": "{count} benötigen Aufmerksamkeit",

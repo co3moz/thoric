@@ -388,6 +388,13 @@ pub(crate) fn finish(
     app.events
         .job(&job, reported.as_ref().err().map(String::as_str));
     app.metrics.job_ended(&job.kind, &job.status);
+    // A job someone cancelled, or a download whose browser went away, did not fail.
+    if reported.as_ref().is_err_and(|error| {
+        error != cancel::CANCELLED && error != crate::archives::stall::CANCELLED
+    }) && crate::notify::wants(app, crate::notify::Kind::JobFailed)
+    {
+        crate::notify::send(app, crate::notify::notices::job_failed(app, &job));
+    }
     if let Err(e) = app.db.prune_jobs(KEPT_JOBS) {
         tracing::debug!("Job history: {e:#}");
     }

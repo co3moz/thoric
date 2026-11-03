@@ -1153,6 +1153,37 @@ export const en = {
     "The label a volume needs to be listed and mounted; none lists every volume.",
   "settings.about.MANAGER_CONTAINER": "The manager's own container, which Thoric leaves alone.",
   "settings.about.UPDATE_CHECK": "Looks for new releases on GitHub every six hours.",
+  "settings.about.NOTIFY_URL":
+    "Where notices go: ntfy, Discord, Slack, Telegram or a JSON webhook. It holds credentials, so it changes only in .env, with thoric settings.",
+  "settings.about.NOTIFY_EVENTS":
+    "What is sent: human_request, job_failed and update_available, separated by commas.",
+  "settings.about.DASHBOARD_URL":
+    "The address you reach the dashboard at, so a notice links to the desktop that needs you.",
+  "settings.section.notifications": "Notifications",
+  "settings.choice.humanRequests": "Requests for a person",
+  "notify.title": "Notifications",
+  "notify.description":
+    "Agents' requests for a person reach your phone, also while nobody has the dashboard open.",
+  "notify.on": "Set up",
+  "notify.off": "Not set up",
+  "notify.notSet":
+    "Set NOTIFY_URL in .env, with thoric settings in the WSL package, to get notices through ntfy, Discord, Slack, Telegram or a webhook of your own.",
+  "notify.sends": "Sends",
+  "notify.nothing": "Nothing",
+  "notify.event.human_request": "Requests for a person",
+  "notify.event.job_failed": "Failed jobs",
+  "notify.event.update_available": "New releases",
+  "notify.noLink": "Without DASHBOARD_URL a notice does not link to the dashboard.",
+  "notify.test": "Send test notification",
+  "notify.allTook": "Every address took the test notice.",
+  "notify.someFailed": "{failed} of {total} addresses did not take the test notice.",
+  "notify.took": "Took it, HTTP {status}",
+  "notify.target": "{format} at {host}",
+  "notify.format.ntfy": "ntfy",
+  "notify.format.discord": "Discord",
+  "notify.format.slack": "Slack",
+  "notify.format.telegram": "Telegram",
+  "notify.format.json": "JSON webhook",
 
   "dashboard.running": "{count} running",
   "dashboard.attention.one": "{count} needs attention",
