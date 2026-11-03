@@ -113,6 +113,7 @@ pub(super) fn policy(tool: &str) -> Option<&'static [Rule]> {
             ("memory_mb", Text, false),
             ("shm_mb", Text, false),
             ("mounts", Whole, false),
+            ("lifecycle", Whole, false),
             // Secret compose values are among these.
             ("parameters", Keys, false),
         ],
@@ -145,6 +146,7 @@ pub(super) fn policy(tool: &str) -> Option<&'static [Rule]> {
             ("memory_mb", Text, false),
             ("shm_mb", Text, false),
             ("mounts", Whole, false),
+            ("lifecycle", Whole, false),
         ],
         "delete_container" => &[("delete_volumes", Text, false)],
         "exec_container" => &[

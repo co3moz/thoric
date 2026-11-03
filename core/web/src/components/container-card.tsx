@@ -7,9 +7,11 @@ import {
   RiMicLine,
   RiComputerLine,
   RiGroupLine,
+  RiHourglassLine,
   RiResetLeftLine,
   RiRouteLine,
   RiShieldKeyholeLine,
+  RiTimerLine,
   RiUploadLine,
   RiVolumeUpLine,
 } from "@remixicon/react"
@@ -41,6 +43,7 @@ import { attempt, containerAction, retrySetup, setInternet } from "@/lib/actions
 import { openDialog } from "@/lib/dialogs"
 import { containerStatus, desktopTitle, jobProgress, jobTone, needsRetry } from "@/lib/format"
 import { formatNumber, t } from "@/lib/i18n"
+import { lifecycleBadges } from "@/lib/lifecycle"
 import { pendingState, type Pending } from "@/lib/pending"
 import { href } from "@/lib/route"
 import type { ContainerItem, ContainerSpec, ImageItem } from "@/lib/types"
@@ -97,6 +100,37 @@ export function SpecBadges({ spec, className }: { spec: ContainerSpec; className
           <RiGroupLine />
           {group}
         </Badge>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * When Thoric stops or deletes the container by itself, as badges whose tooltips say more, kept
+ * current while the card shows how soon each comes.
+ */
+export function LifecycleBadges({ item, className }: { item: ContainerItem; className?: string }) {
+  const [now, setNow] = React.useState(() => Math.floor(Date.now() / 1000))
+  const badges = lifecycleBadges(item, now)
+  const counting = badges.length > 0
+  React.useEffect(() => {
+    if (!counting) return
+    const timer = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 30_000)
+    return () => clearInterval(timer)
+  }, [counting])
+  if (!badges.length) return null
+  return (
+    <div className={cn("flex flex-wrap gap-1.5", className)}>
+      {badges.map((badge) => (
+        <Tooltip key={badge.kind}>
+          <TooltipTrigger asChild>
+            <Badge variant="outline" className="text-muted-foreground" tabIndex={0}>
+              {badge.kind === "idle" ? <RiTimerLine /> : <RiHourglassLine />}
+              {badge.text}
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent>{badge.detail}</TooltipContent>
+        </Tooltip>
       ))}
     </div>
   )
@@ -240,7 +274,10 @@ export function ContainerCard({
         </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <SpecBadges spec={spec} />
+        <div className="flex flex-col gap-1.5">
+          <SpecBadges spec={spec} />
+          <LifecycleBadges item={item} />
+        </div>
         <GroupExposure item={item} />
         <div className="flex items-center justify-between">
           <Label htmlFor={switchId} className="text-muted-foreground">

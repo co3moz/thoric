@@ -142,7 +142,7 @@ where
     F: FnOnce(Arc<App>, String) -> Fut + Send + 'static,
     Fut: Future<Output = anyhow::Result<Value>> + Send + 'static,
 {
-    let (id, _) = queue(app, kind, resource, None, Hold::Shared, None, work)?;
+    let (id, _) = queue(app, kind, resource, None, Hold::Shared, None, None, work)?;
     Ok(Json(json!({"job_id":id})))
 }
 
@@ -167,6 +167,7 @@ where
         name,
         Hold::Exclusive,
         Some(request),
+        None,
         work,
     )?;
     Ok(Json(json!({"job_id":id})))
@@ -206,10 +207,38 @@ where
     } else {
         Hold::Nothing
     };
-    queue(app, kind, resource, name, hold, None, work)
+    queue(app, kind, resource, name, hold, None, None, work)
 }
 
-/// [`start_named`] that keeps the `request` of a job that can be retried before the job can end.
+/// [`start`] for work that holds its resource alone already, as the lifecycle's stop of a desktop
+/// it found idle does: the job runs on with that hold, so nothing takes the resource between the
+/// check that decided on the work and the work.
+pub(crate) fn start_holding<F, Fut>(
+    app: Arc<App>,
+    kind: &str,
+    resource: String,
+    held: Exclusive,
+    work: F,
+) -> Result<(String, Outcome)>
+where
+    F: FnOnce(Arc<App>, String) -> Fut + Send + 'static,
+    Fut: Future<Output = anyhow::Result<Value>> + Send + 'static,
+{
+    queue(
+        app,
+        kind,
+        resource,
+        None,
+        Hold::Exclusive,
+        None,
+        Some(held),
+        work,
+    )
+}
+
+/// [`start_named`] that keeps the `request` of a job that can be retried before the job can end,
+/// and runs with the hold `given` when its caller took it already.
+#[allow(clippy::too_many_arguments)] // Each caller fixes a different few of them.
 fn queue<F, Fut>(
     app: Arc<App>,
     kind: &str,
@@ -217,6 +246,7 @@ fn queue<F, Fut>(
     name: Option<String>,
     hold: Hold,
     request: Option<retry::Request>,
+    given: Option<Exclusive>,
     work: F,
 ) -> Result<(String, Outcome)>
 where
@@ -247,14 +277,20 @@ where
     let lock = (hold != Hold::Nothing).then(|| app.resource_lock(&resource));
     let (done, outcome) = tokio::sync::oneshot::channel();
     let task_id = id.clone();
+    // A job on a container uses it from its queueing to its end (see `lifecycle`).
+    let using = resource
+        .strip_prefix("container:")
+        .map(|container| app.lifecycle.open(container));
     tokio::spawn(async move {
+        let _using = using;
         let held = async {
             let shared = match &lock {
                 Some(lock) if hold == Hold::Shared => Some(lock.clone().share_owned().await),
                 _ => None,
             };
-            let alone = match lock {
-                Some(lock) if hold == Hold::Exclusive => Some(lock.lock_owned().await),
+            let alone = match (given, lock) {
+                (Some(given), _) => Some(given),
+                (None, Some(lock)) if hold == Hold::Exclusive => Some(lock.lock_owned().await),
                 _ => None,
             };
             Held { shared, alone }
@@ -388,6 +424,13 @@ pub(crate) fn finish(
     app.events
         .job(&job, reported.as_ref().err().map(String::as_str));
     app.metrics.job_ended(&job.kind, &job.status);
+    // A job someone cancelled, or a download whose browser went away, did not fail.
+    if reported.as_ref().is_err_and(|error| {
+        error != cancel::CANCELLED && error != crate::archives::stall::CANCELLED
+    }) && crate::notify::wants(app, crate::notify::Kind::JobFailed)
+    {
+        crate::notify::send(app, crate::notify::notices::job_failed(app, &job));
+    }
     if let Err(e) = app.db.prune_jobs(KEPT_JOBS) {
         tracing::debug!("Job history: {e:#}");
     }

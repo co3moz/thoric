@@ -71,6 +71,9 @@ export const fr: Messages = {
   "job.update": "Mise à jour de Thoric",
   "job.backup": "Sauvegarde de l'installation",
   "job.restore": "Restauration d'une sauvegarde",
+  "job.idle-stop": "Arrêt pour inactivité",
+  "job.expiry-stop": "Arrêt à l'expiration",
+  "job.expiry-delete": "Suppression à l'expiration",
   "jobs.target.container": "Conteneur {id}",
   "jobs.target.image": "Image {id}",
   "jobs.log.queued": "En attente de démarrage…",
@@ -1162,6 +1165,8 @@ export const fr: Messages = {
   "settings.about.GAMEPAD_DEFAULT":
     "Si un nouveau conteneur a la manette virtuelle, sauf demande contraire.",
   "settings.about.VPN_DEFAULT": "Si un nouveau conteneur a l'accès VPN, sauf demande contraire.",
+  "settings.about.IDLE_STOP_DEFAULT":
+    "Minutes pendant lesquelles le bureau d'un nouveau conteneur peut rester inutilisé avant d'être arrêté, sauf demande contraire ; 0 pour jamais.",
   "settings.about.PROXY_URL":
     "Le proxy des conteneurs qui suivent celui de l'installation, en http://, https:// ou socks5:// avec un hôte et un port. Vide pour aucun.",
   "settings.about.PROXY_USERNAME": "Le nom d'utilisateur du proxy, s'il en demande un.",
@@ -1197,6 +1202,38 @@ export const fr: Messages = {
     "L'étiquette qu'un volume doit porter pour être listé et monté ; none liste tous les volumes.",
   "settings.about.MANAGER_CONTAINER": "Le conteneur du manager, auquel Thoric ne touche pas.",
   "settings.about.UPDATE_CHECK": "Cherche de nouvelles versions sur GitHub toutes les six heures.",
+  "settings.about.NOTIFY_URL":
+    "Où vont les notifications : ntfy, Discord, Slack, Telegram ou un webhook JSON. L'adresse contient des identifiants, elle ne change donc que dans .env, avec thoric settings.",
+  "settings.about.NOTIFY_EVENTS":
+    "Ce qui est envoyé : human_request, job_failed, update_available et container_lifecycle, séparés par des virgules.",
+  "settings.about.DASHBOARD_URL":
+    "L'adresse à laquelle vous joignez le tableau de bord, pour qu'une notification renvoie au bureau qui a besoin de vous.",
+  "settings.section.notifications": "Notifications",
+  "settings.choice.humanRequests": "Demandes à une personne",
+  "notify.title": "Notifications",
+  "notify.description":
+    "Les demandes des agents à une personne arrivent sur votre téléphone, même quand personne n'a le tableau de bord ouvert.",
+  "notify.on": "Configurées",
+  "notify.off": "Non configurées",
+  "notify.notSet":
+    "Définissez NOTIFY_URL dans .env, avec thoric settings dans le paquet WSL, pour recevoir des notifications par ntfy, Discord, Slack, Telegram ou votre propre webhook.",
+  "notify.sends": "Envoie",
+  "notify.nothing": "Rien",
+  "notify.event.human_request": "Demandes à une personne",
+  "notify.event.job_failed": "Tâches en échec",
+  "notify.event.update_available": "Nouvelles versions",
+  "notify.event.container_lifecycle": "Arrêts et suppressions automatiques",
+  "notify.noLink": "Sans DASHBOARD_URL, une notification ne renvoie pas au tableau de bord.",
+  "notify.test": "Envoyer une notification de test",
+  "notify.allTook": "Chaque adresse a accepté la notification de test.",
+  "notify.someFailed": "{failed} adresses sur {total} n'ont pas accepté la notification de test.",
+  "notify.took": "Acceptée, HTTP {status}",
+  "notify.target": "{format} sur {host}",
+  "notify.format.ntfy": "ntfy",
+  "notify.format.discord": "Discord",
+  "notify.format.slack": "Slack",
+  "notify.format.telegram": "Telegram",
+  "notify.format.json": "Webhook JSON",
   "dashboard.running": "{count} en cours d'exécution",
   "dashboard.attention.one": "{count} requiert votre attention",
   "dashboard.attention.other": "{count} requièrent votre attention",
@@ -1398,6 +1435,37 @@ export const fr: Messages = {
   "tagInput.clear": "Vider",
   "tagInput.new": "Nouveau",
 
+  "lifecycle.title": "Cycle de vie",
+  "lifecycle.description":
+    "Thoric arrête ou supprime le conteneur de lui-même. Un changement s'applique sans redémarrage.",
+  "lifecycle.idle": "Arrêter après inactivité (minutes)",
+  "lifecycle.idleHint":
+    "Les visionneuses, les tâches, les agents et un processeur occupé comptent comme utilisation. Vide pour jamais.",
+  "lifecycle.never": "Jamais",
+  "lifecycle.expires": "Expire le",
+  "lifecycle.expiresHint": "Vide pour jamais.",
+  "lifecycle.onExpiry": "À l'expiration",
+  "lifecycle.onExpiry.stop": "Arrêter",
+  "lifecycle.onExpiry.delete": "Supprimer",
+  "lifecycle.onExpiry.stopHint": "Le conteneur reste, et son expiration est effacée.",
+  "lifecycle.onExpiry.deleteHint":
+    "Le conteneur et ses fichiers sont supprimés, comme le fait Supprimer.",
+  "lifecycle.deleteVolumes": "Supprimer aussi les volumes créés pour lui",
+  "lifecycle.badge.idle": "S'arrête après {duration} d'inactivité",
+  "lifecycle.badge.idleStops": "Inactif, arrêt {time}",
+  "lifecycle.badge.idleUnused":
+    "Rien n'utilise le bureau ; Thoric l'arrête après {duration} sans utilisation.",
+  "lifecycle.badge.idleInUse":
+    "En cours d'utilisation. Thoric arrête le bureau après {duration} sans utilisation.",
+  "lifecycle.badge.idleStopped":
+    "Tant qu'il tourne, Thoric arrête le bureau après {duration} sans utilisation.",
+  "lifecycle.badge.expiring": "Expire maintenant",
+  "lifecycle.badge.expires": "Expire {time}",
+  "lifecycle.badge.deleted": "Suppression {time}",
+  "lifecycle.badge.stoppedAt": "Thoric l'arrête le {date} et efface son expiration.",
+  "lifecycle.badge.deletedAt": "Thoric le supprime le {date} ; ses volumes restent.",
+  "lifecycle.badge.deletedAtVolumes":
+    "Thoric le supprime le {date}, avec les volumes créés pour lui.",
   "identity.title": "Identité de la machine",
   "identity.description":
     "Ce que les logiciels du bureau, comme une licence liée à une machine, voient de la machine. Les réinitialisations et les changements de paramètres la conservent. Ne la modifiez que pour reprendre l'identité d'un conteneur que celui-ci remplace.",

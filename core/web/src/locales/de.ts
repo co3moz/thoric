@@ -71,6 +71,9 @@ export const de: Messages = {
   "job.update": "Thoric aktualisieren",
   "job.backup": "Installation sichern",
   "job.restore": "Sicherung wiederherstellen",
+  "job.idle-stop": "Bei Leerlauf stoppen",
+  "job.expiry-stop": "Bei Ablauf stoppen",
+  "job.expiry-delete": "Bei Ablauf löschen",
   "jobs.target.container": "Container {id}",
   "jobs.target.image": "Image {id}",
   "jobs.log.queued": "Wartet auf den Start…",
@@ -1165,6 +1168,8 @@ export const de: Messages = {
     "Ob ein neuer Container das virtuelle Gamepad erhält, sofern er nichts anderes verlangt.",
   "settings.about.VPN_DEFAULT":
     "Ob ein neuer Container VPN-Zugriff erhält, sofern er nichts anderes verlangt.",
+  "settings.about.IDLE_STOP_DEFAULT":
+    "Minuten, die der Desktop eines neuen Containers unbenutzt bleiben darf, bevor er gestoppt wird, sofern er nichts anderes verlangt; 0 für nie.",
   "settings.about.PROXY_URL":
     "Der Proxy der Container, die dem der Installation folgen: http://, https:// oder socks5:// mit Host und Port. Leer für keinen.",
   "settings.about.PROXY_USERNAME": "Der Benutzername des Proxys, wenn er einen verlangt.",
@@ -1202,6 +1207,39 @@ export const de: Messages = {
   "settings.about.MANAGER_CONTAINER":
     "Der eigene Container des Managers, den Thoric nicht anrührt.",
   "settings.about.UPDATE_CHECK": "Sucht alle sechs Stunden auf GitHub nach neuen Versionen.",
+  "settings.about.NOTIFY_URL":
+    "Wohin Benachrichtigungen gehen: ntfy, Discord, Slack, Telegram oder ein JSON-Webhook. Die Adresse enthält Zugangsdaten und ändert sich daher nur in .env, mit thoric settings.",
+  "settings.about.NOTIFY_EVENTS":
+    "Was gesendet wird: human_request, job_failed, update_available und container_lifecycle, durch Kommas getrennt.",
+  "settings.about.DASHBOARD_URL":
+    "Die Adresse, unter der Sie das Dashboard erreichen, damit eine Benachrichtigung auf den Desktop verlinkt, der Sie braucht.",
+  "settings.section.notifications": "Benachrichtigungen",
+  "settings.choice.humanRequests": "Anfragen an eine Person",
+  "notify.title": "Benachrichtigungen",
+  "notify.description":
+    "Anfragen von Agenten an eine Person erreichen Ihr Telefon, auch wenn niemand das Dashboard geöffnet hat.",
+  "notify.on": "Eingerichtet",
+  "notify.off": "Nicht eingerichtet",
+  "notify.notSet":
+    "Setzen Sie NOTIFY_URL in .env, im WSL-Paket mit thoric settings, um Benachrichtigungen über ntfy, Discord, Slack, Telegram oder einen eigenen Webhook zu erhalten.",
+  "notify.sends": "Sendet",
+  "notify.nothing": "Nichts",
+  "notify.event.human_request": "Anfragen an eine Person",
+  "notify.event.job_failed": "Fehlgeschlagene Jobs",
+  "notify.event.update_available": "Neue Versionen",
+  "notify.event.container_lifecycle": "Automatisches Stoppen und Löschen",
+  "notify.noLink": "Ohne DASHBOARD_URL verlinkt eine Benachrichtigung nicht auf das Dashboard.",
+  "notify.test": "Testbenachrichtigung senden",
+  "notify.allTook": "Jede Adresse hat die Testbenachrichtigung angenommen.",
+  "notify.someFailed":
+    "{failed} von {total} Adressen haben die Testbenachrichtigung nicht angenommen.",
+  "notify.took": "Angenommen, HTTP {status}",
+  "notify.target": "{format} auf {host}",
+  "notify.format.ntfy": "ntfy",
+  "notify.format.discord": "Discord",
+  "notify.format.slack": "Slack",
+  "notify.format.telegram": "Telegram",
+  "notify.format.json": "JSON-Webhook",
   "dashboard.running": "{count} laufend",
   "dashboard.attention.one": "{count} benötigt Aufmerksamkeit",
   "dashboard.attention.other": "{count} benötigen Aufmerksamkeit",
@@ -1404,6 +1442,37 @@ export const de: Messages = {
   "tagInput.clear": "Leeren",
   "tagInput.new": "Neu",
 
+  "lifecycle.title": "Lebenszyklus",
+  "lifecycle.description":
+    "Thoric stoppt oder löscht den Container selbst. Eine Änderung gilt ohne Neustart.",
+  "lifecycle.idle": "Stoppen nach Minuten ohne Nutzung",
+  "lifecycle.idleHint":
+    "Ansichten, Jobs, Agenten und eine ausgelastete CPU zählen als Nutzung. Leer für nie.",
+  "lifecycle.never": "Nie",
+  "lifecycle.expires": "Läuft ab",
+  "lifecycle.expiresHint": "Leer für nie.",
+  "lifecycle.onExpiry": "Bei Ablauf",
+  "lifecycle.onExpiry.stop": "Stoppen",
+  "lifecycle.onExpiry.delete": "Löschen",
+  "lifecycle.onExpiry.stopHint": "Der Container bleibt, und sein Ablauf wird entfernt.",
+  "lifecycle.onExpiry.deleteHint":
+    "Der Container und seine Dateien werden gelöscht, wie Löschen es tut.",
+  "lifecycle.deleteVolumes": "Auch die für ihn erstellten Volumes löschen",
+  "lifecycle.badge.idle": "Stoppt nach {duration} Leerlauf",
+  "lifecycle.badge.idleStops": "Leerlauf, stoppt {time}",
+  "lifecycle.badge.idleUnused":
+    "Nichts nutzt den Desktop; Thoric stoppt ihn nach {duration} ohne Nutzung.",
+  "lifecycle.badge.idleInUse":
+    "In Benutzung. Thoric stoppt den Desktop nach {duration} ohne Nutzung.",
+  "lifecycle.badge.idleStopped":
+    "Solange er läuft, stoppt Thoric den Desktop nach {duration} ohne Nutzung.",
+  "lifecycle.badge.expiring": "Läuft jetzt ab",
+  "lifecycle.badge.expires": "Läuft {time} ab",
+  "lifecycle.badge.deleted": "Wird {time} gelöscht",
+  "lifecycle.badge.stoppedAt": "Thoric stoppt ihn am {date} und entfernt seinen Ablauf.",
+  "lifecycle.badge.deletedAt": "Thoric löscht ihn am {date}; seine Volumes bleiben.",
+  "lifecycle.badge.deletedAtVolumes":
+    "Thoric löscht ihn am {date} mit den für ihn erstellten Volumes.",
   "identity.title": "Maschinenidentität",
   "identity.description":
     "Was Software im Desktop, etwa eine an einen Rechner gebundene Lizenz, vom Rechner sieht. Zurücksetzen und Änderungen der Einstellungen behalten sie bei. Ändern Sie sie nur, um die Identität eines Containers zu übernehmen, den dieser ersetzt.",

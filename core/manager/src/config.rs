@@ -88,6 +88,9 @@ pub struct Config {
     pub update_check: bool,
     /// Where the WSL package takes update requests from the dashboard; see [`crate::releases`].
     pub update_dir: PathBuf,
+    /// Where notices go and which are sent, from `NOTIFY_URL`, `NOTIFY_EVENTS` and
+    /// `DASHBOARD_URL`; see [`crate::notify`].
+    pub notify: crate::notify::Settings,
     /// What startup has to say about the settings it was given, such as a renamed variable that
     /// is still set; logged once the manager starts.
     pub notices: Vec<String>,
@@ -107,6 +110,9 @@ pub struct Features {
     pub microphone: bool,
     pub gamepad: bool,
     pub vpn: bool,
+    /// Minutes a new container's desktop may go unused before it is stopped, `0` for never; see
+    /// [`crate::lifecycle`].
+    pub idle_stop_minutes: u32,
 }
 /// A variable a release renamed. An installation keeps its `.env` across upgrades, so the old name
 /// keeps its meaning while the new one is not set, and startup says to rename it.
@@ -147,6 +153,7 @@ pub(crate) const EDITABLE: &[&str] = &[
     "MICROPHONE_DEFAULT",
     "GAMEPAD_DEFAULT",
     "VPN_DEFAULT",
+    "IDLE_STOP_DEFAULT",
     "UPLOAD_MAX_MB",
     "IMAGE_ARCHIVE_MAX_MB",
     "TEMPLATES_URL",
@@ -155,6 +162,8 @@ pub(crate) const EDITABLE: &[&str] = &[
     "PROXY_USERNAME",
     "PROXY_BYPASS",
     "UPDATE_CHECK",
+    "NOTIFY_EVENTS",
+    "DASHBOARD_URL",
 ];
 /// The template list on the project's GitHub wiki.
 pub(crate) const TEMPLATES_URL: &str =
@@ -413,6 +422,9 @@ impl Config {
                 microphone: flag("MICROPHONE_DEFAULT", false)?,
                 gamepad: flag("GAMEPAD_DEFAULT", false)?,
                 vpn: flag("VPN_DEFAULT", false)?,
+                idle_stop_minutes: crate::lifecycle::idle_stop_default(
+                    var("IDLE_STOP_DEFAULT").as_deref(),
+                )?,
             },
             wsl_gpu: flag("WSL_GPU", true)?,
             cuda: flag("NVIDIA_COMPUTE", true)?,
@@ -437,6 +449,7 @@ impl Config {
             proxy,
             update_check: flag("UPDATE_CHECK", true)?,
             update_dir: crate::releases::UPDATE_DIR.into(),
+            notify: crate::notify::settings(&var)?,
             notices,
             environment: BTreeMap::new(),
         };
@@ -526,6 +539,7 @@ impl Config {
             value("MICROPHONE_DEFAULT", json!(self.defaults.microphone)),
             value("GAMEPAD_DEFAULT", json!(self.defaults.gamepad)),
             value("VPN_DEFAULT", json!(self.defaults.vpn)),
+            value("IDLE_STOP_DEFAULT", json!(self.defaults.idle_stop_minutes)),
             value("UPLOAD_MAX_MB", mib(self.upload_limit)),
             value("IMAGE_ARCHIVE_MAX_MB", mib(self.archive_limit)),
             value(
@@ -559,6 +573,9 @@ impl Config {
                 json!(self.proxy.as_ref().map(|proxy| proxy.bypass.join(","))),
             ),
             value("UPDATE_CHECK", json!(self.update_check)),
+            secret("NOTIFY_URL", !self.notify.targets.is_empty()),
+            value("NOTIFY_EVENTS", json!(self.notify.events_text())),
+            value("DASHBOARD_URL", json!(self.notify.dashboard)),
         ]
     }
 
@@ -580,6 +597,7 @@ impl Config {
             microphone: self.defaults.microphone && self.microphone && audio,
             gamepad: self.defaults.gamepad && self.gamepad,
             vpn: self.defaults.vpn && self.vpn,
+            idle_stop_minutes: self.defaults.idle_stop_minutes,
         }
     }
 

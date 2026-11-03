@@ -42,6 +42,8 @@ pub async fn vnc(
         .protocols(["binary"])
         .max_message_size(4 * 1024 * 1024)
         .on_upgrade(move |socket| async move {
+            // An open viewer uses the desktop, which its idle stop leaves running.
+            let _using = app.lifecycle.open(&env.id);
             tokio::select! { _=app.session_revoked(token)=>{}, _=bridge(socket,stream)=>{} }
         }))
 }
@@ -159,7 +161,11 @@ pub async fn audio(
     let token = crate::auth::cookie(&headers);
     Ok(ws
         .max_message_size(65536)
-        .on_upgrade(move |socket| pcm(socket, child, capture, app, token)))
+        .on_upgrade(move |socket| async move {
+            // Sound or a microphone that is connected uses the desktop.
+            let _using = app.lifecycle.open(&env.id);
+            pcm(socket, child, capture, app, token).await
+        }))
 }
 async fn pcm(
     socket: WebSocket,

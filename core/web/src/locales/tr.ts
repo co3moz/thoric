@@ -70,6 +70,9 @@ export const tr: Messages = {
   "job.update": "Thoric güncelleme",
   "job.backup": "Kurulumu yedekleme",
   "job.restore": "Yedeği geri yükleme",
+  "job.idle-stop": "Boştayken durdurma",
+  "job.expiry-stop": "Süre dolunca durdurma",
+  "job.expiry-delete": "Süre dolunca silme",
   "jobs.target.container": "Konteyner {id}",
   "jobs.target.image": "İmaj {id}",
   "jobs.log.queued": "Başlaması bekleniyor…",
@@ -1144,6 +1147,8 @@ export const tr: Messages = {
     "Yeni bir konteynerin, aksi istenmedikçe sanal gamepad alıp almayacağı.",
   "settings.about.VPN_DEFAULT":
     "Yeni bir konteynerin, aksi istenmedikçe VPN erişimi alıp almayacağı.",
+  "settings.about.IDLE_STOP_DEFAULT":
+    "Yeni bir konteynerin masaüstünün, aksi istenmedikçe durdurulmadan önce kullanılmadan kalabileceği dakika; 0 asla.",
   "settings.about.PROXY_URL":
     "Kurulumunkini izleyen konteynerlerin geçtiği proxy: host ve port ile http://, https:// ya da socks5://. Boşsa proxy yok.",
   "settings.about.PROXY_USERNAME": "Proxy isterse proxy kullanıcı adı.",
@@ -1179,6 +1184,38 @@ export const tr: Messages = {
     "Bir volume'un listelenip bağlanması için gereken etiket; none her volume'u listeler.",
   "settings.about.MANAGER_CONTAINER": "Manager'ın kendi konteyneri; Thoric ona dokunmaz.",
   "settings.about.UPDATE_CHECK": "Altı saatte bir GitHub'da yeni sürüm arar.",
+  "settings.about.NOTIFY_URL":
+    "Bildirimlerin gittiği yer: ntfy, Discord, Slack, Telegram ya da bir JSON webhook. Kimlik bilgilerini taşıdığı için yalnızca .env içinde, thoric settings ile değişir.",
+  "settings.about.NOTIFY_EVENTS":
+    "Gönderilenler: human_request, job_failed, update_available ve container_lifecycle, virgülle ayrılarak.",
+  "settings.about.DASHBOARD_URL":
+    "Panele ulaştığınız adres; bildirim sizi bekleyen masaüstüne bağlantı verir.",
+  "settings.section.notifications": "Bildirimler",
+  "settings.choice.humanRequests": "Kişiden istenenler",
+  "notify.title": "Bildirimler",
+  "notify.description":
+    "Ajanların bir kişiden istekleri, panel kimsede açık değilken de telefonunuza ulaşır.",
+  "notify.on": "Kurulu",
+  "notify.off": "Kurulu değil",
+  "notify.notSet":
+    "Bildirimleri ntfy, Discord, Slack, Telegram ya da kendi webhook'unuzla almak için .env içinde NOTIFY_URL değerini verin; WSL paketinde thoric settings ile.",
+  "notify.sends": "Gönderilenler",
+  "notify.nothing": "Hiçbir şey",
+  "notify.event.human_request": "Kişiden istenenler",
+  "notify.event.job_failed": "Başarısız işler",
+  "notify.event.update_available": "Yeni sürümler",
+  "notify.event.container_lifecycle": "Otomatik durdurma ve silmeler",
+  "notify.noLink": "DASHBOARD_URL olmadan bildirim panele bağlantı vermez.",
+  "notify.test": "Deneme bildirimi gönder",
+  "notify.allTook": "Deneme bildirimini her adres aldı.",
+  "notify.someFailed": "{total} adresten {failed} tanesi deneme bildirimini almadı.",
+  "notify.took": "Aldı, HTTP {status}",
+  "notify.target": "{host} üzerinde {format}",
+  "notify.format.ntfy": "ntfy",
+  "notify.format.discord": "Discord",
+  "notify.format.slack": "Slack",
+  "notify.format.telegram": "Telegram",
+  "notify.format.json": "JSON webhook",
   "dashboard.running": "{count} çalışıyor",
   "dashboard.attention.one": "{count} dikkat gerektiriyor",
   "dashboard.attention.other": "{count} dikkat gerektiriyor",
@@ -1377,6 +1414,36 @@ export const tr: Messages = {
   "tagInput.clear": "Temizle",
   "tagInput.new": "Yeni",
 
+  "lifecycle.title": "Yaşam döngüsü",
+  "lifecycle.description":
+    "Thoric konteyneri kendiliğinden durdurur ya da siler. Değişiklik yeniden başlatmadan uygulanır.",
+  "lifecycle.idle": "Kullanılmazsa durdur (dakika)",
+  "lifecycle.idleHint":
+    "Görüntüleyiciler, işler, ajanlar ve meşgul bir işlemci kullanım sayılır. Asla için boş bırakın.",
+  "lifecycle.never": "Asla",
+  "lifecycle.expires": "Sona erme",
+  "lifecycle.expiresHint": "Asla için boş bırakın.",
+  "lifecycle.onExpiry": "Süre dolunca",
+  "lifecycle.onExpiry.stop": "Durdur",
+  "lifecycle.onExpiry.delete": "Sil",
+  "lifecycle.onExpiry.stopHint": "Konteyner kalır ve sona erme zamanı kaldırılır.",
+  "lifecycle.onExpiry.deleteHint": "Konteyner ve dosyaları, Sil'in yaptığı gibi silinir.",
+  "lifecycle.deleteVolumes": "Onun için oluşturulan volume'leri de sil",
+  "lifecycle.badge.idle": "{duration} boşta kalınca durur",
+  "lifecycle.badge.idleStops": "Boşta, {time} durur",
+  "lifecycle.badge.idleUnused":
+    "Masaüstünü kullanan yok; Thoric onu {duration} kullanılmayınca durdurur.",
+  "lifecycle.badge.idleInUse": "Kullanımda. Thoric masaüstünü {duration} kullanılmayınca durdurur.",
+  "lifecycle.badge.idleStopped":
+    "Çalışırken Thoric masaüstünü {duration} kullanılmayınca durdurur.",
+  "lifecycle.badge.expiring": "Şimdi sona eriyor",
+  "lifecycle.badge.expires": "{time} sona erer",
+  "lifecycle.badge.deleted": "{time} silinir",
+  "lifecycle.badge.stoppedAt":
+    "Thoric onu {date} tarihinde durdurur ve sona erme zamanını kaldırır.",
+  "lifecycle.badge.deletedAt": "Thoric onu {date} tarihinde siler; volume'leri kalır.",
+  "lifecycle.badge.deletedAtVolumes":
+    "Thoric onu {date} tarihinde, onun için oluşturulan volume'lerle birlikte siler.",
   "identity.title": "Makine kimliği",
   "identity.description":
     "Masaüstündeki yazılımın, örneğin tek bir makineye bağlı bir lisansın, makineden gördükleri. Sıfırlama ve ayar değişiklikleri bunları korur. Yalnızca bu konteynerin yerini aldığı bir konteynerin kimliğini devralmak için değiştirin.",

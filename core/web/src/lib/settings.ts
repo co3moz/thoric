@@ -13,6 +13,7 @@ export const SECTIONS = [
   "limits",
   "content",
   "manager",
+  "notifications",
   "misc",
 ] as const
 export type Section = (typeof SECTIONS)[number]
@@ -44,6 +45,7 @@ export const SECTION_OF: Record<string, Section> = {
   MICROPHONE_DEFAULT: "features",
   GAMEPAD_DEFAULT: "features",
   VPN_DEFAULT: "features",
+  IDLE_STOP_DEFAULT: "features",
   WSL_GPU: "gpu",
   NVIDIA_COMPUTE: "gpu",
   DRI_GPU: "gpu",
@@ -59,6 +61,9 @@ export const SECTION_OF: Record<string, Section> = {
   MANAGER_CONTAINER: "manager",
   METRICS_TOKEN: "manager",
   UPDATE_CHECK: "manager",
+  NOTIFY_URL: "notifications",
+  NOTIFY_EVENTS: "notifications",
+  DASHBOARD_URL: "notifications",
 }
 
 /**
@@ -175,6 +180,8 @@ export const FIELDS: Record<string, Field> = {
   MICROPHONE_DEFAULT: { kind: "switch" },
   GAMEPAD_DEFAULT: { kind: "switch" },
   VPN_DEFAULT: { kind: "switch" },
+  // Minutes, 0 for never; the manager takes up to a week.
+  IDLE_STOP_DEFAULT: { kind: "number", min: 0, max: 10080 },
   UPLOAD_MAX_MB: { kind: "number", min: 1, max: 65536 },
   IMAGE_ARCHIVE_MAX_MB: { kind: "number", min: 1, max: 1048576 },
   TEMPLATES_URL: {
@@ -196,9 +203,41 @@ export const FIELDS: Record<string, Field> = {
   PROXY_URL: { kind: "text", placeholder: "http://proxy.example:3128" },
   PROXY_BYPASS: { kind: "text", placeholder: "intranet.example,10.0.0.0/8" },
   UPDATE_CHECK: { kind: "switch" },
+  NOTIFY_EVENTS: {
+    kind: "choice",
+    choices: [
+      { value: "", label: "settings.choice.humanRequests" },
+      { value: "none", label: "settings.choice.off" },
+    ],
+    placeholder: "human_request,job_failed,update_available",
+  },
+  DASHBOARD_URL: { kind: "text", placeholder: "https://thoric.lan:8443" },
 }
 
 export const fieldOf = (name: string): Field => FIELDS[name] ?? { kind: "text" }
+
+/** The kinds of notice `NOTIFY_EVENTS` names, each with its label. */
+export const NOTIFY_EVENTS: Record<string, MessageKey> = {
+  human_request: "notify.event.human_request",
+  job_failed: "notify.event.job_failed",
+  update_available: "notify.event.update_available",
+  container_lifecycle: "notify.event.container_lifecycle",
+}
+
+/**
+ * The kinds of notice `NOTIFY_EVENTS` sends as the manager reads it, or `null` for none. A kind
+ * this page does not know yet keeps its name, without a label.
+ */
+export function notifyEvents(value: string): { name: string; label?: MessageKey }[] | null {
+  const names = value
+    .split(",")
+    .map((name) => name.trim())
+    .filter((name) => name && name !== "none")
+  if (!names.length) return null
+  return names.map((name) =>
+    NOTIFY_EVENTS[name] ? { name, label: NOTIFY_EVENTS[name] } : { name }
+  )
+}
 
 /** Which of a choice's values a text is, or -1 for a text of the user's own. */
 export const choiceIndex = (field: Extract<Field, { kind: "choice" }>, text: string) =>

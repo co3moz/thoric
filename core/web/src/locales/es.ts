@@ -70,6 +70,9 @@ export const es: Messages = {
   "job.update": "Actualizar Thoric",
   "job.backup": "Copia de seguridad de la instalación",
   "job.restore": "Restaurar copia de seguridad",
+  "job.idle-stop": "Detener por inactividad",
+  "job.expiry-stop": "Detener al caducar",
+  "job.expiry-delete": "Eliminar al caducar",
   "jobs.target.container": "Contenedor {id}",
   "jobs.target.image": "Imagen {id}",
   "jobs.log.queued": "Esperando para empezar…",
@@ -1151,6 +1154,8 @@ export const es: Messages = {
     "Si un contenedor nuevo tiene el mando virtual, salvo que pida otra cosa.",
   "settings.about.VPN_DEFAULT":
     "Si un contenedor nuevo tiene acceso VPN, salvo que pida otra cosa.",
+  "settings.about.IDLE_STOP_DEFAULT":
+    "Minutos que el escritorio de un contenedor nuevo puede quedar sin uso antes de detenerse, salvo que pida otra cosa; 0 para nunca.",
   "settings.about.PROXY_URL":
     "El proxy de los contenedores que siguen el de la instalación: http://, https:// o socks5:// con un host y un puerto. Vacío para ninguno.",
   "settings.about.PROXY_USERNAME": "El usuario del proxy, si lo pide.",
@@ -1189,6 +1194,38 @@ export const es: Messages = {
     "La etiqueta que necesita un volumen para listarse y montarse; none lista todos los volúmenes.",
   "settings.about.MANAGER_CONTAINER": "El contenedor del propio manager, que Thoric no toca.",
   "settings.about.UPDATE_CHECK": "Busca versiones nuevas en GitHub cada seis horas.",
+  "settings.about.NOTIFY_URL":
+    "Adónde van los avisos: ntfy, Discord, Slack, Telegram o un webhook JSON. Lleva credenciales, así que solo cambia en .env, con thoric settings.",
+  "settings.about.NOTIFY_EVENTS":
+    "Qué se envía: human_request, job_failed, update_available y container_lifecycle, separados por comas.",
+  "settings.about.DASHBOARD_URL":
+    "La dirección con la que llegas al panel, para que un aviso enlace al escritorio que te necesita.",
+  "settings.section.notifications": "Avisos",
+  "settings.choice.humanRequests": "Peticiones a una persona",
+  "notify.title": "Avisos",
+  "notify.description":
+    "Las peticiones de los agentes a una persona llegan a tu teléfono, también cuando nadie tiene el panel abierto.",
+  "notify.on": "Configurados",
+  "notify.off": "Sin configurar",
+  "notify.notSet":
+    "Define NOTIFY_URL en .env, con thoric settings en el paquete WSL, para recibir avisos por ntfy, Discord, Slack, Telegram o un webhook propio.",
+  "notify.sends": "Envía",
+  "notify.nothing": "Nada",
+  "notify.event.human_request": "Peticiones a una persona",
+  "notify.event.job_failed": "Trabajos fallidos",
+  "notify.event.update_available": "Versiones nuevas",
+  "notify.event.container_lifecycle": "Detenciones y eliminaciones automáticas",
+  "notify.noLink": "Sin DASHBOARD_URL, un aviso no enlaza al panel.",
+  "notify.test": "Enviar aviso de prueba",
+  "notify.allTook": "Todas las direcciones aceptaron el aviso de prueba.",
+  "notify.someFailed": "{failed} de {total} direcciones no aceptaron el aviso de prueba.",
+  "notify.took": "Aceptado, HTTP {status}",
+  "notify.target": "{format} en {host}",
+  "notify.format.ntfy": "ntfy",
+  "notify.format.discord": "Discord",
+  "notify.format.slack": "Slack",
+  "notify.format.telegram": "Telegram",
+  "notify.format.json": "Webhook JSON",
   "dashboard.running": "{count} en ejecución",
   "dashboard.attention.one": "{count} necesita atención",
   "dashboard.attention.other": "{count} necesitan atención",
@@ -1391,6 +1428,35 @@ export const es: Messages = {
   "tagInput.clear": "Vaciar",
   "tagInput.new": "Nuevo",
 
+  "lifecycle.title": "Ciclo de vida",
+  "lifecycle.description":
+    "Thoric detiene o elimina el contenedor por sí mismo. Un cambio se aplica sin reiniciar.",
+  "lifecycle.idle": "Detener tras minutos sin uso",
+  "lifecycle.idleHint":
+    "Los visores, los trabajos, los agentes y una CPU ocupada cuentan como uso. Vacío para nunca.",
+  "lifecycle.never": "Nunca",
+  "lifecycle.expires": "Caduca",
+  "lifecycle.expiresHint": "Vacío para nunca.",
+  "lifecycle.onExpiry": "Al caducar",
+  "lifecycle.onExpiry.stop": "Detener",
+  "lifecycle.onExpiry.delete": "Eliminar",
+  "lifecycle.onExpiry.stopHint": "El contenedor se queda y su caducidad se borra.",
+  "lifecycle.onExpiry.deleteHint": "El contenedor y sus archivos se eliminan, como hace Eliminar.",
+  "lifecycle.deleteVolumes": "Eliminar también los volúmenes creados para él",
+  "lifecycle.badge.idle": "Se detiene tras {duration} sin uso",
+  "lifecycle.badge.idleStops": "Sin uso, se detiene {time}",
+  "lifecycle.badge.idleUnused":
+    "Nada usa el escritorio; Thoric lo detiene tras {duration} sin uso.",
+  "lifecycle.badge.idleInUse": "En uso. Thoric detiene el escritorio tras {duration} sin uso.",
+  "lifecycle.badge.idleStopped":
+    "Mientras funciona, Thoric detiene el escritorio tras {duration} sin uso.",
+  "lifecycle.badge.expiring": "Caduca ahora",
+  "lifecycle.badge.expires": "Caduca {time}",
+  "lifecycle.badge.deleted": "Se elimina {time}",
+  "lifecycle.badge.stoppedAt": "Thoric lo detiene el {date} y borra su caducidad.",
+  "lifecycle.badge.deletedAt": "Thoric lo elimina el {date}; sus volúmenes se quedan.",
+  "lifecycle.badge.deletedAtVolumes":
+    "Thoric lo elimina el {date}, con los volúmenes creados para él.",
   "identity.title": "Identidad de la máquina",
   "identity.description":
     "Lo que el software del escritorio, como una licencia vinculada a una máquina, ve de la máquina. Los restablecimientos y los cambios de configuración la conservan. Cámbiala solo para asumir la identidad de un contenedor al que este reemplaza.",

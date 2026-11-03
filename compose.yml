@@ -53,6 +53,7 @@ services:
       MICROPHONE_DEFAULT: ${MICROPHONE_DEFAULT:-false}
       GAMEPAD_DEFAULT: ${GAMEPAD_DEFAULT:-false}
       VPN_DEFAULT: ${VPN_DEFAULT:-false}
+      IDLE_STOP_DEFAULT: ${IDLE_STOP_DEFAULT:-0}
       DESKTOP_USER_NAMESPACES: ${DESKTOP_USER_NAMESPACES:-true}
       DESKTOP_PIDS_LIMIT: ${DESKTOP_PIDS_LIMIT:-16384}
       UPLOAD_MAX_MB: ${UPLOAD_MAX_MB:-1024}
@@ -64,6 +65,9 @@ services:
       PROXY_PASSWORD: ${PROXY_PASSWORD:-}
       PROXY_BYPASS: ${PROXY_BYPASS:-}
       UPDATE_CHECK: ${UPDATE_CHECK:-true}
+      NOTIFY_URL: ${NOTIFY_URL:-}
+      NOTIFY_EVENTS: ${NOTIFY_EVENTS:-}
+      DASHBOARD_URL: ${DASHBOARD_URL:-}
       # Apart, so the Settings page edits ALLOWED_HOSTS as .env has it; the manager answers both.
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost}
       DESKTOP_HOST: ${DESKTOP_HOST:-localhost}
