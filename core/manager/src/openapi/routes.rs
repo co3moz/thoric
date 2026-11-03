@@ -5,9 +5,9 @@ use super::{
     TRANSFERS, VOLUMES, any, delete, get, post, put,
 };
 use crate::{
-    activity, api, apps, archives, audio, auth, backup, capture, changes, compose, config,
-    desktop_input, desktop_mcp, exec, files, gamepad, human, icons, jobs, model, notify, ocr,
-    recordings, terminal, transfers, uploads, usage, volumes, waits, windows,
+    activity, api, apps, archives, audio, auth, backup, capture, changes, clipboard, compose,
+    config, desktop_input, desktop_mcp, exec, files, gamepad, human, icons, jobs, model, notify,
+    ocr, recordings, terminal, transfers, uploads, usage, volumes, waits, windows,
 };
 
 const GZIP: &str = "application/gzip";
@@ -207,6 +207,18 @@ pub(super) fn all() -> Vec<Route> {
             "Play WAV data into the microphone or the speakers.",
         )
         .json::<audio::InjectAudio>(),
+        get(
+            "/api/containers/{id}/clipboard",
+            DESKTOP,
+            "The text on the desktop's clipboard or PRIMARY selection, at most 512 KiB of it.",
+        )
+        .query::<clipboard::GetClipboard>(),
+        put(
+            "/api/containers/{id}/clipboard",
+            DESKTOP,
+            "Put text on the desktop's clipboard, and paste it with the keyboard when asked.",
+        )
+        .json::<clipboard::SetClipboard>(),
         get(
             "/api/containers/{id}/terminals",
             DESKTOP,

@@ -50,6 +50,7 @@ The projects sit in three folders: `core/` holds the manager (`core/manager`, Ru
 | Text on the screen with Tesseract OCR | `core/manager/src/ocr.rs`, `core/manager/src/ocr/words.rs`, `core/manager/src/capture/pixels.rs` |
 | Recordings, their video and artifact export | `core/manager/src/recordings.rs`, `core/manager/helpers/recorder.py`, `core/manager/helpers/recording_video.py`, `core/manager/helpers/export_artifacts.py` |
 | Audio capture and injection | `core/manager/src/audio.rs`, `core/manager/helpers/audio_tools.py` |
+| The desktop's clipboard | `core/manager/src/clipboard.rs`, `core/manager/helpers/clipboard.py` |
 | Interactive terminals | `core/manager/src/terminal.rs`, `core/manager/helpers/terminal_runner.py`, `core/manager/helpers/terminal_control.py` |
 | Virtual gamepad | `core/manager/src/gamepad.rs`, `core/manager/helpers/gamepad_daemon.py`, `core/manager/helpers/gamepad_control.py` |
 | Desktop proxies | `core/manager/src/outbound.rs`, `core/manager/src/outbound/`, `core/manager/helpers/outbound_proxy.py`, `core/manager/helpers/outbound_control.py`, `core/web/src/lib/proxy.ts` |

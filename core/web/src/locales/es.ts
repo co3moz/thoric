@@ -1660,10 +1660,10 @@ export const es: Messages = {
   "mcp.servers.none": "ninguno",
   "mcp.scope.view": "Ver",
   "mcp.scope.view.description":
-    "Capturas de pantalla, ventanas, árbol de accesibilidad, esperas, estado y registros.",
+    "Capturas de pantalla, ventanas, árbol de accesibilidad, lectura del portapapeles, esperas, estado y registros.",
   "mcp.scope.input": "Entrada",
   "mcp.scope.input.description":
-    "Ratón, teclado, posición de ventanas, mando y pedir ayuda a una persona.",
+    "Ratón, teclado, fijar y pegar el portapapeles, posición de ventanas, mando y pedir ayuda a una persona.",
   "mcp.scope.applications": "Aplicaciones",
   "mcp.scope.applications.description":
     "Abrir y cerrar aplicaciones, y leer sus registros y métricas.",

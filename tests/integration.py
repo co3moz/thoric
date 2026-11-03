@@ -579,7 +579,7 @@ try:
     except urllib.error.HTTPError as error:
         assert error.code == 401
     assert mcp("initialize", {"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"acceptance","version":"1"}})["serverInfo"]["name"] == "thoric"
-    assert len(mcp("tools/list")["tools"]) == 80
+    assert len(mcp("tools/list")["tools"]) == 82
     assert tool("get_system")["structuredContent"]["connected"]
     assert stdio_tool("get_system")["structuredContent"]["connected"]
     print("PASS MCP authentication, negotiation and discovery", flush=True)
@@ -1471,6 +1471,33 @@ try:
     listed = [item["terminal_id"] for item in tool("list_terminals", {"container_id":env_id})["structuredContent"]["items"]]
     assert term["terminal_id"] not in listed and root_term["terminal_id"] not in listed, listed
     print("PASS interactive terminals as the desktop user and root, forgotten once closed", flush=True)
+    # The clipboard carries Turkish letters, CJK and emoji whole. A set outlives its call and reads
+    # back, PRIMARY is a selection of its own, and a paste presses the chord a terminal takes, so
+    # one call pastes a whole line there.
+    clip_text = "Türkçe ç ğ ı İ ö ş ü, 中文 日本語 한국어, emoji 😀👍🏽"
+    stored = tool("set_clipboard", {"container_id":env_id,"text":clip_text})["structuredContent"]
+    assert stored == {"container_id":env_id,"selection":"clipboard","bytes":len(clip_text.encode()),"characters":len(clip_text)}, stored
+    read_back = tool("get_clipboard", {"container_id":env_id})["structuredContent"]
+    assert (read_back["text"], read_back["bytes"], read_back["truncated"]) == (clip_text, len(clip_text.encode()), False), read_back
+    api(f"containers/{env_id}/clipboard", {"text":"seçili metin","selection":"primary"}, method="PUT")
+    assert api(f"containers/{env_id}/clipboard?selection=primary")["text"] == "seçili metin"
+    assert api(f"containers/{env_id}/clipboard")["text"] == clip_text
+    assert tool("set_clipboard", {"container_id":env_id,"text":"x","selection":"primary","paste":True}, allow_error=True)["isError"]
+    clip_terminal = tool("launch_application", {"container_id":env_id,"command":"xfce4-terminal","args":["--title","Thoric clipboard test","--disable-server","-x","bash","-c","read -r line; printf %s \"$line\" > /home/desktop/pasted.txt"]})["structuredContent"]
+    clip_window = wait_for(lambda: next((w for w in tool("list_windows", {"container_id":env_id})["structuredContent"]["items"] if w["title"] == "Thoric clipboard test"), None))
+    tool("focus_window", {"container_id":env_id,"window_id":clip_window["window_id"]})
+    long_line = " / ".join([clip_text] * 30)
+    pasted = tool("set_clipboard", {"container_id":env_id,"text":long_line,"paste":True,"paste_keys":"ctrl+shift+v"})["structuredContent"]
+    assert pasted["pasted"] == {"keys":"ctrl+shift+v"} and pasted["characters"] == len(long_line), pasted
+    tool("desktop_input", {"container_id":env_id,"actions":[{"type":"key_press","keys":["Enter"]}]})
+    assert wait_for(lambda: docker("exec", container, "cat", "/home/desktop/pasted.txt", check=False) == long_line.encode() or None, 30)
+    tool("stop_application", {"container_id":env_id,"application_id":clip_terminal["application_id"]})
+    docker("exec", container, "rm", "-f", "/home/desktop/pasted.txt")
+    # The activity log keeps a set's text as its size only, since a clipboard can hold a password.
+    # Three calls: the set, the refused paste of PRIMARY and the paste.
+    clip_calls = wait_for(lambda: (calls if len(calls := [c for c in api(f"activity?container={env_id}&limit=200")["items"] if c["tool"] == "set_clipboard"]) >= 3 else None), 15)
+    assert all(c["arguments"]["text"].get("$masked") == "string" for c in clip_calls) and "Türkçe" not in json.dumps(clip_calls, ensure_ascii=False), clip_calls
+    print("PASS clipboard text in any language read back, set as PRIMARY, pasted into a terminal and masked in the activity log", flush=True)
     gtk = tool("launch_application", {"container_id":env_id,"command":"xfce4-terminal","args":["--title","Thoric a11y test","--disable-server"],"env":{"GTK_MODULES":"atk-bridge"}})["structuredContent"]
     assert wait_for(lambda: tool("wait_for_condition", {"container_id":env_id,"window_title":"Thoric a11y test","timeout_ms":20000})["structuredContent"]["satisfied"] or None)
     gtk_pid = tool("get_application", {"container_id":env_id,"application_id":gtk["application_id"]})["structuredContent"]["pid"]
