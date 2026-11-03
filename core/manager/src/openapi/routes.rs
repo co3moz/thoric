@@ -6,8 +6,8 @@ use super::{
 };
 use crate::{
     activity, api, apps, archives, audio, auth, backup, capture, compose, config, desktop_input,
-    desktop_mcp, exec, files, gamepad, human, icons, jobs, model, ocr, recordings, terminal,
-    transfers, uploads, usage, volumes, waits, windows,
+    desktop_mcp, exec, files, gamepad, human, icons, jobs, model, notify, ocr, recordings,
+    terminal, transfers, uploads, usage, volumes, waits, windows,
 };
 
 const GZIP: &str = "application/gzip";
@@ -53,6 +53,12 @@ pub(super) fn all() -> Vec<Route> {
             INSTALLATION,
             "Ask GitHub for the newest release now.",
         ),
+        post(
+            "/api/settings/notify/test",
+            INSTALLATION,
+            "Send a test notice to every address of NOTIFY_URL and say how each answered.",
+        )
+        .returns::<notify::TestReport>(),
         get(
             "/api/backup",
             INSTALLATION,

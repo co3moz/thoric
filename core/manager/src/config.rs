@@ -88,6 +88,9 @@ pub struct Config {
     pub update_check: bool,
     /// Where the WSL package takes update requests from the dashboard; see [`crate::releases`].
     pub update_dir: PathBuf,
+    /// Where notices go and which are sent, from `NOTIFY_URL`, `NOTIFY_EVENTS` and
+    /// `DASHBOARD_URL`; see [`crate::notify`].
+    pub notify: crate::notify::Settings,
     /// What startup has to say about the settings it was given, such as a renamed variable that
     /// is still set; logged once the manager starts.
     pub notices: Vec<String>,
@@ -159,6 +162,8 @@ pub(crate) const EDITABLE: &[&str] = &[
     "PROXY_USERNAME",
     "PROXY_BYPASS",
     "UPDATE_CHECK",
+    "NOTIFY_EVENTS",
+    "DASHBOARD_URL",
 ];
 /// The template list on the project's GitHub wiki.
 pub(crate) const TEMPLATES_URL: &str =
@@ -444,6 +449,7 @@ impl Config {
             proxy,
             update_check: flag("UPDATE_CHECK", true)?,
             update_dir: crate::releases::UPDATE_DIR.into(),
+            notify: crate::notify::settings(&var)?,
             notices,
             environment: BTreeMap::new(),
         };
@@ -567,6 +573,9 @@ impl Config {
                 json!(self.proxy.as_ref().map(|proxy| proxy.bypass.join(","))),
             ),
             value("UPDATE_CHECK", json!(self.update_check)),
+            secret("NOTIFY_URL", !self.notify.targets.is_empty()),
+            value("NOTIFY_EVENTS", json!(self.notify.events_text())),
+            value("DASHBOARD_URL", json!(self.notify.dashboard)),
         ]
     }
 

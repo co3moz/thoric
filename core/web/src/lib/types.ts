@@ -516,6 +516,24 @@ export type Configuration = {
   exposure?: { open: ("dashboard" | "mcp")[]; published: string[] } | null
 }
 
+/** How an address of `NOTIFY_URL` is sent to. */
+export type NotifyFormat = "ntfy" | "discord" | "slack" | "telegram" | "json"
+
+/**
+ * `POST settings/notify/test`: how each address of `NOTIFY_URL` took the test notice, named by
+ * its format and host alone, since the rest of it can hold a credential.
+ */
+export type NotifyTest = {
+  results: {
+    format: NotifyFormat
+    host: string
+    ok: boolean
+    status: number | null
+    answer: string
+    error: string | null
+  }[]
+}
+
 /** `POST configuration` with `dry_run`: what is wrong with a change, before anything restarts. */
 export type ConfigurationCheck = {
   errors: Record<string, string>
