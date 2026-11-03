@@ -312,6 +312,13 @@ pub(super) fn policy(tool: &str) -> Option<&'static [Rule]> {
         ],
         "capture_audio" => &[("source", Text, true), ("seconds", Text, false)],
         "inject_audio" => &[("target", Text, true)],
+        // A clipboard can hold a password or a token, so its text is kept as its size.
+        "get_clipboard" => &[("selection", Text, true)],
+        "set_clipboard" => &[
+            ("selection", Text, true),
+            ("paste", Text, false),
+            ("paste_keys", Text, false),
+        ],
         "open_terminal" => &[("cwd", Text, true), ("root", Text, true)],
         // A terminal is where a password prompt waits, so what is typed into one is kept as its size.
         "terminal_input" => &[("terminal_id", Text, true), ("press_enter", Text, false)],

@@ -1527,10 +1527,10 @@ export const tr: Messages = {
   "mcp.servers.none": "yok",
   "mcp.scope.view": "Görüntüleme",
   "mcp.scope.view.description":
-    "Ekran görüntüleri, pencereler, erişilebilirlik ağacı, beklemeler, durum ve günlükler.",
+    "Ekran görüntüleri, pencereler, erişilebilirlik ağacı, panoyu okumak, beklemeler, durum ve günlükler.",
   "mcp.scope.input": "Girdi",
   "mcp.scope.input.description":
-    "Fare, klavye, pencere yerleşimi, oyun kumandası ve bir insandan yardım istemek.",
+    "Fare, klavye, panoya yazmak ve yapıştırmak, pencere yerleşimi, oyun kumandası ve bir insandan yardım istemek.",
   "mcp.scope.applications": "Uygulamalar",
   "mcp.scope.applications.description":
     "Uygulamaları başlatma ve durdurma, günlüklerini ve ölçümlerini okuma.",

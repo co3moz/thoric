@@ -1552,10 +1552,10 @@ export const fr: Messages = {
   "mcp.servers.none": "aucun",
   "mcp.scope.view": "Voir",
   "mcp.scope.view.description":
-    "Captures d'écran, fenêtres, arbre d'accessibilité, attentes, état et journaux.",
+    "Captures d'écran, fenêtres, arbre d'accessibilité, lecture du presse-papiers, attentes, état et journaux.",
   "mcp.scope.input": "Saisie",
   "mcp.scope.input.description":
-    "Souris, clavier, placement des fenêtres, manette et appel à l'aide d'une personne.",
+    "Souris, clavier, remplissage et collage du presse-papiers, placement des fenêtres, manette et appel à l'aide d'une personne.",
   "mcp.scope.applications": "Applications",
   "mcp.scope.applications.description":
     "Lancer et arrêter des applications, lire leurs journaux et leurs mesures.",
