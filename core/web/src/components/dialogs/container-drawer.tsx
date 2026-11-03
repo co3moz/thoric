@@ -15,7 +15,12 @@ import {
 
 import { ConceptIcon } from "@/components/concept"
 import { ContainerActivity } from "@/components/container-activity"
-import { GroupExposure, PrimaryAction, SpecBadges } from "@/components/container-card"
+import {
+  GroupExposure,
+  LifecycleBadges,
+  PrimaryAction,
+  SpecBadges,
+} from "@/components/container-card"
 import { ContainerPreview } from "@/components/container-preview"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { StatusBadge } from "@/components/status-badge"
@@ -174,6 +179,7 @@ export function ContainerDrawer({ id, ...props }: DialogProps & { id: string }) 
           </Button>
         </div>
         <SpecBadges spec={spec} />
+        <LifecycleBadges item={item} />
         <GroupExposure item={item} />
         <Separator />
         <ErrorBoundary variant="section">

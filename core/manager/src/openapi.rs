@@ -343,6 +343,8 @@ const INSTALLATION_DEFAULTS: &[&str] = &[
     "gamepad",
     "vpn",
     "proxy",
+    // Its idle_stop_minutes.
+    "lifecycle",
 ];
 
 /// Say of each field of [`INSTALLATION_DEFAULTS`] where its value comes from instead.

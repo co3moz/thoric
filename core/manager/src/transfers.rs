@@ -310,11 +310,22 @@ pub async fn transfer(
         operation.arguments(),
         operation.kind(),
     );
+    // The container is in use until a download has been sent, which outlasts the record.
+    let using = operation
+        .arguments()
+        .get("container_id")
+        .and_then(Value::as_str)
+        .and_then(|id| app.container(id).ok())
+        .map(|container| app.lifecycle.open(&container.id));
     let response = match run(app.clone(), operation, method, &headers, query, body).await {
         Ok(response) => response,
         Err(error) => error.into_response(),
     };
-    call.finish_transfer(&app, response).await
+    let response = call.finish_transfer(&app, response).await;
+    match using {
+        Some(using) => crate::lifecycle::lasting(response, using),
+        None => response,
+    }
 }
 
 async fn run(

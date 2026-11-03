@@ -3,8 +3,8 @@
 //! writes, a writer of the shell scripts tests run as stand-ins for programs, and a Docker CLI
 //! stand-in that answers as a manager with a data volume of its own.
 use crate::{
-    App, config, db, desktop_limits, desktop_mcp, events, human, layers, model, outbound, releases,
-    router, transfers, usage,
+    App, config, db, desktop_limits, desktop_mcp, events, human, layers, lifecycle, model,
+    outbound, releases, router, transfers, usage,
 };
 use axum::{
     body::Body,
@@ -106,6 +106,7 @@ pub(crate) fn app(auth: bool) -> Arc<App> {
         cancels: Default::default(),
         human: human::Requests::default(),
         outbound: outbound::Outbound::default(),
+        lifecycle: lifecycle::Activity::default(),
     })
 }
 /// A container's settings that name only its name and image.

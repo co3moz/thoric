@@ -71,6 +71,9 @@ export const de: Messages = {
   "job.update": "Thoric aktualisieren",
   "job.backup": "Installation sichern",
   "job.restore": "Sicherung wiederherstellen",
+  "job.idle-stop": "Bei Leerlauf stoppen",
+  "job.expiry-stop": "Bei Ablauf stoppen",
+  "job.expiry-delete": "Bei Ablauf löschen",
   "jobs.target.container": "Container {id}",
   "jobs.target.image": "Image {id}",
   "jobs.log.queued": "Wartet auf den Start…",
@@ -1116,6 +1119,8 @@ export const de: Messages = {
     "Ob ein neuer Container das virtuelle Gamepad erhält, sofern er nichts anderes verlangt.",
   "settings.about.VPN_DEFAULT":
     "Ob ein neuer Container VPN-Zugriff erhält, sofern er nichts anderes verlangt.",
+  "settings.about.IDLE_STOP_DEFAULT":
+    "Minuten, die der Desktop eines neuen Containers unbenutzt bleiben darf, bevor er gestoppt wird, sofern er nichts anderes verlangt; 0 für nie.",
   "settings.about.PROXY_URL":
     "Der Proxy der Container, die dem der Installation folgen: http://, https:// oder socks5:// mit Host und Port. Leer für keinen.",
   "settings.about.PROXY_USERNAME": "Der Benutzername des Proxys, wenn er einen verlangt.",
@@ -1355,6 +1360,37 @@ export const de: Messages = {
   "tagInput.clear": "Leeren",
   "tagInput.new": "Neu",
 
+  "lifecycle.title": "Lebenszyklus",
+  "lifecycle.description":
+    "Thoric stoppt oder löscht den Container selbst. Eine Änderung gilt ohne Neustart.",
+  "lifecycle.idle": "Stoppen nach Minuten ohne Nutzung",
+  "lifecycle.idleHint":
+    "Ansichten, Jobs, Agenten und eine ausgelastete CPU zählen als Nutzung. Leer für nie.",
+  "lifecycle.never": "Nie",
+  "lifecycle.expires": "Läuft ab",
+  "lifecycle.expiresHint": "Leer für nie.",
+  "lifecycle.onExpiry": "Bei Ablauf",
+  "lifecycle.onExpiry.stop": "Stoppen",
+  "lifecycle.onExpiry.delete": "Löschen",
+  "lifecycle.onExpiry.stopHint": "Der Container bleibt, und sein Ablauf wird entfernt.",
+  "lifecycle.onExpiry.deleteHint":
+    "Der Container und seine Dateien werden gelöscht, wie Löschen es tut.",
+  "lifecycle.deleteVolumes": "Auch die für ihn erstellten Volumes löschen",
+  "lifecycle.badge.idle": "Stoppt nach {duration} Leerlauf",
+  "lifecycle.badge.idleStops": "Leerlauf, stoppt {time}",
+  "lifecycle.badge.idleUnused":
+    "Nichts nutzt den Desktop; Thoric stoppt ihn nach {duration} ohne Nutzung.",
+  "lifecycle.badge.idleInUse":
+    "In Benutzung. Thoric stoppt den Desktop nach {duration} ohne Nutzung.",
+  "lifecycle.badge.idleStopped":
+    "Solange er läuft, stoppt Thoric den Desktop nach {duration} ohne Nutzung.",
+  "lifecycle.badge.expiring": "Läuft jetzt ab",
+  "lifecycle.badge.expires": "Läuft {time} ab",
+  "lifecycle.badge.deleted": "Wird {time} gelöscht",
+  "lifecycle.badge.stoppedAt": "Thoric stoppt ihn am {date} und entfernt seinen Ablauf.",
+  "lifecycle.badge.deletedAt": "Thoric löscht ihn am {date}; seine Volumes bleiben.",
+  "lifecycle.badge.deletedAtVolumes":
+    "Thoric löscht ihn am {date} mit den für ihn erstellten Volumes.",
   "identity.title": "Maschinenidentität",
   "identity.description":
     "Was Software im Desktop, etwa eine an einen Rechner gebundene Lizenz, vom Rechner sieht. Zurücksetzen und Änderungen der Einstellungen behalten sie bei. Ändern Sie sie nur, um die Identität eines Containers zu übernehmen, den dieser ersetzt.",

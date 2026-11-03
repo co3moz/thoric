@@ -65,6 +65,21 @@ impl Usage {
         store.gpu_state = state;
         store.gpu_reason = reason;
     }
+    /// A container's average CPU use over the last `window`, in cores, or `None` without a
+    /// sample in it.
+    pub(crate) fn cpu_average(&self, id: &str, window: std::time::Duration) -> Option<f64> {
+        let since = now_ms().saturating_sub(window.as_millis() as u64);
+        let store = self.store();
+        let (count, sum) = store
+            .containers
+            .get(id)?
+            .samples
+            .since(since)
+            .fold((0u32, 0.0), |(count, sum), sample| {
+                (count + 1, sum + f64::from(sample.cpu))
+            });
+        (count > 0).then(|| sum / f64::from(count))
+    }
     /// Forget what aged out, and label each series with the record it still has.
     pub(crate) fn prune(&self, records: &[Container]) {
         self.store().prune(now_ms(), |id| {

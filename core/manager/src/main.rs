@@ -31,6 +31,7 @@ mod identity;
 mod image_removal;
 mod jobs;
 mod layers;
+mod lifecycle;
 mod mcp;
 mod media;
 mod model;
@@ -107,6 +108,8 @@ pub struct App {
     human: human::Requests,
     /// The proxies inside the desktops that use one.
     outbound: outbound::Outbound,
+    /// When each container was last used, for its lifecycle's idle stop, in memory only.
+    lifecycle: lifecycle::Activity,
 }
 /// The interface's content security policy. The templates page reads its list, the templates
 /// and their icons from another host, which is the one exception to `'self'`. No page needs a
@@ -359,6 +362,11 @@ fn router(app: Arc<App>) -> Router {
         .route("/api/activity", get(activity::list))
         .route("/api/dependencies", get(dependencies::list))
         .route("/api/openapi.json", get(openapi::serve))
+        // Inside `protect`, so only a signed-in request counts as a container's use.
+        .route_layer(middleware::from_fn_with_state(
+            app.clone(),
+            lifecycle::requests,
+        ))
         .route_layer(middleware::from_fn_with_state(app.clone(), auth::protect));
     Router::new()
         .merge(protected)
@@ -531,12 +539,14 @@ async fn main() -> anyhow::Result<()> {
         cancels: Default::default(),
         human: human::Requests::default(),
         outbound: outbound::Outbound::default(),
+        lifecycle: lifecycle::Activity::default(),
     });
     usage::spawn(app.clone());
     events::docker::spawn(app.clone());
     desktop_mcp::spawn(app.clone());
     releases::spawn(app.clone());
     outbound::spawn(app.clone());
+    lifecycle::spawn(app.clone());
     auth::follow_https_proxy(app.clone());
     auth::warn_exposure(app.clone());
     for job in updates {

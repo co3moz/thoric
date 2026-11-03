@@ -44,6 +44,7 @@ export const SECTION_OF: Record<string, Section> = {
   MICROPHONE_DEFAULT: "features",
   GAMEPAD_DEFAULT: "features",
   VPN_DEFAULT: "features",
+  IDLE_STOP_DEFAULT: "features",
   WSL_GPU: "gpu",
   NVIDIA_COMPUTE: "gpu",
   DRI_GPU: "gpu",
@@ -174,6 +175,8 @@ export const FIELDS: Record<string, Field> = {
   MICROPHONE_DEFAULT: { kind: "switch" },
   GAMEPAD_DEFAULT: { kind: "switch" },
   VPN_DEFAULT: { kind: "switch" },
+  // Minutes, 0 for never; the manager takes up to a week.
+  IDLE_STOP_DEFAULT: { kind: "number", min: 0, max: 10080 },
   UPLOAD_MAX_MB: { kind: "number", min: 1, max: 65536 },
   IMAGE_ARCHIVE_MAX_MB: { kind: "number", min: 1, max: 1048576 },
   TEMPLATES_URL: {

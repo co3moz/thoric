@@ -104,6 +104,9 @@ pub struct Features {
     pub microphone: bool,
     pub gamepad: bool,
     pub vpn: bool,
+    /// Minutes a new container's desktop may go unused before it is stopped, `0` for never; see
+    /// [`crate::lifecycle`].
+    pub idle_stop_minutes: u32,
 }
 /// A variable a release renamed. An installation keeps its `.env` across upgrades, so the old name
 /// keeps its meaning while the new one is not set, and startup says to rename it.
@@ -144,6 +147,7 @@ pub(crate) const EDITABLE: &[&str] = &[
     "MICROPHONE_DEFAULT",
     "GAMEPAD_DEFAULT",
     "VPN_DEFAULT",
+    "IDLE_STOP_DEFAULT",
     "UPLOAD_MAX_MB",
     "IMAGE_ARCHIVE_MAX_MB",
     "TEMPLATES_URL",
@@ -410,6 +414,9 @@ impl Config {
                 microphone: flag("MICROPHONE_DEFAULT", false)?,
                 gamepad: flag("GAMEPAD_DEFAULT", false)?,
                 vpn: flag("VPN_DEFAULT", false)?,
+                idle_stop_minutes: crate::lifecycle::idle_stop_default(
+                    var("IDLE_STOP_DEFAULT").as_deref(),
+                )?,
             },
             wsl_gpu: flag("WSL_GPU", true)?,
             cuda: flag("NVIDIA_COMPUTE", true)?,
@@ -521,6 +528,7 @@ impl Config {
             value("MICROPHONE_DEFAULT", json!(self.defaults.microphone)),
             value("GAMEPAD_DEFAULT", json!(self.defaults.gamepad)),
             value("VPN_DEFAULT", json!(self.defaults.vpn)),
+            value("IDLE_STOP_DEFAULT", json!(self.defaults.idle_stop_minutes)),
             value("UPLOAD_MAX_MB", mib(self.upload_limit)),
             value("IMAGE_ARCHIVE_MAX_MB", mib(self.archive_limit)),
             value(
@@ -575,6 +583,7 @@ impl Config {
             microphone: self.defaults.microphone && self.microphone && audio,
             gamepad: self.defaults.gamepad && self.gamepad,
             vpn: self.defaults.vpn && self.vpn,
+            idle_stop_minutes: self.defaults.idle_stop_minutes,
         }
     }
 
