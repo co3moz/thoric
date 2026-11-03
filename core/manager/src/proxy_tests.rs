@@ -28,7 +28,7 @@ async fn serve(router: Router) -> SocketAddr {
 
 /// The manager's half of the proxy without Docker: every request goes to `service`.
 async fn front(service: SocketAddr) -> SocketAddr {
-    let forwarded = any(move |request: Request| forward(service, service.port(), request));
+    let forwarded = any(move |request: Request| forward(service, service.port(), request, None));
     serve(
         Router::new()
             .route("/api/containers/{id}/ports/{port}/", forwarded.clone())

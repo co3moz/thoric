@@ -293,9 +293,10 @@ test("a default goes idle with its feature, and the microphone with sound", () =
 test("the notices sent are named by their labels, and a kind this page does not know by itself", () => {
   assert.equal(notifyEvents(""), null)
   assert.equal(notifyEvents("none"), null)
-  assert.deepEqual(notifyEvents("human_request, container_lifecycle"), [
+  assert.deepEqual(notifyEvents("human_request, container_lifecycle, build_finished"), [
     { name: "human_request", label: "notify.event.human_request" },
-    { name: "container_lifecycle" },
+    { name: "container_lifecycle", label: "notify.event.container_lifecycle" },
+    { name: "build_finished" },
   ])
   // Every kind with a label is one the manager still sends (EVENTS in core/manager/src/notify.rs).
   const notify = readFileSync(new URL("../../manager/src/notify.rs", import.meta.url), "utf8")

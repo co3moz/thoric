@@ -67,6 +67,11 @@ pub struct ContainerSpec {
     pub shm_mb: u64,
     #[serde(default)]
     pub mounts: Vec<Mount>,
+    /// When the manager stops or deletes the container by itself (see `lifecycle`). It is the
+    /// manager's alone, so a change applies in place; records saved before it existed never do.
+    #[serde(default)]
+    #[schemars(with = "crate::lifecycle::LifecycleRequest")]
+    pub lifecycle: crate::lifecycle::Lifecycle,
 }
 fn resolution() -> String {
     "1920x1080".into()
@@ -134,6 +139,7 @@ impl ContainerSpec {
             bail!("Proxied ports must be at most 32 different ports between 1 and 65535");
         }
         crate::groups::validate(self)?;
+        self.lifecycle.validate()?;
         let mut targets = std::collections::HashSet::new();
         for mount in &self.mounts {
             volume_name(&mount.volume)?;

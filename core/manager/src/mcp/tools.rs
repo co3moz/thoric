@@ -108,7 +108,7 @@ pub(super) static TOOLS: LazyLock<Vec<Tool>> = LazyLock::new(|| {
         ),
         tool(
             "list_containers",
-            "List managed containers with their state and health.",
+            "List managed containers with their state and health, their lifecycle, in_use and idle_stop_at.",
             json!({}),
             &[],
             true,
@@ -117,7 +117,7 @@ pub(super) static TOOLS: LazyLock<Vec<Tool>> = LazyLock::new(|| {
         ),
         tool(
             "get_container",
-            "Read one managed container's configuration, state and health.",
+            "Read one managed container's configuration, state and health. lifecycle is when Thoric stops or deletes it by itself; in_use whether something uses the running desktop now, this call included, and idle_stop_at when its idle stop comes, in Unix seconds, if nothing uses the desktop from now on, null without one or while it is stopped.",
             env(),
             &["container_id"],
             true,
@@ -147,7 +147,8 @@ pub(super) static TOOLS: LazyLock<Vec<Tool>> = LazyLock::new(|| {
                 "mcp_endpoint":{"type":"boolean","default":true,"description":"Create an MCP endpoint at /mcp/NAME for the new container, named after it, with every scope but commands and all its desktop MCP servers, without a token of its own yet (create_mcp_endpoint_token)."},
                 "cpus":{"type":["number","null"],"exclusiveMinimum":0},"memory_mb":{"type":["integer","null"],"minimum":256},
                 "shm_mb":{"type":"integer","minimum":64,"default":512},
-                "mounts":{"type":"array","default":[],"items":schema(json!({"volume":text,"target":text,"readonly":{"type":"boolean","default":false}}), &["volume","target"])}
+                "mounts":{"type":"array","default":[],"items":schema(json!({"volume":text,"target":text,"readonly":{"type":"boolean","default":false}}), &["volume","target"])},
+                "lifecycle":lifecycle_schema()
             }),
             &["name", "image"],
             false,
@@ -174,7 +175,7 @@ pub(super) static TOOLS: LazyLock<Vec<Tool>> = LazyLock::new(|| {
         ),
         tool(
             "update_container",
-            "Change an existing container's settings; pass only the fields to change. name, internet, ports, groups, aliases and a new or changed cpus/memory_mb limit apply in place, as do proxy_password and changes to a proxy the container has. resolution changes the running desktop's screen in place, so applications keep running but see the new size, and the desktop gets it again whenever it starts. gpu, audio, microphone, sudo, gamepad, vpn, turning proxy on or off, hostname, mac_address, machine_id, shm_mb, mounts and removing a limit (null) recreate the container: the desktop restarts and running applications close, while the files in its container layer are kept, and the previous container is restored when the new desktop is not ready. A feature the installation switched off (get_settings, such as internet_enabled false) can be turned off but not on. dry_run=true returns the live and restart lists without changing anything. Returns job_id otherwise; get_job lists the stages of a change that recreates the container.",
+            "Change an existing container's settings; pass only the fields to change. name, internet, ports, groups, aliases and a new or changed cpus/memory_mb limit apply in place, as do proxy_password, changes to a proxy the container has and lifecycle, which Thoric alone reads. resolution changes the running desktop's screen in place, so applications keep running but see the new size, and the desktop gets it again whenever it starts. gpu, audio, microphone, sudo, gamepad, vpn, turning proxy on or off, hostname, mac_address, machine_id, shm_mb, mounts and removing a limit (null) recreate the container: the desktop restarts and running applications close, while the files in its container layer are kept, and the previous container is restored when the new desktop is not ready. A feature the installation switched off (get_settings, such as internet_enabled false) can be turned off but not on. dry_run=true returns the live and restart lists without changing anything. Returns job_id otherwise; get_job lists the stages of a change that recreates the container.",
             json!({
                 "container_id":id,"dry_run":{"type":"boolean","default":false},
                 "name":{"type":"string","minLength":1,"maxLength":100},
@@ -185,7 +186,8 @@ pub(super) static TOOLS: LazyLock<Vec<Tool>> = LazyLock::new(|| {
                 "hostname":{"type":"string","maxLength":63},"mac_address":{"type":"string"},"machine_id":{"type":"string"},
                 "cpus":{"type":["number","null"],"exclusiveMinimum":0},"memory_mb":{"type":["integer","null"],"minimum":256},
                 "shm_mb":{"type":"integer","minimum":64},
-                "mounts":{"type":"array","items":schema(json!({"volume":text,"target":text,"readonly":{"type":"boolean","default":false}}), &["volume","target"])}
+                "mounts":{"type":"array","items":schema(json!({"volume":text,"target":text,"readonly":{"type":"boolean","default":false}}), &["volume","target"])},
+                "lifecycle":lifecycle_schema()
             }),
             &["container_id"],
             false,
@@ -762,6 +764,16 @@ fn transfer_tool(id: Value) -> Tool {
         true,
         false,
     )
+}
+/// A container's `lifecycle`, as `create_container` and `update_container` take it.
+fn lifecycle_schema() -> Value {
+    json!({"type":"object","additionalProperties":false,"description":"When Thoric stops or deletes the container by itself; the fields left out keep their values, so update_container can extend an expiry alone. A change applies in place and never restarts the desktop. The desktop counts as used while a tool call naming it runs, any tool, and while a job on it, a dashboard request that changes or uses it, a VNC, sound or MCP inspector connection or a transfer link lasts, when one of its proxied ports is reached and while its processes keep more than a quarter of a CPU core busy; the dashboard's reads, such as its previews, do not count. get_container and list_containers report lifecycle, in_use and idle_stop_at, when an idle stop comes if nothing uses the desktop from now on.","properties":{
+        "idle_stop_minutes":{"type":"integer","minimum":0,"maximum":crate::lifecycle::MAX_IDLE_MINUTES,"description":"Stop the running desktop after this many minutes without use; 0 never. Left out of create_container, get_settings defaults.idle_stop_minutes."},
+        "expires_in_minutes":{"type":"integer","minimum":1,"maximum":crate::lifecycle::MAX_EXPIRY_MINUTES,"description":"Expire this many minutes from now, such as a throwaway desktop's working time; instead of expires_at."},
+        "expires_at":{"type":["integer","null"],"description":"When the container expires, in Unix seconds, in the future and at most a year ahead; null removes the expiry."},
+        "on_expiry":{"type":"string","enum":["stop","delete"],"default":"stop","description":"What happens at the expiry: stop, which keeps the container and clears its expiry, or delete, as delete_container deletes it."},
+        "delete_volumes":{"type":"boolean","default":false,"description":"With on_expiry delete, also delete the volumes created for the container, as delete_container's delete_volumes does."}
+    }})
 }
 /// A container's `proxy` and the password of its own proxy, for `create_container` and
 /// `update_container`.

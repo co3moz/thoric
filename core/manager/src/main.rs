@@ -32,6 +32,7 @@ mod identity;
 mod image_removal;
 mod jobs;
 mod layers;
+mod lifecycle;
 mod mcp;
 mod media;
 mod metrics;
@@ -110,6 +111,8 @@ pub struct App {
     human: human::Requests,
     /// The proxies inside the desktops that use one.
     outbound: outbound::Outbound,
+    /// When each container was last used, for its lifecycle's idle stop, in memory only.
+    lifecycle: lifecycle::Activity,
     /// Notices on their way to `NOTIFY_URL`.
     notifier: notify::Notifier,
     /// What `/metrics` counts since the manager started.
@@ -371,6 +374,11 @@ fn router(app: Arc<App>) -> Router {
         .route("/api/activity", get(activity::list))
         .route("/api/dependencies", get(dependencies::list))
         .route("/api/openapi.json", get(openapi::serve))
+        // Inside `protect`, so only a signed-in request counts as a container's use.
+        .route_layer(middleware::from_fn_with_state(
+            app.clone(),
+            lifecycle::requests,
+        ))
         .route_layer(middleware::from_fn_with_state(app.clone(), auth::protect));
     Router::new()
         .merge(protected)
@@ -545,6 +553,7 @@ async fn main() -> anyhow::Result<()> {
         cancels: Default::default(),
         human: human::Requests::default(),
         outbound: outbound::Outbound::default(),
+        lifecycle: lifecycle::Activity::default(),
         notifier: notify::Notifier::default(),
         metrics: metrics::Metrics::default(),
     });
@@ -554,6 +563,7 @@ async fn main() -> anyhow::Result<()> {
     desktop_mcp::spawn(app.clone());
     releases::spawn(app.clone());
     outbound::spawn(app.clone());
+    lifecycle::spawn(app.clone());
     auth::follow_https_proxy(app.clone());
     auth::warn_exposure(app.clone());
     for job in updates {

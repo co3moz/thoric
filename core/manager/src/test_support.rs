@@ -3,8 +3,8 @@
 //! writes, a writer of the shell scripts tests run as stand-ins for programs, a Docker CLI
 //! stand-in that answers as a manager with a data volume of its own, and a sample of the host GPU.
 use crate::{
-    App, config, db, desktop_limits, desktop_mcp, events, human, layers, metrics, model, notify,
-    outbound, releases, router, transfers, usage,
+    App, config, db, desktop_limits, desktop_mcp, events, human, layers, lifecycle, metrics, model,
+    notify, outbound, releases, router, transfers, usage,
 };
 use axum::{
     body::Body,
@@ -108,6 +108,7 @@ pub(crate) fn app(auth: bool) -> Arc<App> {
         cancels: Default::default(),
         human: human::Requests::default(),
         outbound: outbound::Outbound::default(),
+        lifecycle: lifecycle::Activity::default(),
         notifier: notify::Notifier::default(),
         metrics: metrics::Metrics::default(),
     })

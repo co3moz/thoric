@@ -169,6 +169,8 @@ async fn follow(app: &Arc<App>, socket: &Path, changes: &Changes, attempt: &mut 
             if let Some(event) = event.as_ref().filter(|event| starts_a_desktop(event)) {
                 app.outbound.wake();
                 if let Some(id) = event["Actor"]["Attributes"]["thoric.environment"].as_str() {
+                    // A start, also one Docker or a person made, gives the idle stop a new start.
+                    app.lifecycle.touch(id);
                     crate::resolution::after_start(app.clone(), id.to_owned());
                 }
             }

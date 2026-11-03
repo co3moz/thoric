@@ -2575,6 +2575,53 @@ try:
     assert machine(edit_container) == recorded(taken)
     assert docker("exec", edit_container, "cat", "/home/desktop/settings-marker") == b"kept"
     print("PASS machine identity survives a settings recreation and moves to the values a takeover sets", flush=True)
+    # Lifecycle: a desktop nothing uses stops after its idle minutes while an agent at work keeps
+    # its own running, and a throwaway container deletes itself at its expiry unless an agent moves
+    # the expiry, which applies in place. Each stop and delete is a job of its own kind.
+    lifecycle_base = {"image": xfce["reference"], "gpu": False, "internet": False}
+    idle_id = job(api("containers", {**lifecycle_base, "name": "Idle stop", "lifecycle": {"idle_stop_minutes": 1}}))["container_id"]
+    container_ids.append(idle_id)
+    worked_id = job(api("containers", {**lifecycle_base, "name": "Agent at work", "lifecycle": {"idle_stop_minutes": 1}}))["container_id"]
+    container_ids.append(worked_id)
+    ready(f"thoric-{idle_id}")
+    ready(f"thoric-{worked_id}")
+    idle_item = api(f"containers/{idle_id}")
+    assert idle_item["spec"]["lifecycle"] == {"idle_stop_minutes": 1, "expires_at": None, "on_expiry": "stop", "delete_volumes": False}, idle_item["spec"]
+    assert "idle_stop_at" in idle_item, idle_item
+    def idle_stopped():
+        # A tool call that names a container uses it; reading the list does not.
+        tool("list_windows", {"container_id": worked_id})
+        return api(f"containers/{idle_id}")["state"] == "exited"
+    # A desktop that is still settling keeps a CPU busy for a while, which counts as use too.
+    wait_for(idle_stopped, 300)
+    lifecycle_jobs = lambda kind, eid: [j for j in api("jobs") if j["kind"] == kind and j["resource"] == f"container:{eid}"]
+    idle_stops = lifecycle_jobs("idle-stop", idle_id)
+    assert len(idle_stops) == 1 and idle_stops[0]["status"] == "completed", idle_stops
+    assert "nothing used its desktop for 1 minutes" in api(f"jobs/{idle_stops[0]['id']}")["log"]
+    assert api(f"containers/{worked_id}")["state"] == "running" and not lifecycle_jobs("idle-stop", worked_id)
+    assert api(f"containers/{idle_id}")["spec"]["lifecycle"]["idle_stop_minutes"] == 1
+    throwaway_id = job(api("containers", {**lifecycle_base, "name": "Throwaway", "lifecycle": {"expires_in_minutes": 1, "on_expiry": "delete"}}))["container_id"]
+    container_ids.append(throwaway_id)
+    extended_policy = {"idle_stop_minutes": 0, "expires_in_minutes": 5, "on_expiry": "delete"}
+    extended_id = job(api("containers", {**lifecycle_base, "name": "Extended expiry", "lifecycle": extended_policy}))["container_id"]
+    container_ids.append(extended_id)
+    ready(f"thoric-{extended_id}")
+    extended_start = json.loads(docker("inspect", f"thoric-{extended_id}"))[0]["State"]["StartedAt"]
+    moved = {"container_id": extended_id, "lifecycle": {"expires_in_minutes": 60}}
+    assert tool("update_container", {**moved, "dry_run": True})["structuredContent"]["live"] == ["lifecycle"]
+    mcp_job(tool("update_container", moved))
+    wait_for(lambda: refused(f"containers/{throwaway_id}") == 404, 180)
+    deletes = lifecycle_jobs("expiry-delete", throwaway_id)
+    assert len(deletes) == 1 and deletes[0]["status"] == "completed", deletes
+    assert api(f"jobs/{deletes[0]['id']}")["result"]["deleted"] == throwaway_id
+    assert json.loads(docker("container", "inspect", f"thoric-{throwaway_id}", check=False) or b"[]") == []
+    extended_item = api(f"containers/{extended_id}")
+    assert extended_item["state"] == "running" and extended_item["spec"]["lifecycle"]["expires_at"] > time.time() + 50 * 60, extended_item
+    assert extended_item["spec"]["lifecycle"]["on_expiry"] == "delete"
+    assert json.loads(docker("inspect", f"thoric-{extended_id}"))[0]["State"]["StartedAt"] == extended_start
+    for eid in (idle_id, worked_id, extended_id):
+        job(api(f"containers/{eid}", method="DELETE"))
+    print("PASS an unused desktop stops after its idle minutes, an agent at work keeps its own, and an expired container deletes itself", flush=True)
     # Container groups: members reach each other on the group's own network by hostname, name and
     # alias, but not each other's VNC server; the network comes and goes with its members.
     group = f"g-{tag}"
