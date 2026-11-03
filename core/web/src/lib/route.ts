@@ -19,8 +19,11 @@ export type Route =
   | { page: Exclude<Page, "files" | "activity" | "groups"> }
   /** The network groups, or the members of the one `group` names. */
   | { page: "groups"; group?: string }
-  /** The files page, with the container it shows when one was chosen. */
-  | { page: "files"; container?: string }
+  /**
+   * The files page, with the container it shows when one was chosen, and its change list instead
+   * of its files with `view`.
+   */
+  | { page: "files"; container?: string; view?: "changes" }
   /**
    * The agent activity log, narrowed to a container or a caller (`administrator` or
    * `endpoint:NAME`), with one call's details open when `entry` names it.
@@ -64,9 +67,13 @@ export function parseRoute(hash: string): Route {
   const link = hash.replace(/^#\/?/, "")
   const at = link.indexOf("?")
   const [path, search] = at < 0 ? [link, ""] : [link.slice(0, at), link.slice(at + 1)]
-  const [page, id] = path.split("/")
+  const [page, id, view] = path.split("/")
   if (page === "desktop" && id) return { page: "desktop", id: decodeURIComponent(id) }
-  if (page === "files") return id ? { page, container: decodeURIComponent(id) } : { page }
+  if (page === "files") {
+    if (!id) return { page }
+    const container = decodeURIComponent(id)
+    return view === "changes" ? { page, container, view } : { page, container }
+  }
   if (page === "groups") return id ? { page, group: decodeURIComponent(id) } : { page }
   if (page === "activity") return activityRoute(search)
   if (page === "mcp") {
@@ -84,7 +91,7 @@ export function parseRoute(hash: string): Route {
 export function href(route: Route) {
   if (route.page === "desktop") return `#/desktop/${encodeURIComponent(route.id)}`
   if (route.page === "files" && route.container)
-    return `#/files/${encodeURIComponent(route.container)}`
+    return `#/files/${encodeURIComponent(route.container)}${route.view ? `/${route.view}` : ""}`
   if (route.page === "groups" && route.group) return `#/groups/${encodeURIComponent(route.group)}`
   if (route.page === "activity") {
     const query = new URLSearchParams()
@@ -97,6 +104,16 @@ export function href(route: Route) {
   if (isMcpPage(route.page)) return `#/mcp/${route.page.slice("mcp-".length)}`
   return `#/${route.page}`
 }
+
+/**
+ * Whether moving between the two routes leaves everything the page holds where it is: the views
+ * of one container on the files page, which both stay open, so uploads there go on.
+ */
+export const keepsHeld = (from: Route, to: Route) =>
+  from.page === "files" &&
+  to.page === "files" &&
+  !!from.container &&
+  from.container === to.container
 
 /** What a dialog belongs to: the page, or the desktop, which a filter or an open item keeps. */
 export const pageKey = (route: Route) =>

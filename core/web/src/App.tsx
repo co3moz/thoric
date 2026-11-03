@@ -17,6 +17,7 @@ import { closeInspector } from "@/lib/inspector-session"
 import { useSession, useSettings } from "@/lib/queries"
 import {
   href,
+  keepsHeld,
   pageKey,
   parseRoute,
   replaceRoute,
@@ -144,7 +145,8 @@ function useShownRoute() {
         setShown(next)
       },
       () => replaceRoute(shown),
-      within
+      within,
+      keepsHeld(shown, next)
     )
   }, [target, shown])
   return shown

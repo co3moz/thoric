@@ -5,9 +5,9 @@ use super::{
     TRANSFERS, VOLUMES, any, delete, get, post, put,
 };
 use crate::{
-    activity, api, apps, archives, audio, auth, backup, capture, clipboard, compose, config,
-    desktop_input, desktop_mcp, duplicate, exec, files, gamepad, human, icons, jobs, model, notify,
-    ocr, recordings, terminal, transfers, uploads, usage, volumes, waits, windows,
+    activity, api, apps, archives, audio, auth, backup, capture, changes, clipboard, compose,
+    config, desktop_input, desktop_mcp, duplicate, exec, files, gamepad, human, icons, jobs, model,
+    notify, ocr, recordings, terminal, transfers, uploads, usage, volumes, waits, windows,
 };
 
 const GZIP: &str = "application/gzip";
@@ -196,6 +196,12 @@ pub(super) fn all() -> Vec<Route> {
         )
         .query::<files::DownloadQuery>()
         .download(OCTETS),
+        get(
+            "/api/containers/{id}/changes",
+            FILES,
+            "What changed in the container's own files since its Docker container was created, without what the desktop changes on its own unless `all`.",
+        )
+        .query::<changes::ChangeQuery>(),
         post(
             "/api/containers/{id}/audio-capture",
             DESKTOP,

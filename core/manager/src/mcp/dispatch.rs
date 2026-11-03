@@ -3,9 +3,9 @@
 //! and that answer becomes the call's result.
 use super::ThoricMcp;
 use crate::{
-    api, apps, audio, capture, clipboard, compose, desktop_input, desktop_mcp, duplicate, error,
-    exec, files, gamepad, human, image_removal, jobs, layers, ocr, recordings, terminal, transfers,
-    uploads, usage, volumes, waits, windows,
+    api, apps, audio, capture, changes, clipboard, compose, desktop_input, desktop_mcp, duplicate,
+    error, exec, files, gamepad, human, image_removal, jobs, layers, ocr, recordings, terminal,
+    transfers, uploads, usage, volumes, waits, windows,
 };
 use axum::{
     Json,
@@ -267,6 +267,9 @@ impl ThoricMcp {
                     .0
             }
             "get_usage" => usage::summary(&self.app, id.as_deref(), &parse(args)?)?,
+            "get_changes" => {
+                Box::pin(changes::changes(&self.app, &id.unwrap(), &parse(args)?)).await?
+            }
             "list_jobs" => api::jobs(state).await?.0,
             "cancel_job" => {
                 jobs::cancel::cancel(state, Path(string(&args, "job_id")?))

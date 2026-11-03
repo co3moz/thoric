@@ -35,7 +35,7 @@ pub(super) const IDEMPOTENT: [&str; 24] = [
 ];
 
 /// Every tool's title.
-pub(super) const TITLES: [(&str, &str); 82] = [
+pub(super) const TITLES: [(&str, &str); 83] = [
     ("get_settings", "Read installation settings"),
     ("get_system", "Check the Docker host"),
     ("pull_image", "Download a catalog image"),
@@ -76,6 +76,7 @@ pub(super) const TITLES: [(&str, &str); 82] = [
     ("move_file", "Move a file"),
     ("delete_file", "Delete a file"),
     ("download_file", "Download a file"),
+    ("get_changes", "List a container's changed files"),
     ("screenshot", "Take a screenshot"),
     ("save_screenshot", "Save a screenshot as a file"),
     ("act_and_observe", "Act and take a screenshot"),
