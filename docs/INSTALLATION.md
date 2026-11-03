@@ -2,7 +2,34 @@
 
 [Back to the README](../README.md)
 
-The [WSL distribution package](WSL_PACKAGE.md) installs Ubuntu, Docker and the GPU runtime together; the [README's Compose example](../README.md#custom-installation) is the shortest route on a Linux host you manage yourself, in WSL or not. This guide covers changes you may need after that: settings, access from another device, updates and recovery.
+The [WSL distribution package](WSL_PACKAGE.md) installs Ubuntu, Docker and the GPU runtime together on Windows; the [Linux and macOS helper](#the-linux-and-macos-helper) installs Thoric with Compose on Linux, a Raspberry Pi or a Mac, and the [README's Compose example](../README.md#custom-installation) sets it up by hand on a host you manage yourself, in WSL or not. This guide covers changes you may need after that: settings, access from another device, updates and recovery.
+
+## The Linux and macOS helper
+
+`thoric.sh` is published beside the Windows helper in every release and runs straight from there, in a terminal:
+
+```bash
+curl -fsSL https://github.com/co3moz/thoric/releases/latest/download/thoric.sh | bash
+```
+
+It needs a 64-bit system, x86_64 or ARM, and bash, which macOS has. It looks for Docker first. On Linux without Docker it offers Docker's own install script from get.docker.com, which installs Docker Engine and Compose on Debian, Raspberry Pi OS, Ubuntu, Fedora, CentOS and RHEL as root through sudo, and runs it only when you agree; on a Mac it names Docker Desktop, which you install yourself, and starts it when it is installed but not running. A user outside the `docker` group gets `sudo docker`, and the offer to join the group, which applies from the next sign-in; the group's members control Docker as root does.
+
+Then it asks for:
+
+- A folder for the installation, `~/thoric` unless you type another. It holds `compose.yml` (the release's `compose.ghcr.yml`), `.env` with the settings, `deploy/Caddyfile` for [HTTPS](#https-and-microphone-access-over-lan), and `.shipped.sha256`, the checksums of the files as installed. Images, containers and volumes stay in Docker. On a Mac, keep the folder in your home folder, which Docker Desktop shares with its virtual machine.
+- A username and a password for the dashboard. An empty password opens the dashboard without signing in.
+- Whether to enable root agent access at `/mcp`, and how agents authenticate: a random token by default, your own token or none.
+- Whether only this computer or other devices too can reach the dashboard (`BIND_ADDRESS` 127.0.0.1 or 0.0.0.0), its port (8080 unless you type another, refused while something already answers there) and, for other devices, the names they open it by (`ALLOWED_HOSTS`). The host's firewall has to let them in.
+
+It pins the manager to the newest release, `MANAGER_IMAGE=ghcr.io/co3moz/thoric:<version>`, as the WSL package does, downloads it and takes the installation files from it, writes `.env` readable by you alone and says what the host may lack: memory for several desktops, the memory controller on a [Raspberry Pi](#raspberry-pi) and the NVIDIA Container Toolkit for an [NVIDIA GPU](#gpu-on-a-linux-host). It leaves the GPU settings at their defaults, since the manager finds the host's GPU itself. Then it offers to start Thoric and ends with the agent endpoint and its client settings.
+
+Run the same line again to manage the installation. The helper finds it by the manager's container, which Compose labels with its folder, or in `~/thoric`, and offers to start or stop Thoric, update it, show the agent settings or remove it. A command after `bash -s --` skips the menu, as in `curl -fsSL https://github.com/co3moz/thoric/releases/latest/download/thoric.sh | bash -s -- update`; the commands are `start`, `stop`, `status`, `update`, `mcp` and `remove`.
+
+- **Stop** stops the running desktops and the manager. Start the desktops again from the dashboard once it runs.
+- **Update** moves the manager to the newest release with the installation files of that release. A file you edited is kept as `<file>.bak` before the release's replaces it, and `.env` keeps every setting but `MANAGER_IMAGE`. When the new manager does not answer within three minutes, the helper puts `.env` and the files back and starts the previous manager again. A `MANAGER_IMAGE` you set by hand, such as `latest` or `edge`, is downloaded again as it is. Desktop images you have downloaded update from their row on the **Images** page, see [Update the images](#update-the-images). The update takes no copy of the database, so to be able to go back, make one first as [Go back to an earlier release](#go-back-to-an-earlier-release) shows.
+- **Remove** removes the manager's container and, when you ask, the files the helper put in the folder. Desktop containers, images and volumes stay, and so does the manager's database in its volume, which a new installation takes up again. The helper names the commands that list them.
+
+The helper manages only an installation it made. One set up by hand stays as it is, and in the WSL package the `thoric` command does all of this.
 
 ## Use the full installation files
 
@@ -111,7 +138,7 @@ A host without any of them gives desktops no GPU: new containers start without i
 
 ## Raspberry Pi and Mac
 
-The manager and both desktop images are published for `linux/amd64` and `linux/arm64` under the same names, so on an ARM host Docker downloads the arm64 images by itself and the [README's Compose example](../README.md#custom-installation) works as it is. The manager logs the architecture of the images it runs when it starts, `Docker runs linux/arm64 images`. Windows on ARM has a WSL package of its own, `thoric-arm64.wsl`, see [Windows on ARM](WSL_PACKAGE.md#windows-on-arm). Releases up to 0.9.1 published `linux/amd64` alone, so an ARM host needs a later release or an `edge` build. The arm64 images have been checked under QEMU on an x86_64 host, where the arm64 manager created XFCE and GNOME desktops from them that came up ready, but not yet on a Raspberry Pi or a Mac.
+The manager and both desktop images are published for `linux/amd64` and `linux/arm64` under the same names, so on an ARM host Docker downloads the arm64 images by itself, and the [Linux and macOS helper](#the-linux-and-macos-helper) and the [README's Compose example](../README.md#custom-installation) work as they are. The manager logs the architecture of the images it runs when it starts, `Docker runs linux/arm64 images`. Windows on ARM has a WSL package of its own, `thoric-arm64.wsl`, see [Windows on ARM](WSL_PACKAGE.md#windows-on-arm). Releases up to 0.9.1 published `linux/amd64` alone, so an ARM host needs a later release or an `edge` build. The arm64 images have been checked under QEMU on an x86_64 host, where the arm64 manager created XFCE and GNOME desktops from them that came up ready, but not yet on a Raspberry Pi or a Mac.
 
 What a desktop runs is the same on both architectures, Ubuntu 24.04 with its own packages, with two things to keep in mind:
 
@@ -120,7 +147,7 @@ What a desktop runs is the same on both architectures, Ubuntu 24.04 with its own
 
 ### Raspberry Pi
 
-Use a Raspberry Pi 4 or 5 with a 64-bit system, such as the 64-bit Raspberry Pi OS or Ubuntu Server; a 32-bit system cannot run the images. Every desktop takes memory of its own, so prefer a board with 8 GB, and XFCE, which needs less than GNOME. Install Docker Engine and its Compose plugin from [Docker's Debian or Ubuntu repository](https://docs.docker.com/engine/install/), add your user to the `docker` group, then follow the README.
+Use a Raspberry Pi 4 or 5 with a 64-bit system, such as the 64-bit Raspberry Pi OS or Ubuntu Server; a 32-bit system cannot run the images. Every desktop takes memory of its own, so prefer a board with 8 GB, and XFCE, which needs less than GNOME. The [helper](#the-linux-and-macos-helper) offers to install Docker Engine and its Compose plugin; to install them yourself, use [Docker's Debian or Ubuntu repository](https://docs.docker.com/engine/install/) and add your user to the `docker` group.
 
 - When `docker info` warns `No memory limit support`, the kernel's memory controller is off and Docker discards every container's memory limit. On Raspberry Pi OS, add `cgroup_enable=memory` to the single line of `/boot/firmware/cmdline.txt` and reboot.
 - A GPU container renders on the Pi's V3D GPU through the `/dev/dri` route above, which is experimental and has not been run on a Pi yet. A program that needs more OpenGL than V3D offers falls back to software or does not start; turn GPU access off for such a container.
@@ -128,7 +155,7 @@ Use a Raspberry Pi 4 or 5 with a 64-bit system, such as the 64-bit Raspberry Pi 
 
 ### Mac
 
-On a Mac, Thoric runs in [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/), whose Linux virtual machine runs the manager and the desktops: arm64 images on Apple silicon, amd64 images on an Intel Mac. Install it, then follow the README; the Docker socket the example mounts is the virtual machine's. Desktops use the virtual machine's memory, CPUs and disk, which **Settings > Resources** sets, so give it enough for the desktops you run, such as 8 GB of memory or more. Docker Desktop passes no GPU into its virtual machine, so desktops render in software, and the GPU option is unavailable when creating one. The dashboard and the desktop screens open at [localhost:8080](http://localhost:8080) as on any host.
+On a Mac, Thoric runs in [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/), whose Linux virtual machine runs the manager and the desktops: arm64 images on Apple silicon, amd64 images on an Intel Mac. Install it, then run the [helper](#the-linux-and-macos-helper) or follow the README's Compose example; the Docker socket they mount is the virtual machine's. Desktops use the virtual machine's memory, CPUs and disk, which **Settings > Resources** sets, so give it enough for the desktops you run, such as 8 GB of memory or more. Docker Desktop passes no GPU into its virtual machine, so desktops render in software, and the GPU option is unavailable when creating one. The dashboard and the desktop screens open at [localhost:8080](http://localhost:8080) as on any host.
 
 ## Access from another device
 
@@ -178,7 +205,7 @@ docker compose up -d
 
 For the full registry installation, add `-f compose.ghcr.yml` to both commands.
 
-The sidebar names a newer release when one is out, unless `UPDATE_CHECK=false`. Only the WSL package updates itself from there; on other installations, run the commands above. `compose.ghcr.yml` mounts an `update` folder beside it into the manager for that, which stays empty elsewhere.
+The sidebar names a newer release when one is out, unless `UPDATE_CHECK=false`. Only the WSL package updates itself from there; an installation of the [Linux and macOS helper](#the-linux-and-macos-helper) updates with the helper's **Update**, and others with the commands above. `compose.ghcr.yml` mounts an `update` folder beside it into the manager for that, which stays empty elsewhere.
 
 This updates the manager. Catalog images are not Compose services: the manager downloads one the first time a container is created from it. To bring a catalog image you already have to the one published with the updated manager, select the update button on its row under **Images**. A published manager downloads the catalog image published with it and tags it with the catalog reference (`ubuntu-xfce:24.04`): a release such as `ghcr.io/co3moz/thoric:1.2.0` downloads `ubuntu-xfce:1.2.0`, and an `edge` build of `master` the `ubuntu-xfce:sha-<commit>` of its own commit. A manager therefore never installs a desktop image published after it, however far `master` has gone since. Only a manager built from the source downloads the reference itself, which, like `docker pull` of the reference, gives the newest release. Docker would keep the image the reference named before without a name, 1 to 2 GB for each release, so the download removes it, without force, once nothing needs it: no other tag names it, no container record starts from it, since a reset creates the container from it again, and no saved image's record names it. Docker itself keeps it while a container, or on its classic image store an image built on it, uses it. The job's log says which. Nothing is pruned. In the [WSL package](WSL_PACKAGE.md#update), `thoric update` does both and moves the manager to the newest release, together with that release's `compose.yml` and `thoric` command.
 

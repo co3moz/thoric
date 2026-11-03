@@ -4,7 +4,7 @@
 
 *An agent at work in a real installation, recorded with `start_recording`. The bar under the desktop names each MCP tool call.*
 
-Thoric gives AI agents real Linux desktops. It runs Ubuntu desktops in Docker, on WSL2 or on a Linux host, with GPU acceleration, and its MCP server is built in: an agent connects with a URL and a token, then installs software, runs commands, reads and writes files, sees the screen, clicks and types, records what happened and hands the results back to you. There is no separate MCP container to set up.
+Thoric gives AI agents real Linux desktops. It runs Ubuntu desktops in Docker, on Windows through WSL2, on Linux, a Raspberry Pi or a Mac, with GPU acceleration where the host has a GPU, and its MCP server is built in: an agent connects with a URL and a token, then installs software, runs commands, reads and writes files, sees the screen, clicks and types, records what happened and hands the results back to you. There is no separate MCP container to set up.
 
 The same desktops open in your browser, so you can work in them yourself, save a prepared one as an image and start new containers from it.
 
@@ -46,17 +46,29 @@ Thoric serves one administrator on a local machine or LAN.
 
 ## Getting started
 
-You need Windows 11 or Windows 10 on an x64 or an ARM64 processor, with WSL 2.4.4 or newer, which the Windows helper below installs or updates when it finds none or an older one. GPU containers also need a Windows GPU driver with WSL support.
+One line installs Thoric, and the same line run again starts, stops, updates or removes it.
+
+**Windows 10 or 11**, in PowerShell:
+
+```powershell
+irm https://github.com/co3moz/thoric/releases/latest/download/thoric.ps1 | iex
+```
+
+**Linux, Raspberry Pi and macOS**, in a terminal:
+
+```bash
+curl -fsSL https://github.com/co3moz/thoric/releases/latest/download/thoric.sh | bash
+```
+
+Windows is the most tested route, and the one where GPU acceleration has been verified on hardware, with an NVIDIA GPU in WSL2. Linux, a Raspberry Pi and a Mac run the same manager and desktop images in Docker; see [Raspberry Pi and Mac](docs/INSTALLATION.md#raspberry-pi-and-mac) for what differs there.
+
+### Windows
+
+You need Windows 11 or Windows 10 on an x64 or an ARM64 processor, with WSL 2.4.4 or newer, which the Windows helper installs or updates when it finds none or an older one. GPU containers also need a Windows GPU driver with WSL support.
 
 1. Install the `thoric.wsl` package from the [latest release](https://github.com/co3moz/thoric/releases/latest), or `thoric-arm64.wsl` on [Windows on ARM](docs/WSL_PACKAGE.md#windows-on-arm), in one of two ways.
 
-   **Option 1, the Windows helper.** Run this in PowerShell:
-
-   ```powershell
-   irm https://github.com/co3moz/thoric/releases/latest/download/thoric.ps1 | iex
-   ```
-
-   It installs or updates WSL first when needed and offers memory, processor and swap settings for WSL's virtual machine that `.wslconfig` leaves out. Then it asks for a folder for the distribution's disk, which holds every image and container, and its maximum size, downloads the package of Windows' architecture and installs it. Run the same line again later to start, stop, update, move or remove Thoric.
+   **Option 1, the Windows helper**, the PowerShell line above. It installs or updates WSL first when needed and offers memory, processor and swap settings for WSL's virtual machine that `.wslconfig` leaves out. Then it asks for a folder for the distribution's disk, which holds every image and container, and its maximum size, downloads the package of Windows' architecture and installs it. Run the same line again later to start, stop, update, move or remove Thoric.
 
    **Option 2, the package by hand.** Download it and install it with WSL; `--location D:\WSL\Thoric` keeps the disk on another drive:
 
@@ -72,9 +84,20 @@ You need Windows 11 or Windows 10 on an x64 or an ARM64 processor, with WSL 2.4.
 
 WSL stops a distribution shortly after its last window closes; the helper starts Thoric and keeps it running once you leave the first start's shell, its **Start** does the same later, and its auto-start starts it at every Windows sign-in, see [Keep it running](docs/WSL_PACKAGE.md#keep-it-running). The [WSL package guide](docs/WSL_PACKAGE.md) covers the helper, the `thoric` command, updates, also from the dashboard, and removal.
 
+### Linux, Raspberry Pi and macOS
+
+You need a 64-bit system, x86_64 or ARM, with Docker: Docker Engine and Compose v2 on Linux, or [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/) on a Mac. On a Raspberry Pi 4 or 5, use a 64-bit system such as the 64-bit Raspberry Pi OS.
+
+1. Run the terminal line above. Without Docker on Linux, the helper offers Docker's own install script from get.docker.com, which runs with sudo; on a Mac, install Docker Desktop first, and the helper starts it when it is not running.
+2. It asks for a folder for the settings (`~/thoric` unless you type another), a username and a password for the dashboard, whether to enable root agent access at `/mcp` and how agents authenticate, whether only this computer or other devices too can reach the dashboard, and its port. Then it downloads the manager of the newest release and starts it.
+3. Connect your agent with the endpoint, token and client settings it prints at the end.
+4. Open [localhost:8080](http://localhost:8080), or the port you chose, sign in and select **New container**, as on Windows.
+
+Docker Desktop passes no GPU to its virtual machine, so desktops on a Mac render in software. On Linux the manager finds the host's GPU itself; an NVIDIA GPU needs the NVIDIA Container Toolkit, see [GPU on a Linux host](docs/INSTALLATION.md#gpu-on-a-linux-host). [The Linux and macOS helper](docs/INSTALLATION.md#the-linux-and-macos-helper) describes everything it does, its updates and removal.
+
 ## Custom installation
 
-The WSL package is the recommended installation. Thoric itself needs only a 64-bit Linux host, x86_64 or ARM, with Docker Engine and Compose v2, so you can also run it with Compose on a host you manage yourself, such as your own WSL2 distribution, another Linux machine, a Raspberry Pi or a Mac with Docker Desktop. Docker downloads the images of the host's architecture by itself; [Raspberry Pi and Mac](docs/INSTALLATION.md#raspberry-pi-and-mac) says what differs on those.
+Thoric itself needs only a 64-bit Linux host, x86_64 or ARM, with Docker Engine and Compose v2, so you can also set it up with Compose by hand on a host you manage yourself, such as your own WSL2 distribution, another Linux machine, a Raspberry Pi or a Mac with Docker Desktop. Docker downloads the images of the host's architecture by itself; [Raspberry Pi and Mac](docs/INSTALLATION.md#raspberry-pi-and-mac) says what differs on those.
 
 Run the commands below on that host, as a user who can use Docker.
 
