@@ -59,6 +59,14 @@ describe("reading events", () => {
       "volumes",
       "mcp",
     ])
+    // A duplicate's container starts from a snapshot, with copied volumes and an endpoint.
+    expect(staleKeys({ kind: "duplicate", resource: "container:b", status: "failed" })).toEqual([
+      "jobs",
+      "containers",
+      "images",
+      "volumes",
+      "mcp",
+    ])
     expect(staleKeys({ kind: "build", resource: "image:a", status: "failed" })).toEqual([
       "jobs",
       "images",

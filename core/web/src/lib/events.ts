@@ -61,6 +61,8 @@ const changes: Record<string, string[]> = {
   // The lifecycle deletes a container as `delete` does; its stops change the containers alone.
   "expiry-delete": ["containers", "volumes", "mcp"],
   snapshot: ["containers", "images"],
+  // A duplicate makes a container, the snapshot it starts from, copies of volumes and an endpoint.
+  duplicate: ["containers", "images", "volumes", "mcp"],
   build: ["images"],
   "image-pull": ["images"],
   "source-build": ["images"],
@@ -106,6 +108,7 @@ const quiet = new Set([
 /** Kinds that make something, whose end is worth telling however quick it was. */
 const makes = new Set([
   "create",
+  "duplicate",
   "build",
   "snapshot",
   "image-pull",

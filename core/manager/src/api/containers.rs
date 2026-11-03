@@ -191,7 +191,7 @@ pub async fn create(State(app): State<Arc<App>>, Json(body): Json<Value>) -> Res
 /// What a creation job ends with once the container's creation has returned: its own MCP endpoint
 /// whenever the container's record was saved, also when its desktop was not ready or its setup
 /// failed, so the endpoint works once the container is repaired.
-async fn creation_finished(
+pub(crate) async fn creation_finished(
     app: &App,
     id: &str,
     created: anyhow::Result<Value>,

@@ -9,6 +9,7 @@ export type Dialog =
   | { kind: "details"; id: string }
   | { kind: "settings"; id: string }
   | { kind: "snapshot"; id: string }
+  | { kind: "duplicate"; id: string }
   | { kind: "delete"; id: string }
   | { kind: "reset"; id: string }
   /** Containers to connect to a network group: `group`, or a new one named in the dialog. */

@@ -3,9 +3,9 @@
 //! and that answer becomes the call's result.
 use super::ThoricMcp;
 use crate::{
-    api, apps, audio, capture, changes, clipboard, compose, desktop_input, desktop_mcp, error,
-    exec, files, gamepad, human, image_removal, jobs, layers, ocr, recordings, terminal, transfers,
-    uploads, usage, volumes, waits, windows,
+    api, apps, audio, capture, changes, clipboard, compose, desktop_input, desktop_mcp, duplicate,
+    error, exec, files, gamepad, human, image_removal, jobs, layers, ocr, recordings, terminal,
+    transfers, uploads, usage, volumes, waits, windows,
 };
 use axum::{
     Json,
@@ -236,6 +236,11 @@ impl ThoricMcp {
             }
             "snapshot" => {
                 api::snapshot(state, Path(id.unwrap()), Json(parse(args)?))
+                    .await?
+                    .0
+            }
+            "duplicate_container" => {
+                duplicate::duplicate(state, Path(id.unwrap()), Json(parse(args)?))
                     .await?
                     .0
             }

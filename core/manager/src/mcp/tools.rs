@@ -295,6 +295,20 @@ pub(super) static TOOLS: LazyLock<Vec<Tool>> = LazyLock::new(|| {
             false,
         ),
         tool(
+            "duplicate_container",
+            "Make a new container with the files and settings of an existing one, running or stopped, under a new name. The files are committed as a snapshot (list_images, kind snapshot) that the new container starts from, so reset_container returns it to the moment it was made; a running container is paused briefly for the commit, and volumes, temporary files and running memory are not part of it. Every setting is copied except the name and the machine identity (hostname, MAC address, machine ID), which are new, and the lifecycle's expires_at, so the copy keeps an idle stop but no expiry; compose values, secret ones too, and the password of its own proxy are carried over inside the manager, and a compose setup that completed does not run again. Volumes created for the original (list_volumes owner) are copied into volumes created for the new container; every other named volume is mounted by both. Aliases another member of a shared group is reached by are left out. MCP endpoints are not copied. A failure before the new container stands takes back everything the job made. Returns job_id; poll get_job for container_id.",
+            json!({
+                "container_id":id,
+                "name":{"type":"string","minLength":1,"maxLength":100,"description":"The new container's name, which no other container may have."},
+                "start":{"type":"boolean","default":true,"description":"Start the new container; the job then completes once its desktop is ready. false leaves it stopped."},
+                "mcp_endpoint":{"type":"boolean","default":true,"description":"Create an MCP endpoint at /mcp/NAME for the new container, as create_container does, without a token yet."}
+            }),
+            &["container_id", "name"],
+            false,
+            false,
+            false,
+        ),
+        tool(
             "delete_image",
             "Delete an image from list_images by its id. A saved image (build, snapshot or archive) loses its record and Docker image, unless another tag or image still holds the image, which image_removed=false then reports; an import keeps its Docker image, which was on the host before, and loses only its record; a catalog image loses only its download and stays listed, to be pulled again. Cannot be undone. Refused while a container was created from the image (the error names it), since a reset needs the image, unless another saved image keeps the same Docker image, and while Docker still uses it elsewhere. Answers at once, without a job.",
             json!({"image_id":{"type":"string","minLength":1,"description":"An image's id from list_images: a catalog id such as ubuntu-xfce, or a saved image's record id."}}),

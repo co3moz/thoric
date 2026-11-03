@@ -12,6 +12,7 @@ import {
   RiDeleteBinLine,
   RiDownloadLine,
   RiEraserLine,
+  RiFileCopyLine,
   RiUploadLine,
 } from "@remixicon/react"
 
@@ -106,6 +107,10 @@ export function ContainerMenu({ item }: { item: ContainerItem }) {
         <DropdownMenuItem onSelect={() => openDialog({ kind: "snapshot", id })}>
           <ConceptIcon concept="image" icon={RiCameraLine} />
           {t("containers.snapshot")}
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => openDialog({ kind: "duplicate", id })}>
+          <ConceptIcon concept="container" icon={RiFileCopyLine} />
+          {t("containers.duplicate")}
         </DropdownMenuItem>
         <DropdownMenuItem
           tone="info"

@@ -58,6 +58,7 @@ export const de: Messages = {
   "job.image-pull": "Image herunterladen",
   "job.source-build": "Aus Quellcode erstellen",
   "job.snapshot": "Snapshot",
+  "job.duplicate": "Container duplizieren",
   "job.exec": "Skript ausführen",
   "job.reset": "Container zurücksetzen",
   "job.settings": "Einstellungen ändern",
@@ -217,6 +218,7 @@ export const de: Messages = {
   "containers.reset": "Container zurücksetzen",
   "containers.settings": "Einstellungen",
   "containers.snapshot": "Snapshot",
+  "containers.duplicate": "Duplizieren",
   "containers.logs": "Protokolle",
   "containers.logsOf": "Protokolle von {name}",
   "containers.diagnostics": "Diagnose",
@@ -1517,6 +1519,20 @@ export const de: Messages = {
     "Speichert die Dateien dieses Containers als Image, aus dem Sie neue Container starten können.",
   "snapshot.hint":
     "Hält den Container kurz an. Volumes und der Zustand laufender Anwendungen sind ausgenommen.",
+  "duplicate.titleOf": "{name} duplizieren",
+  "duplicate.description":
+    "Erstellt einen neuen Container mit den Dateien und Einstellungen dieses Containers. Seine Dateien werden als Snapshot gespeichert, aus dem der neue Container startet. Wird der neue Container zurückgesetzt, kehrt er zu diesem Moment zurück.",
+  "duplicate.nameTaken": "Ein anderer Container heißt bereits {name}.",
+  "duplicate.start": "Nach dem Erstellen starten",
+  "duplicate.startHint": "Andernfalls wird er gestoppt erstellt.",
+  "duplicate.endpointHint":
+    "Ein eigener Endpunkt, noch ohne Token. Die Endpunkte dieses Containers werden nicht kopiert.",
+  "duplicate.volumes": "Volumes",
+  "duplicate.copied": "Kopiert",
+  "duplicate.shared": "Gemeinsam",
+  "duplicate.noVolumes": "Dieser Container hängt keine Volumes ein.",
+  "duplicate.notCopied":
+    "Ein für diesen Container erstelltes Volume wird in ein neues kopiert. Ein gemeinsames Volume hängen beide ein, sodass jeder die Änderungen des anderen sieht. Der neue Container erhält einen eigenen Hostnamen, eine eigene MAC-Adresse und eine eigene Maschinen-ID.",
   "delete.titleOf": "{name} löschen?",
   "delete.title": "Diesen Container löschen?",
   "delete.description":

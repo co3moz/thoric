@@ -23,6 +23,7 @@ import { t } from "@/lib/i18n"
 import { ActivityDrawer } from "./activity-drawer"
 import { ContainerDrawer } from "./container-drawer"
 import { CreateContainerDialog, SettingsDialog } from "./container-dialogs"
+import { DuplicateDialog } from "./duplicate-dialog"
 import { GroupConnectDialog } from "./group-dialog"
 import { JobDrawer } from "./job-drawer"
 import { LogDialog } from "./log-dialog"
@@ -121,6 +122,8 @@ function render(dialog: Dialog, open: boolean) {
       return <SettingsDialog {...props} id={dialog.id} />
     case "snapshot":
       return <SnapshotDialog {...props} id={dialog.id} />
+    case "duplicate":
+      return <DuplicateDialog {...props} id={dialog.id} />
     case "delete":
       return <DeleteDialog {...props} id={dialog.id} />
     case "reset":

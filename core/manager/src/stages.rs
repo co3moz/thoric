@@ -61,14 +61,27 @@ pub(crate) const RESTORE_STAGES: [(&str, &str); 6] = [
     ("containers", "Creating the containers"),
 ];
 
+/// The stages of a duplicate: the snapshot's, then the copies of the volumes created for the
+/// original, which a container without any skips, and the new container's creation and, when it
+/// is started, the wait for its desktop.
+pub(crate) const DUPLICATE_STAGES: [(&str, &str); 6] = [
+    ("check", "Checking the container"),
+    ("commit", "Committing the container layer"),
+    ("record", "Saving the image record"),
+    ("volumes", "Transferring the volumes"),
+    ("create", "Creating the new container"),
+    ("start", "Starting the new container"),
+];
+
 /// Every job's stages. The interface names a stage by its name alone, so a name two jobs share is
 /// the same step with the same words.
-pub(crate) const JOB_STAGES: [&[(&str, &str)]; 5] = [
+pub(crate) const JOB_STAGES: [&[(&str, &str)]; 6] = [
     &BUILD_STAGES,
     &SNAPSHOT_STAGES,
     &RECREATE_STAGES,
     &BACKUP_STAGES,
     &RESTORE_STAGES,
+    &DUPLICATE_STAGES,
 ];
 
 /// A longer line is no stage marker, so it is logged without waiting for its end.

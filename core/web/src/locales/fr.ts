@@ -58,6 +58,7 @@ export const fr: Messages = {
   "job.image-pull": "Téléchargement d'image",
   "job.source-build": "Construction depuis les sources",
   "job.snapshot": "Instantané",
+  "job.duplicate": "Duplication du conteneur",
   "job.exec": "Exécution de script",
   "job.reset": "Réinitialisation du conteneur",
   "job.settings": "Modification des réglages",
@@ -216,6 +217,7 @@ export const fr: Messages = {
   "containers.reset": "Réinitialiser le conteneur",
   "containers.settings": "Réglages",
   "containers.snapshot": "Instantané",
+  "containers.duplicate": "Dupliquer",
   "containers.logs": "Journaux",
   "containers.logsOf": "Journaux de {name}",
   "containers.diagnostics": "Diagnostic",
@@ -1508,6 +1510,20 @@ export const fr: Messages = {
     "Enregistre les fichiers de ce conteneur sous forme d'image à partir de laquelle vous pouvez démarrer de nouveaux conteneurs.",
   "snapshot.hint":
     "Met brièvement le conteneur en pause. Les volumes et l'état des applications en cours d'exécution sont exclus.",
+  "duplicate.titleOf": "Dupliquer {name}",
+  "duplicate.description":
+    "Crée un nouveau conteneur avec les fichiers et les réglages de celui-ci. Ses fichiers sont enregistrés dans un instantané dont part le nouveau conteneur. Réinitialiser le nouveau conteneur le ramène à ce moment.",
+  "duplicate.nameTaken": "Un autre conteneur s'appelle déjà {name}.",
+  "duplicate.start": "Le démarrer une fois créé",
+  "duplicate.startHint": "Sinon, il est créé à l'arrêt.",
+  "duplicate.endpointHint":
+    "Un point d'accès à lui, encore sans jeton. Les points d'accès de ce conteneur ne sont pas copiés.",
+  "duplicate.volumes": "Volumes",
+  "duplicate.copied": "Copié",
+  "duplicate.shared": "Partagé",
+  "duplicate.noVolumes": "Ce conteneur ne monte aucun volume.",
+  "duplicate.notCopied":
+    "Un volume créé pour ce conteneur est copié dans un nouveau. Un volume partagé est monté par les deux, et chacun voit les modifications de l'autre. Le nouveau conteneur reçoit son propre nom d'hôte, sa propre adresse MAC et son propre identifiant de machine.",
   "delete.titleOf": "Supprimer {name} ?",
   "delete.title": "Supprimer ce conteneur ?",
   "delete.description":

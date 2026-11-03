@@ -589,6 +589,7 @@ fn an_endpoint_offers_its_scopes_tools_and_never_the_administrators() {
         "reset_container",
         "retry_container",
         "snapshot",
+        "duplicate_container",
         "set_internet",
         "list_containers",
         "build_image",

@@ -27,6 +27,7 @@ mod review;
 
 pub(crate) use export::export;
 pub(crate) use manifest::Included;
+pub(crate) use remap::switch_off_disabled;
 pub(crate) use restore::Upload;
 pub(crate) use restore::{check, restore};
 
