@@ -6,8 +6,8 @@ use super::{
 };
 use crate::{
     activity, api, apps, archives, audio, auth, backup, capture, compose, config, desktop_input,
-    desktop_mcp, exec, files, gamepad, human, icons, jobs, model, ocr, recordings, terminal,
-    transfers, uploads, usage, volumes, waits, windows,
+    desktop_mcp, duplicate, exec, files, gamepad, human, icons, jobs, model, ocr, recordings,
+    terminal, transfers, uploads, usage, volumes, waits, windows,
 };
 
 const GZIP: &str = "application/gzip";
@@ -136,6 +136,13 @@ pub(super) fn all() -> Vec<Route> {
             "Save the container's files as an image.",
         )
         .json::<api::Snapshot>()
+        .job(),
+        post(
+            "/api/containers/{id}/duplicate",
+            CONTAINERS,
+            "Make a new container from the container's files and settings, under a new name.",
+        )
+        .json::<duplicate::Duplicate>()
         .job(),
         post("/api/containers/{id}/exec", CONTAINERS, "Run a script.")
             .json::<exec::Execute>()

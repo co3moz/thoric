@@ -57,6 +57,7 @@ export const es: Messages = {
   "job.image-pull": "Descargar imagen",
   "job.source-build": "Compilar desde el código fuente",
   "job.snapshot": "Instantánea",
+  "job.duplicate": "Duplicar contenedor",
   "job.exec": "Ejecutar script",
   "job.reset": "Restablecer contenedor",
   "job.settings": "Cambiar ajustes",
@@ -211,6 +212,7 @@ export const es: Messages = {
   "containers.reset": "Restablecer contenedor",
   "containers.settings": "Ajustes",
   "containers.snapshot": "Instantánea",
+  "containers.duplicate": "Duplicar",
   "containers.logs": "Registros",
   "containers.logsOf": "Registros de {name}",
   "containers.diagnostics": "Diagnóstico",
@@ -1385,6 +1387,20 @@ export const es: Messages = {
     "Guarda los archivos de este contenedor como una imagen a partir de la cual puedes iniciar contenedores nuevos.",
   "snapshot.hint":
     "Pausa brevemente el contenedor. Los volúmenes y el estado de las aplicaciones en ejecución no se incluyen.",
+  "duplicate.titleOf": "Duplicar {name}",
+  "duplicate.description":
+    "Crea un contenedor nuevo con los archivos y ajustes de este. Sus archivos se guardan como una instantánea de la que parte el contenedor nuevo, así que restablecer el contenedor nuevo lo devuelve a este momento.",
+  "duplicate.nameTaken": "Otro contenedor ya se llama {name}.",
+  "duplicate.start": "Iniciarlo cuando esté creado",
+  "duplicate.startHint": "Si no, se crea detenido.",
+  "duplicate.endpointHint":
+    "Un punto de acceso propio, todavía sin token. Los puntos de acceso de este contenedor no se copian.",
+  "duplicate.volumes": "Volúmenes",
+  "duplicate.copied": "Copiado",
+  "duplicate.shared": "Compartido",
+  "duplicate.noVolumes": "Este contenedor no monta volúmenes.",
+  "duplicate.notCopied":
+    "Un volumen creado para este contenedor se copia en uno nuevo. Un volumen compartido lo montan los dos, así que cada uno ve los cambios del otro. El contenedor nuevo recibe su propio nombre de host, dirección MAC e ID de máquina.",
   "delete.titleOf": "¿Eliminar {name}?",
   "delete.title": "¿Eliminar este contenedor?",
   "delete.description":

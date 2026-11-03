@@ -167,6 +167,11 @@ pub(super) fn policy(tool: &str) -> Option<&'static [Rule]> {
         ],
         "set_image_compose" => &[("image_id", Text, true)],
         "snapshot" => &[("name", Text, true), ("description", Text, false)],
+        "duplicate_container" => &[
+            ("name", Text, true),
+            ("start", Text, false),
+            ("mcp_endpoint", Text, false),
+        ],
         "create_volume" | "delete_volume" => &[("name", Text, true)],
         "copy_volume" => &[("volume", Text, true), ("name", Text, true)],
         "get_usage" => &[("seconds", Text, false)],

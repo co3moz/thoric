@@ -4,10 +4,17 @@ import type { ContainerItem, ImageItem, Job } from "./types"
 /** A container or an image a job is still making, under the name it will have. */
 export type Pending = { id: string; name: string; job: Job }
 
-/** The jobs that make a saved image, and the kind its record will have. */
+/** The jobs that make a container: a creation, and a duplicate of another container. */
+const containerJobs = new Set(["create", "duplicate"])
+
+/**
+ * The jobs that make a saved image, and the kind its record will have. A duplicate starts its
+ * container from a snapshot it takes first.
+ */
 const imageJobs: Record<string, string> = {
   build: "build",
   snapshot: "snapshot",
+  duplicate: "snapshot",
   "image-import": "archive",
 }
 
@@ -15,7 +22,7 @@ const imageJobs: Record<string, string> = {
 const catalogJobs = new Set(["image-pull", "source-build"])
 
 /** The jobs whose end changes what the containers and images lists hold. */
-const creationJobs = new Set(["create", ...Object.keys(imageJobs), ...catalogJobs])
+const creationJobs = new Set([...containerJobs, ...Object.keys(imageJobs), ...catalogJobs])
 
 /** The ID in a job's `container:<id>` or `image:<id>` resource. */
 function resourceId(job: Pick<Job, "resource">, kind: "container" | "image") {
@@ -36,7 +43,8 @@ export function pendingContainers(
 ): Pending[] {
   const records = new Map(containers.map((item) => [item.id, item]))
   return jobs.flatMap((job) => {
-    const id = job.kind === "create" && jobActive(job) ? resourceId(job, "container") : undefined
+    const id =
+      containerJobs.has(job.kind) && jobActive(job) ? resourceId(job, "container") : undefined
     if (!id) return []
     const record = records.get(id)
     if (record?.state === "running") return []
@@ -45,9 +53,9 @@ export function pendingContainers(
 }
 
 /**
- * The saved images a job is still making, with the kind their records will have. A build and a
- * snapshot save their record under the job's ID, an import under the ID in its resource; once the
- * record is listed, it stands for itself.
+ * The saved images a job is still making, with the kind their records will have. A build, a
+ * snapshot and a duplicate save their record under the job's ID, an import under the ID in its
+ * resource; once the record is listed, it stands for itself.
  */
 export function pendingImages(
   jobs: Job[],

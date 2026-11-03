@@ -108,7 +108,12 @@ impl App {
 
     /// Stream the source's files as a plain tar into the tar that unpacks the new volume.
     /// Returns the bytes of the tar stream.
-    async fn pipe(&self, job_id: &str, source: &Volume, target: &Volume) -> anyhow::Result<u64> {
+    pub(crate) async fn pipe(
+        &self,
+        job_id: &str,
+        source: &Volume,
+        target: &Volume,
+    ) -> anyhow::Result<u64> {
         let progress = |current: u64| json!({"transfer": "copy", "current": current});
         self.set_progress(job_id, Some(progress(0)))?;
         let Unpacking {

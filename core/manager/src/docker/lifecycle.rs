@@ -238,7 +238,7 @@ impl App {
         self.run_setup(id, job_id).await?;
         Ok(json!({"container_id":id}))
     }
-    async fn provision(&self, env: &Container, manager: &str) -> Result<()> {
+    pub(crate) async fn provision(&self, env: &Container, manager: &str) -> Result<()> {
         self.provision_and(env, manager, true).await
     }
     /// Wait for the desktop of a container this job has provisioned. The job shares the container
@@ -247,7 +247,7 @@ impl App {
     /// error says why; the container keeps it only when its compose setup was due, since that did
     /// not run and a retry runs it. Any other such error would outlive a desktop that comes up
     /// later.
-    async fn provisioned_ready(&self, env: &Container, job_id: &str) -> Result<()> {
+    pub(crate) async fn provisioned_ready(&self, env: &Container, job_id: &str) -> Result<()> {
         if !crate::compose::setup_due(env) {
             crate::jobs::share_from_here();
             return self.desktop_ready(env, job_id).await.map(drop);

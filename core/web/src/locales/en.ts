@@ -61,6 +61,7 @@ export const en = {
   "job.image-pull": "Download image",
   "job.source-build": "Build from source",
   "job.snapshot": "Snapshot",
+  "job.duplicate": "Duplicate container",
   "job.exec": "Run script",
   "job.reset": "Reset container",
   "job.settings": "Change settings",
@@ -216,6 +217,7 @@ export const en = {
   "containers.reset": "Reset container",
   "containers.settings": "Settings",
   "containers.snapshot": "Snapshot",
+  "containers.duplicate": "Duplicate",
   "containers.logs": "Logs",
   "containers.logsOf": "{name} logs",
   "containers.diagnostics": "Diagnostics",
@@ -1399,6 +1401,20 @@ export const en = {
   "snapshot.hint":
     "Briefly pauses the container. Volumes and running application state are excluded.",
 
+  "duplicate.titleOf": "Duplicate {name}",
+  "duplicate.description":
+    "Makes a new container with the files and settings of this one. Its files are saved as a snapshot the new container starts from, so resetting the new container returns it to this moment.",
+  "duplicate.nameTaken": "Another container is called {name}.",
+  "duplicate.start": "Start it once it is made",
+  "duplicate.startHint": "Otherwise it is created stopped.",
+  "duplicate.endpointHint":
+    "An endpoint of its own, without a token yet. This container's endpoints are not copied.",
+  "duplicate.volumes": "Volumes",
+  "duplicate.copied": "Copied",
+  "duplicate.shared": "Shared",
+  "duplicate.noVolumes": "This container mounts no volumes.",
+  "duplicate.notCopied":
+    "A volume created for this container is copied into a new one. A shared volume is mounted by both, so each sees the other's changes. The new container gets a hostname, MAC address and machine ID of its own.",
   "delete.titleOf": "Delete {name}?",
   "delete.title": "Delete this container?",
   "delete.description":

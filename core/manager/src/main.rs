@@ -16,6 +16,7 @@ mod desktop_limits;
 mod desktop_mcp;
 mod desktop_ready;
 mod docker;
+mod duplicate;
 mod error;
 mod events;
 mod exec;
@@ -153,6 +154,7 @@ fn router(app: Arc<App>) -> Router {
         .route("/api/containers/{id}/internet", post(api::internet))
         .route("/api/containers/{id}/settings", post(api::update_settings))
         .route("/api/containers/{id}/snapshot", post(api::snapshot))
+        .route("/api/containers/{id}/duplicate", post(duplicate::duplicate))
         .route("/api/containers/{id}/exec", post(exec::execute))
         .route("/api/containers/{id}/files/read", post(files::read))
         .route("/api/containers/{id}/files/write", post(files::write))

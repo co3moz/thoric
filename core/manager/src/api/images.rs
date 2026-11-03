@@ -503,54 +503,70 @@ pub async fn snapshot(
             app.begin_stage(&id, "check")?;
             let env = app.container(&env_id).map_err(|e| anyhow::anyhow!(e.1))?;
             let container = app.owned(&env).await?;
-            let reference = format!("thoric/snapshot:{id}");
-            app.begin_stage(&id, "commit")?;
-            app.append_log(&id,"Committing container changes. Volumes, /run, /tmp and running application state are excluded.")?;
-            app.docker_logged(
-                &id,
-                &[
-                    "commit".into(),
-                    "--change".into(),
-                    format!("LABEL {LABEL}=true"),
-                    // The image's history says what this layer holds.
-                    "--message".into(),
-                    format!("Thoric snapshot of {}", env.spec.name),
-                    container["Id"]
-                        .as_str()
-                        .context("Missing container ID")?
-                        .into(),
-                    reference.clone(),
-                ],
-            )
-            .await?;
-            app.begin_stage(&id, "record")?;
-            let info = app.inspect("image", &reference).await?;
-            // A container from the snapshot asks for the same parameters again.
-            let compose = app.pinned_compose(&env_id);
-            let records: Vec<ImageRecord> = app.db.list("image")?;
-            let icon = crate::icons::inherited(&records, &env.source_image_id);
-            let rec = ImageRecord {
-                id: id.clone(),
-                name: body.name,
-                image_id: info["Id"].as_str().context("Missing image ID")?.into(),
-                reference,
-                parent_image_id: Some(env.source_image_id.clone()),
-                source_container: Some(env_id),
-                kind: "snapshot".into(),
-                created_at: now(),
-                description: body.description,
-                desktop: crate::catalog::from_image(&info),
-                build: None,
-                compose,
-                icon,
-                template_ids: Vec::new(),
-            };
-            app.db.put("image", &id, &rec)?;
+            let rec = app
+                .save_snapshot(&id, &env, &container, body.name, body.description)
+                .await?;
             Ok(image_summary(&rec))
         },
     )
 }
 impl App {
+    /// Commit the files of `env`, whose Docker container `container` is, to the image
+    /// `thoric/snapshot:<job>` and save its record under the job's ID, in the job's `commit` and
+    /// `record` stages. A snapshot and a duplicate take theirs this way.
+    pub(crate) async fn save_snapshot(
+        &self,
+        job_id: &str,
+        env: &Container,
+        container: &Value,
+        name: String,
+        description: String,
+    ) -> anyhow::Result<ImageRecord> {
+        let reference = format!("thoric/snapshot:{job_id}");
+        self.begin_stage(job_id, "commit")?;
+        self.append_log(job_id,"Committing container changes. Volumes, /run, /tmp and running application state are excluded.")?;
+        self.docker_logged(
+            job_id,
+            &[
+                "commit".into(),
+                "--change".into(),
+                format!("LABEL {LABEL}=true"),
+                // The image's history says what this layer holds.
+                "--message".into(),
+                format!("Thoric snapshot of {}", env.spec.name),
+                container["Id"]
+                    .as_str()
+                    .context("Missing container ID")?
+                    .into(),
+                reference.clone(),
+            ],
+        )
+        .await?;
+        self.begin_stage(job_id, "record")?;
+        let info = self.inspect("image", &reference).await?;
+        // A container from the snapshot asks for the same parameters again.
+        let compose = self.pinned_compose(&env.id);
+        let records: Vec<ImageRecord> = self.db.list("image")?;
+        let icon = crate::icons::inherited(&records, &env.source_image_id);
+        let rec = ImageRecord {
+            id: job_id.into(),
+            name,
+            image_id: info["Id"].as_str().context("Missing image ID")?.into(),
+            reference,
+            parent_image_id: Some(env.source_image_id.clone()),
+            source_container: Some(env.id.clone()),
+            kind: "snapshot".into(),
+            created_at: now(),
+            description,
+            desktop: crate::catalog::from_image(&info),
+            build: None,
+            compose,
+            icon,
+            template_ids: Vec::new(),
+        };
+        self.db.put("image", job_id, &rec)?;
+        Ok(rec)
+    }
     pub async fn cleanup_build(&self, id: &str) -> anyhow::Result<()> {
         if id.len() != 32 || !id.bytes().all(|b| b.is_ascii_hexdigit()) {
             bail!("Invalid build ID");

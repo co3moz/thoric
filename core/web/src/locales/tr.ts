@@ -57,6 +57,7 @@ export const tr: Messages = {
   "job.image-pull": "İmaj indirme",
   "job.source-build": "Kaynaktan derleme",
   "job.snapshot": "Anlık görüntü",
+  "job.duplicate": "Konteyner çoğaltma",
   "job.exec": "Betik çalıştırma",
   "job.reset": "Konteyner sıfırlama",
   "job.settings": "Ayar değişikliği",
@@ -210,6 +211,7 @@ export const tr: Messages = {
   "containers.reset": "Konteyneri sıfırla",
   "containers.settings": "Ayarlar",
   "containers.snapshot": "Anlık görüntü al",
+  "containers.duplicate": "Çoğalt",
   "containers.logs": "Loglar",
   "containers.logsOf": "{name} logları",
   "containers.diagnostics": "Tanılama",
@@ -1369,6 +1371,20 @@ export const tr: Messages = {
     "Bu konteynerin dosyalarını, yeni konteynerler başlatabileceğiniz bir imaj olarak kaydeder.",
   "snapshot.hint":
     "Konteyneri kısa süreliğine duraklatır. Volume'ler ve çalışan uygulamaların durumu dahil edilmez.",
+  "duplicate.titleOf": "{name} konteynerini çoğalt",
+  "duplicate.description":
+    "Bu konteynerin dosyaları ve ayarlarıyla yeni bir konteyner oluşturur. Dosyaları, yeni konteynerin başladığı bir anlık görüntü olarak kaydedilir; yeni konteyneri sıfırlamak onu bu ana döndürür.",
+  "duplicate.nameTaken": "{name} adlı başka bir konteyner zaten var.",
+  "duplicate.start": "Oluşturulunca başlat",
+  "duplicate.startHint": "Aksi halde durdurulmuş olarak oluşturulur.",
+  "duplicate.endpointHint":
+    "Kendine ait, henüz token'ı olmayan bir uç nokta. Bu konteynerin uç noktaları kopyalanmaz.",
+  "duplicate.volumes": "Volume'ler",
+  "duplicate.copied": "Kopyalanır",
+  "duplicate.shared": "Paylaşılır",
+  "duplicate.noVolumes": "Bu konteyner hiç volume bağlamıyor.",
+  "duplicate.notCopied":
+    "Bu konteyner için oluşturulan bir volume yenisine kopyalanır. Paylaşılan bir volume'ü ikisi de bağlar, böylece her biri diğerinin değişikliklerini görür. Yeni konteyner kendi ana makine adını, MAC adresini ve makine kimliğini alır.",
   "delete.titleOf": "{name} silinsin mi?",
   "delete.title": "Bu konteyner silinsin mi?",
   "delete.description":

@@ -6,8 +6,9 @@ mod containers;
 mod images;
 
 pub(crate) use containers::{
-    Action, CreateContainer, Internet, Remove, action, container, containers, create, diagnostics,
-    internet, logs, remove, reset, retry, screenshot, update_settings,
+    Action, CreateContainer, Internet, Remove, action, container, containers, create,
+    creation_finished, diagnostics, internet, logs, remove, reset, retry, screenshot,
+    update_settings,
 };
 #[cfg(test)]
 pub(crate) use containers::{creation_request, removal};

@@ -540,7 +540,7 @@ try:
     except urllib.error.HTTPError as error:
         assert error.code == 401
     assert mcp("initialize", {"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"acceptance","version":"1"}})["serverInfo"]["name"] == "thoric"
-    assert len(mcp("tools/list")["tools"]) == 79
+    assert len(mcp("tools/list")["tools"]) == 80
     assert tool("get_system")["structuredContent"]["connected"]
     assert stdio_tool("get_system")["structuredContent"]["connected"]
     print("PASS MCP authentication, negotiation and discovery", flush=True)
@@ -2320,6 +2320,41 @@ try:
     container_ids.remove(clone)
     assert kept["volumes_preserved"] and "volumes_deleted" not in kept, kept
     assert next(v for v in api("volumes") if v["Name"] == clone_volume)["owner"] == {"container_id": clone, "parameter": "WORK_SPACE", "name": None, "deleted": True}
+    # A duplicate is a new container with the original's files and settings, made while the
+    # original runs: a machine of its own, a copy of the volume created for the original, not the
+    # volume itself, and the snapshot it starts from, which stays while the duplicate does.
+    docker("exec", "--user", "desktop", f"thoric-{own}", "sh", "-c", "printf duplicated > /home/desktop/marker")
+    copy_name = f"Own copy {tag}"
+    duplicated = mcp_job(tool("duplicate_container", {"container_id": own, "name": copy_name}))
+    copy = duplicated["result"]["container_id"]
+    container_ids.append(copy)
+    copy_volume = f"thoric-{copy}-work-space"
+    own_volumes.append(copy_volume)
+    copy_snapshot = duplicated["result"]["image_id"]
+    image_refs.append(f"thoric/snapshot:{copy_snapshot}")
+    assert duplicated["result"]["volumes_copied"] == [{"from": own_volume, "to": copy_volume}] and duplicated["result"]["volumes_shared"] == [], duplicated["result"]
+    assert [stage["name"] for stage in duplicated["stages"] if stage.get("started_at")] == ["check", "commit", "record", "volumes", "create", "start"], duplicated["stages"]
+    ready(f"thoric-{copy}")
+    assert docker("exec", f"thoric-{copy}", "cat", "/home/desktop/marker") == b"duplicated"
+    assert docker("exec", f"thoric-{copy}", "cat", "/home/desktop/Projects/extra") == b"kept"
+    assert volume_mounts(f"thoric-{copy}") == {"/home/desktop/Projects": copy_volume}
+    assert json.loads(docker("volume", "inspect", copy_volume))[0]["Labels"] == {"thoric.managed": "true", "thoric.environment": copy, "thoric.parameter": "WORK_SPACE"}
+    original_record, copy_record = api(f"containers/{own}"), api(f"containers/{copy}")
+    assert copy_record["spec"]["image"] == f"thoric/snapshot:{copy_snapshot}" and copy_record["spec"]["shm_mb"] == original_record["spec"]["shm_mb"] == 1024, copy_record["spec"]
+    # The setup's work is in the copied files, so it did not run again.
+    assert copy_record["setup"]["status"] == "completed" and "Running the compose setup" not in duplicated["log"], duplicated["log"]
+    assert machine(f"thoric-{copy}")["hostname"] == f"thoric-{copy}" != machine(f"thoric-{own}")["hostname"]
+    assert all(copy_record["spec"][key] != original_record["spec"][key] for key in ("hostname", "mac_address", "machine_id")), copy_record["spec"]
+    # A change in the copy's volume stays out of the original's.
+    docker("exec", "--user", "desktop", f"thoric-{copy}", "sh", "-c", "printf changed > /home/desktop/Projects/extra")
+    assert docker("exec", f"thoric-{own}", "cat", "/home/desktop/Projects/extra") == b"kept"
+    assert refused(f"containers/{own}/duplicate", {"name": copy_name.upper()}) == 409
+    assert refused(f"images/{copy_snapshot}", method="DELETE") == 409
+    gone = job(api(f"containers/{copy}?delete_volumes=true", method="DELETE"))
+    container_ids.remove(copy)
+    assert gone["volumes_deleted"] == [copy_volume], gone
+    assert api(f"images/{copy_snapshot}", method="DELETE")["deleted"] is True
+    print("PASS a duplicate copies the files, settings and own volume of a running container, with a new identity and a snapshot to reset to", flush=True)
     # A container that names the volume shares it and gets none of its own, so deleting the
     # owner with the option keeps it, and deleting the sharer never takes a volume it chose.
     sharer = job(api("containers", {**own_base, "name": "Own sharer", "parameters": {"WORK_SPACE": own_volume}}))["container_id"]
