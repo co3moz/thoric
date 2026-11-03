@@ -780,6 +780,13 @@ pub(super) fn all() -> Vec<Route> {
         )
         .access(Access::Public)
         .unavailable("Not ready: the same booleans, with each check that failed false."),
+        get(
+            "/metrics",
+            INSTALLATION,
+            "Prometheus metrics in the text format 0.0.4, which `METRICS_TOKEN` opens as a bearer token; 404 while it is not set.",
+        )
+        .access(Access::MetricsToken)
+        .text(),
     ]
 }
 

@@ -7,8 +7,10 @@
 //! container holds at most 1800 samples of 40 bytes, about 70 KiB, reserved when its first sample
 //! arrives; a GPU holds 1800 of 32.
 //! Every sample is stamped by one clock that only moves forward, so the newest stamp is a cursor:
-//! a client that passes it back as `since` receives exactly what came after.
+//! a client that passes it back as `since` receives exactly what came after. Beside the samples,
+//! [`current`] keeps what Docker last said of each container, which `/metrics` reports.
 mod collector;
+pub(crate) mod current;
 pub(crate) mod engine;
 mod gpu;
 mod history;
@@ -31,11 +33,16 @@ use serde_json::{Value, json};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 pub(crate) use collector::spawn;
+#[cfg(test)]
+pub(crate) use gpu::GpuReading;
 
-/// The samples of every container and GPU. Its lock is held only to add a sample or to copy
-/// some out, never across an await.
+/// The samples of every container and GPU, and what Docker last said of each container. Each lock
+/// is held only to add to it or to copy some out, never across an await, and never both at once.
 #[derive(Default)]
-pub struct Usage(Mutex<Store>);
+pub struct Usage {
+    samples: Mutex<Store>,
+    listing: Mutex<current::Listing>,
+}
 
 fn now_ms() -> u64 {
     std::time::SystemTime::now()
@@ -47,7 +54,7 @@ fn now_ms() -> u64 {
 impl Usage {
     fn store(&self) -> MutexGuard<'_, Store> {
         // A panic while a sample was added leaves at most that sample half written.
-        self.0
+        self.samples
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }

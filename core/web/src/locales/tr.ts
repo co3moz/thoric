@@ -1117,6 +1117,8 @@ export const tr: Messages = {
     "token, /mcp ve MCP uç noktaları için token ister; none ikisini de açık bırakır.",
   "settings.about.MCP_TOKEN":
     "Yöneticinin bearer token'ı: /mcp onu ister ve her MCP uç noktasını açar.",
+  "settings.about.METRICS_TOKEN":
+    "Prometheus'un /metrics'i okuduğu bearer token; boşsa /metrics kapalı kalır.",
   "settings.about.DESKTOP_IMAGE": "Oluşturma formunun ilk seçtiği imaj.",
   "settings.about.DESKTOP_USER_NAMESPACES":
     "Masaüstlerindeki tarayıcıların ve Electron uygulamalarının sandbox'ını açmasına izin verir.",

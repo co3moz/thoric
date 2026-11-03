@@ -57,6 +57,7 @@ export const SECTION_OF: Record<string, Section> = {
   PROXY_PASSWORD: "proxy",
   PROXY_BYPASS: "proxy",
   MANAGER_CONTAINER: "manager",
+  METRICS_TOKEN: "manager",
   UPDATE_CHECK: "manager",
 }
 

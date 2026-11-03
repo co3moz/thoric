@@ -90,6 +90,12 @@ impl Cancels {
     pub(crate) fn forget(&self, id: &str) {
         self.0.lock().unwrap().remove(id);
     }
+    /// How many of the jobs that have not ended wait for their resource, and how many run.
+    pub(crate) fn counts(&self) -> (usize, usize) {
+        let jobs = self.0.lock().unwrap();
+        let running = jobs.values().filter(|pending| pending.running).count();
+        (jobs.len() - running, running)
+    }
     /// Whether a cancel would reach the job `id` now, which its answer says as `cancellable`.
     pub(crate) fn cancellable(&self, id: &str) -> bool {
         self.0.lock().unwrap().get(id).is_some_and(|pending| {

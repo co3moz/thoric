@@ -1137,6 +1137,8 @@ export const fr: Messages = {
     "token exige un jeton sur /mcp et les points d'accès MCP ; none laisse les deux ouverts.",
   "settings.about.MCP_TOKEN":
     "Le jeton bearer de l'administrateur : /mcp l'exige, et il ouvre chaque point d'accès MCP.",
+  "settings.about.METRICS_TOKEN":
+    "Le jeton bearer avec lequel Prometheus lit /metrics ; vide laisse /metrics éteint.",
   "settings.about.DESKTOP_IMAGE": "L'image que le formulaire de création choisit d'abord.",
   "settings.about.DESKTOP_USER_NAMESPACES":
     "Permet aux navigateurs et aux applications Electron des bureaux de lancer leur sandbox.",

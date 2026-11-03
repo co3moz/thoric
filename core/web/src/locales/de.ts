@@ -1137,6 +1137,8 @@ export const de: Messages = {
     "token verlangt ein Token für /mcp und die MCP-Endpunkte; none lässt beide offen.",
   "settings.about.MCP_TOKEN":
     "Das Bearer-Token des Administrators: /mcp verlangt es, und es öffnet jeden MCP-Endpunkt.",
+  "settings.about.METRICS_TOKEN":
+    "Das Bearer-Token, mit dem Prometheus /metrics liest; leer lässt /metrics aus.",
   "settings.about.DESKTOP_IMAGE": "Das Image, das das Erstellformular zuerst auswählt.",
   "settings.about.DESKTOP_USER_NAMESPACES":
     "Lässt Browser und Electron-Apps in Desktops ihre Sandbox starten.",

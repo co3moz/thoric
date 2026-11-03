@@ -1,6 +1,8 @@
 //! The loop that follows every running container this manager owns, one stats stream each, and
 //! the host's GPU while a GPU desktop runs. It holds no lock an HTTP handler waits for: it reads
-//! the records like any handler and takes the usage store only to add a sample.
+//! the records like any handler and takes the usage store only to add a sample. Each listing also
+//! gives every record its container's state, and beside each stream an inspect learns the
+//! container's start, which `/metrics` reports with the counters of the latest message.
 use super::{
     engine::{self, Abort, Running},
     gpu,
@@ -27,6 +29,8 @@ const STATS_IDLE: Duration = Duration::from_secs(30);
 const LIST_LIMIT: Duration = Duration::from_secs(10);
 /// How long after a failed attempt the GPU is tried again.
 const GPU_RETRY: Duration = Duration::from_secs(300);
+/// How long after a failed inspect a container's start is asked for again.
+const START_RETRY: Duration = Duration::from_secs(30);
 
 pub(crate) fn spawn(app: Arc<App>) {
     tokio::spawn(run(app, DISCOVERY));
@@ -63,6 +67,9 @@ async fn run(app: Arc<App>, every: Duration) {
             Ok(listed) => {
                 app.usage.set_error(None);
                 let running = engine::running(&records, &listed);
+                // Before a stream opens, so what it reads has a place to go.
+                app.usage
+                    .listed(engine::states(&records, &listed), &running);
                 // A stream that ended, such as on a restart, is opened again if still wanted.
                 followed.retain(|_, stream| !stream.task.0.is_finished());
                 let current = followed
@@ -86,7 +93,10 @@ async fn run(app: Arc<App>, every: Duration) {
                 gpu.update(&app, running.values().any(|container| container.gpu));
             }
             // Streams on a dropped socket end by themselves and are opened again once it is back.
-            Err(error) => app.usage.set_error(Some(format!("{error:#}"))),
+            Err(error) => {
+                app.usage.set_error(Some(format!("{error:#}")));
+                app.usage.unlisted();
+            }
         }
         app.usage.prune(&records);
     }
@@ -122,20 +132,34 @@ async fn list(socket: &Path) -> Result<Value> {
 
 /// Store a sample for each second Docker reports until the stream ends or the task is stopped.
 async fn follow(app: Arc<App>, socket: PathBuf, id: String, docker_id: String) {
+    let learn = || {
+        let start = learn_start(app.clone(), socket.clone(), id.clone(), docker_id.clone());
+        Abort(tokio::spawn(start))
+    };
+    // Ends with the stream; asked again when the CPU time goes back, as it does when Docker
+    // restarts the container in place, which keeps the stream and the ID.
+    let mut learning = learn();
     let result = async {
         let path = engine::stats_path(&docker_id).context("Invalid Docker container ID")?;
         let io = crate::pulls::connect(&socket).await?;
         let mut previous: Option<stats::Reading> = None;
+        let mut cpu_time: Option<u64> = None;
         engine::stream(
             io,
             &path,
             STATS_IDLE,
             || {},
             |line| {
-                let current = serde_json::from_slice::<Value>(line)
-                    .ok()
-                    .as_ref()
-                    .and_then(stats::reading);
+                let message = serde_json::from_slice::<Value>(line).ok();
+                let current = message.as_ref().and_then(stats::reading);
+                if let (Some(message), Some(now)) = (&message, &current) {
+                    if cpu_time.is_some_and(|before| now.cpu < before) {
+                        learning = learn();
+                    }
+                    cpu_time = Some(now.cpu);
+                    app.usage
+                        .counted(&id, &docker_id, stats::counters(now, message));
+                }
                 if let (Some(before), Some(now)) = (&previous, &current)
                     && let Some(measure) = stats::measure(before, now)
                 {
@@ -147,9 +171,39 @@ async fn follow(app: Arc<App>, socket: PathBuf, id: String, docker_id: String) {
         .await
     }
     .await;
+    drop(learning);
     if let Err(error) = result {
         tracing::debug!("Usage of container {id}: {error:#}");
     }
+}
+
+/// Ask Docker when the container started until it says, every [`START_RETRY`].
+async fn learn_start(app: Arc<App>, socket: PathBuf, id: String, docker_id: String) {
+    loop {
+        match started(&socket, &docker_id).await {
+            Ok(at) => return app.usage.started(&id, &docker_id, at),
+            Err(error) => tracing::debug!("Start of container {id}: {error:#}"),
+        }
+        tokio::time::sleep(START_RETRY).await;
+    }
+}
+
+/// When Docker last started the container, in Unix seconds, from its inspect.
+async fn started(socket: &Path, docker_id: &str) -> Result<f64> {
+    let path = engine::inspect_path(docker_id).context("Invalid Docker container ID")?;
+    let io = crate::pulls::connect(socket).await?;
+    let inspected = tokio::time::timeout(LIST_LIMIT, engine::get(io, &path))
+        .await
+        .context("Docker did not inspect the container in time")??;
+    started_at(&inspected).context("Docker names no start time")
+}
+
+/// The start time an inspect names, in Unix seconds. A container that never started has Go's zero
+/// time, the year 1. The seconds and their fraction are converted apart, since nanoseconds since
+/// 1970 are more digits than an `f64` holds.
+pub(crate) fn started_at(inspected: &Value) -> Option<f64> {
+    let nanos = stats::unix_nanos(inspected["State"]["StartedAt"].as_str()?)?;
+    (nanos > 0).then(|| (nanos / 1_000_000_000) as f64 + (nanos % 1_000_000_000) as f64 / 1e9)
 }
 
 /// Runs the GPU sampler while a GPU desktop runs, and backs off after it fails.
