@@ -175,11 +175,14 @@ async fn an_answer_that_refuses_is_reported_without_the_address() {
 #[cfg(unix)]
 #[tokio::test]
 async fn an_address_that_does_not_answer_is_reported_without_it() {
-    // A port nothing listens on, once the listener that had it is gone.
-    let port = {
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        listener.local_addr().unwrap().port()
-    };
+    // A port bound and never listened on, held for the whole test: the kernel refuses every
+    // connection to it, and no listener of another test, nor a connection's own port, can take it
+    // meanwhile, as one did once a freed port was given out again. Without SO_REUSEADDR another
+    // socket cannot share it either.
+    let held = tokio::net::TcpSocket::new_v4().unwrap();
+    held.set_reuseaddr(false).unwrap();
+    held.bind("127.0.0.1:0".parse().unwrap()).unwrap();
+    let port = held.local_addr().unwrap().port();
     let target = target(&format!("http://127.0.0.1:{port}/hooks/unreachable-secret"));
     let request = Request {
         url: target.url.clone(),
@@ -191,6 +194,7 @@ async fn an_address_that_does_not_answer_is_reported_without_it() {
     let error = delivery.error.unwrap();
     assert!(error.starts_with("curl: (7)"), "{error}");
     assert!(!error.contains("unreachable-secret"), "{error}");
+    drop(held);
 }
 
 #[test]
