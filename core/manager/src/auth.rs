@@ -26,8 +26,7 @@ mod limiter;
 pub(crate) use exposure::{exposure, warn as warn_exposure};
 pub(crate) use forwarded::{HttpsProxy, spawn as follow_https_proxy};
 pub(crate) use interfaces::Interfaces;
-pub(crate) use limiter::Limiter;
-use limiter::Verdict;
+pub(crate) use limiter::{Limiter, Verdict};
 
 /// Both ends of a connection: the address it came from, and the manager's own address it reached,
 /// which tells the network it came on.
@@ -110,6 +109,11 @@ pub fn origin_matches(headers: &HeaderMap) -> bool {
         && uri
             .authority()
             .is_some_and(|a| a.as_str().eq_ignore_ascii_case(host))
+}
+/// The address a request counts against in a limiter: the connection's, or behind the bundled
+/// HTTPS proxy the one it forwards.
+pub(crate) fn client(app: &App, peer: Option<IpAddr>, headers: &HeaderMap) -> Option<IpAddr> {
+    forwarded::client(peer, headers, &app.https_proxy)
 }
 impl App {
     pub fn host_allowed(&self, headers: &HeaderMap) -> bool {

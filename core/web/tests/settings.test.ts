@@ -11,6 +11,8 @@ import {
   FIELDS,
   idleSettings,
   initialText,
+  NOTIFY_EVENTS,
+  notifyEvents,
   releaseState,
   SECTION_OF,
   sections,
@@ -286,4 +288,19 @@ test("a default goes idle with its feature, and the microphone with sound", () =
     idleSettings([{ name: "GPU_DEFAULT", value: true }], () => false),
     {}
   )
+})
+
+test("the notices sent are named by their labels, and a kind this page does not know by itself", () => {
+  assert.equal(notifyEvents(""), null)
+  assert.equal(notifyEvents("none"), null)
+  assert.deepEqual(notifyEvents("human_request, container_lifecycle"), [
+    { name: "human_request", label: "notify.event.human_request" },
+    { name: "container_lifecycle" },
+  ])
+  // Every kind with a label is one the manager still sends (EVENTS in core/manager/src/notify.rs).
+  const notify = readFileSync(new URL("../../manager/src/notify.rs", import.meta.url), "utf8")
+  for (const [name, label] of Object.entries(NOTIFY_EVENTS)) {
+    assert.ok(notify.includes(`, "${name}", `), `${name} is no longer a kind of notice`)
+    assert.ok(label in en, label)
+  }
 })

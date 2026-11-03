@@ -9,6 +9,7 @@ import { toast } from "sonner"
 
 import { BackupCard } from "@/components/backup-card"
 import { ConfigurationEditor } from "@/components/configuration-editor"
+import { NotificationsCard } from "@/components/notifications-card"
 import { PageBody, SectionHeading } from "@/components/page"
 import { StatusBadge } from "@/components/status-badge"
 import { Badge } from "@/components/ui/badge"
@@ -188,6 +189,10 @@ export function SettingsPage() {
       <SectionHeading title={t("backup.title")} description={t("backup.description")} />
       <div className="px-4 lg:px-6">
         <BackupCard />
+      </div>
+      <SectionHeading title={t("notify.title")} />
+      <div className="px-4 lg:px-6">
+        <NotificationsCard />
       </div>
       <SectionHeading
         title={t("settings.configuration")}

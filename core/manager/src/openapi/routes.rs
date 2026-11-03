@@ -6,8 +6,8 @@ use super::{
 };
 use crate::{
     activity, api, apps, archives, audio, auth, backup, capture, clipboard, compose, config,
-    desktop_input, desktop_mcp, exec, files, gamepad, human, icons, jobs, model, ocr, recordings,
-    terminal, transfers, uploads, usage, volumes, waits, windows,
+    desktop_input, desktop_mcp, exec, files, gamepad, human, icons, jobs, model, notify, ocr,
+    recordings, terminal, transfers, uploads, usage, volumes, waits, windows,
 };
 
 const GZIP: &str = "application/gzip";
@@ -53,6 +53,12 @@ pub(super) fn all() -> Vec<Route> {
             INSTALLATION,
             "Ask GitHub for the newest release now.",
         ),
+        post(
+            "/api/settings/notify/test",
+            INSTALLATION,
+            "Send a test notice to every address of NOTIFY_URL and say how each answered.",
+        )
+        .returns::<notify::TestReport>(),
         get(
             "/api/backup",
             INSTALLATION,
@@ -786,6 +792,13 @@ pub(super) fn all() -> Vec<Route> {
         )
         .access(Access::Public)
         .unavailable("Not ready: the same booleans, with each check that failed false."),
+        get(
+            "/metrics",
+            INSTALLATION,
+            "Prometheus metrics in the text format 0.0.4, which `METRICS_TOKEN` opens as a bearer token; 404 while it is not set.",
+        )
+        .access(Access::MetricsToken)
+        .text(),
     ]
 }
 

@@ -55,9 +55,9 @@ Edit the exported `.env` before starting the manager. Run these export commands 
 
 The minimal README example keeps settings directly in Compose. The full manifests read them from `.env`. Recreate the manager with `docker compose up -d` after changing its environment; for the full registry manifest, use `docker compose -f compose.ghcr.yml up -d`.
 
-The dashboard's **Management** page lists the settings below with the values the manager runs with, so you can see what a restart picked up. It never shows `ADMIN_PASSWORD` or `MCP_TOKEN`, only whether they are set. Of the Compose settings in the second table it shows `MANAGER_CONTAINER` and `DESKTOP_HOST`, since Compose keeps the others to itself and `RUST_LOG` goes to the logger.
+The dashboard's **Management** page lists the settings below with the values the manager runs with, so you can see what a restart picked up. It never shows `ADMIN_PASSWORD`, `MCP_TOKEN`, `METRICS_TOKEN`, `PROXY_PASSWORD` or `NOTIFY_URL`, only whether they are set. Of the Compose settings in the second table it shows `MANAGER_CONTAINER` and `DESKTOP_HOST`, since Compose keeps the others to itself and `RUST_LOG` goes to the logger.
 
-In the [WSL package](WSL_PACKAGE.md#settings-from-the-dashboard) the page also changes `SECURE_COOKIE`, `ALLOWED_HOSTS`, `DESKTOP_IMAGE`, `DESKTOP_USER_NAMESPACES`, `DESKTOP_PIDS_LIMIT`, `WSL_GPU`, `NVIDIA_COMPUTE`, `GPU_ADAPTER`, `AUDIO_ENABLED`, `MICROPHONE_ENABLED`, the other container features' switches and defaults below, `UPLOAD_MAX_MB`, `IMAGE_ARCHIVE_MAX_MB`, `TEMPLATES_URL`, `VOLUME_FILTER`, `PROXY_URL`, `PROXY_USERNAME`, `PROXY_BYPASS` and `UPDATE_CHECK`: it checks the new values as the manager would read them when it starts, writes them to `.env` and recreates the manager. `.env` stays the only place they are kept. The others, sign-in, the root MCP and its token, `PROXY_PASSWORD`, `MANAGER_CONTAINER` and the Compose settings, change only in `.env`, with `thoric settings` in the package, and the page marks them **CLI only**. Elsewhere the page changes nothing.
+In the [WSL package](WSL_PACKAGE.md#settings-from-the-dashboard) the page also changes `SECURE_COOKIE`, `ALLOWED_HOSTS`, `DESKTOP_IMAGE`, `DESKTOP_USER_NAMESPACES`, `DESKTOP_PIDS_LIMIT`, `WSL_GPU`, `NVIDIA_COMPUTE`, `GPU_ADAPTER`, `AUDIO_ENABLED`, `MICROPHONE_ENABLED`, the other container features' switches and defaults below, `UPLOAD_MAX_MB`, `IMAGE_ARCHIVE_MAX_MB`, `TEMPLATES_URL`, `VOLUME_FILTER`, `PROXY_URL`, `PROXY_USERNAME`, `PROXY_BYPASS`, `UPDATE_CHECK`, `NOTIFY_EVENTS` and `DASHBOARD_URL`: it checks the new values as the manager would read them when it starts, writes them to `.env` and recreates the manager. `.env` stays the only place they are kept. The others, sign-in, the root MCP and its token, `METRICS_TOKEN`, `PROXY_PASSWORD`, `NOTIFY_URL`, `MANAGER_CONTAINER` and the Compose settings, change only in `.env`, with `thoric settings` in the package, and the page marks them **CLI only**. Elsewhere the page changes nothing.
 
 | Setting | Default | What it changes |
 | --- | --- | --- |
@@ -67,6 +67,7 @@ In the [WSL package](WSL_PACKAGE.md#settings-from-the-dashboard) the page also c
 | `ROOT_MCP_ENABLED` | `false` | Enable the root agent endpoint at `/mcp`, which reaches every container. The [MCP endpoints](MCP.md#mcp-endpoints-for-one-agent) made on the dashboard answer with their own tokens whether or not it is on. Called `MCP_ENABLED` before 0.6.3: an `.env` that still has the old name keeps its value while `ROOT_MCP_ENABLED` is missing, the manager logs that it should be renamed, and refuses to start when the two names disagree. In the WSL package `thoric update` renames it. |
 | `MCP_TOKEN` | Empty | The administrator's bearer token, required when `ROOT_MCP_ENABLED=true` in `token` mode; 1 to 256 visible ASCII characters without spaces. It opens every MCP endpoint too, also while `/mcp` is off. Wrap it in single quotes when it contains `$` or `#`. |
 | `MCP_AUTH_MODE` | `token` | Use `none` to accept agent requests without a token, on `/mcp` and on every MCP endpoint, whether or not `/mcp` is on. Anyone who can reach the manager's address can then control every container that `/mcp` or an endpoint reaches, so keep it on localhost. |
+| `METRICS_TOKEN` | Empty | The bearer token that opens the [Prometheus metrics](#prometheus-metrics) at `/metrics`; 1 to 256 visible ASCII characters without spaces. Empty keeps the route off, answering 404, also with `AUTH_MODE=none`. It opens `/metrics` alone, so give the scraper a token of its own, such as the output of `openssl rand -hex 32`. Wrap it in single quotes when it contains `$` or `#`. |
 | `WSL_GPU` | `true` | Gives GPU containers the WSL GPU (`/dev/dxg` and `/usr/lib/wsl`) where the host has it. See [GPU on a Linux host](#gpu-on-a-linux-host) for how the routes are chosen. |
 | `NVIDIA_COMPUTE` | `true` | Gives GPU containers an NVIDIA GPU through the NVIDIA Container Toolkit: CUDA, and outside WSL OpenGL too. |
 | `DRI_GPU` | `true` | Experimental. Gives GPU containers the render devices under `/dev/dri` of AMD and Intel GPUs, or of a board such as the Raspberry Pi, for Mesa's own drivers, on a host outside WSL. The Management page shows it but does not change it, since the WSL package never uses it. |
@@ -96,6 +97,9 @@ In the [WSL package](WSL_PACKAGE.md#settings-from-the-dashboard) the page also c
 | `PROXY_PASSWORD` | Empty | The proxy's password. It is a secret: the **Management** page shows only whether it is set and cannot change it. Put a password that holds `$`, `#` or quotes in single quotes. |
 | `PROXY_BYPASS` | Empty | Hosts that skip the proxy, separated by commas: a name with the names below it (`intranet.example`, `.intranet.example` or `*.intranet.example`), an address or a network such as `10.0.0.0/8`, at most 64. The desktop itself always does. |
 | `UPDATE_CHECK` | `true` | Whether the manager asks GitHub for the newest release, when it starts, every six hours and when **Check now** on the **Management** page asks. The sidebar names a release newer than the manager and links to its notes; in the [WSL package](WSL_PACKAGE.md#update-from-the-dashboard) its **Update** button runs `thoric update`. `false` turns both off, and the manager makes no request to GitHub. |
+| `NOTIFY_URL` | Empty | Where [notices](USAGE.md#get-notified-on-your-phone) go, such as an agent's request for a person while nobody has the dashboard open: one or several addresses separated by commas, at most eight. An ntfy topic (`https://ntfy.sh/<topic>`, or `ntfy+https://` for a server of your own), a Discord or Slack incoming webhook, a Telegram bot's `sendMessage` address with `?chat_id=`, or any other `http` or `https` address, which gets a JSON payload. The address holds its credentials, so it is a secret: the **Management** page shows only whether it is set and cannot change it, and the manager never logs it or puts it on a command line. Put an address that holds `$` in single quotes. |
+| `NOTIFY_EVENTS` | Empty | What is sent, separated by commas: `human_request`, `job_failed` and `update_available`. Empty sends `human_request` alone; `none` sends nothing, while the **Management** page's test still reaches `NOTIFY_URL`. |
+| `DASHBOARD_URL` | Empty | The address you reach the dashboard at, such as `https://thoric.lan:8443`, so a request for a person links to its desktop and a failed job to the **Jobs** page. Empty sends notices without a link to the dashboard. |
 | `ALLOWED_HOSTS` | `localhost` in Compose | Extra DNS names accepted by the manager, separated by commas. `DESKTOP_HOST` is accepted as well; Compose passes it on its own. |
 | `SECURE_COOKIE` | `false` | Require HTTPS for the sign-in cookie. |
 
@@ -281,7 +285,7 @@ docker compose logs --tail=100 manager
 
 Use `-f compose.ghcr.yml` with the full registry manifest. A missing or too-short password prevents startup when `AUTH_MODE=password`. A registry error happens before startup; check that the host can reach GHCR.
 
-The log has a line for every request with its method, path, status, latency in milliseconds and `request_id`, the ID the response carries in its `X-Request-Id` header. To find the request behind an error the dashboard or a script saw, read that header in the browser's network panel or the script's response and search the log for it, for example `docker compose logs manager | grep 6f1c0b2e`. The line never holds a query string, a transfer link's token or the path inside a desktop service reached through the manager. Reads that a page or a health check repeats on a timer while they succeed (`/healthz`, `/readyz`, the usage charts, a followed job, the Activity page, the desktop previews and the interface's own files) are logged at the debug level only, so the log keeps what people and agents do. Failed sign-ins and the first refused attempt of a locked-out address are logged as warnings with the client's address. The log filter is `RUST_LOG`, which the Compose manifests pass from `.env` to the logger: the default is `thoric=info,tower_http=info`, and `thoric=debug` adds the repeated reads.
+The log has a line for every request with its method, path, status, latency in milliseconds and `request_id`, the ID the response carries in its `X-Request-Id` header. To find the request behind an error the dashboard or a script saw, read that header in the browser's network panel or the script's response and search the log for it, for example `docker compose logs manager | grep 6f1c0b2e`. The line never holds a query string, a transfer link's token or the path inside a desktop service reached through the manager. Reads that a page or a health check repeats on a timer while they succeed (`/healthz`, `/readyz`, a Prometheus scrape of `/metrics`, the usage charts, a followed job, the Activity page, the desktop previews and the interface's own files) are logged at the debug level only, so the log keeps what people and agents do. Failed sign-ins, wrong metrics tokens and the first refused attempt of a locked-out address are logged as warnings with the client's address. The log filter is `RUST_LOG`, which the Compose manifests pass from `.env` to the logger: the default is `thoric=info,tower_http=info`, and `thoric=debug` adds the repeated reads.
 
 The manager stops on SIGTERM, which `docker stop`, `thoric update` and a settings change send it, as it does on Ctrl+C: it takes no new connection, ends the dashboards' event streams and every agent's wait for a person with an error that says so, and gives the open requests five seconds to finish before it ends, well within the ten seconds Docker waits. A job that was still running is marked interrupted when it starts again.
 
@@ -290,6 +294,55 @@ The manager stops on SIGTERM, which `docker stop`, `thoric update` and a setting
 If the dashboard opens but a container fails, read its job log and **Logs**; **Diagnostics** needs a running desktop. For a GPU error, the job log names the setting behind a device Docker refused, and a desktop that stops at its renderer check names the one to check in **Logs**; [GPU on a Linux host](#gpu-on-a-linux-host) explains each route. You can create a separate container with GPU disabled to check the basic desktop path without deleting the failed container's files.
 
 If file uploads report a permission error, check that the chosen volume is writable by UID/GID 1001:1001. Raising the upload size limit will not fix destination permissions.
+
+## Prometheus metrics
+
+`/metrics` serves the manager's figures in Prometheus' text format, so Prometheus can keep their history beyond the 30 minutes the usage charts hold and Grafana can graph them. It is off until `METRICS_TOKEN` is set: put a long random token in `.env` (with `thoric settings` in the WSL package, where the Management page marks it **CLI only**) and recreate the manager. The route asks for that token as a bearer token, never the dashboard's session, so it answers with sign-in off too, and the network and Host checks of every route still apply: a scraper on another device needs `BIND_ADDRESS=0.0.0.0` and, for a name other than an address, an entry in `ALLOWED_HOSTS`. A wrong token is answered with 401 and logged with the client's address; an address that sends 20 wrong ones in a minute is refused with 429 for up to a minute, by a count of its own that leaves sign-in alone.
+
+A Prometheus `scrape_configs` entry for a manager on `thoric.lan:8080`:
+
+```yaml
+scrape_configs:
+  - job_name: thoric
+    scrape_interval: 15s
+    metrics_path: /metrics
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/thoric-token
+    static_configs:
+      - targets: ["thoric.lan:8080"]
+```
+
+`credentials_file` holds the token alone; `credentials: <token>` works too. Through the [bundled HTTPS proxy](#https-and-microphone-access-over-lan), scrape `DESKTOP_HOST` on `HTTPS_PORT` with `scheme: https` and `tls_config` naming the copied `caddy-root.crt` as its `ca_file`.
+
+A scrape asks Docker nothing; it reads what the manager already holds. The usage collector lists the containers every two seconds, which gives each container its state, and reads each running one's Docker stats once a second, which gives its CPU, memory, network, block device and process counters; the host's GPU is sampled once a second while a GPU desktop runs. The jobs, the agents' calls and the requests for a person are counted as they happen, and only the volume count needs a Docker listing, which a scrape starts in the background once the last one is a minute old, so the first scrape after a start has no `thoric_volumes`. The collector needs the Docker Engine socket: with a `tcp://` `DOCKER_HOST` it does not run, every container counts as `unavailable` and none has figures of its own.
+
+| Series | Labels | What it is |
+| --- | --- | --- |
+| `thoric_info` | `version` | Always 1, with the manager's release. |
+| `thoric_start_time_seconds` | | When the manager started; the counters below count from then. |
+| `thoric_containers` | `state` | Containers by the state Docker lists them in (`running`, `exited`, `paused` and the others), `missing` for a record Docker has no container of, `unavailable` while Docker cannot be listed. |
+| `thoric_usage_available` | | 1 while the usage collector follows Docker. |
+| `thoric_container_start_time_seconds` | `id`, `name` | When Docker last started a running container. |
+| `thoric_container_cpu_seconds_total` | `id`, `name` | CPU time since that start; `rate()` gives the cores in use. |
+| `thoric_container_cpu_cores` | `id`, `name` | Cores of the host in use over Docker's latest second. |
+| `thoric_container_cpu_limit_cores` | `id`, `name` | The CPU limit of its settings, where it has one. |
+| `thoric_container_memory_bytes`, `thoric_container_memory_limit_bytes` | `id`, `name` | Memory in use without the page cache, as `docker stats` counts it, and its limit, or the host's memory without one. |
+| `thoric_container_network_receive_bytes_total`, `thoric_container_network_transmit_bytes_total` | `id`, `name` | Network bytes since that start. |
+| `thoric_container_block_read_bytes_total`, `thoric_container_block_write_bytes_total` | `id`, `name` | Block device bytes since that start. |
+| `thoric_container_pids` | `id`, `name` | Processes and threads, against `DESKTOP_PIDS_LIMIT`. |
+| `thoric_images` | `kind` | Saved images by how they were made: `build`, `snapshot`, `import` or `archive`. |
+| `thoric_volumes` | | Named volumes the Volumes page lists, counted at most once a minute. |
+| `thoric_jobs` | `state` | Jobs `queued` for their resource and `running`. An update or a settings change that the next manager follows to its end counts only once it ends. |
+| `thoric_jobs_finished_total` | `kind`, `status` | Jobs that ended, `completed` or `failed`. |
+| `thoric_mcp_tool_calls_total` | `tool`, `outcome` | Calls of Thoric's MCP tools on `/mcp` and the MCP endpoints, `ok`, `error` or `refused`; a name outside the catalog counts as `unknown`. |
+| `thoric_mcp_server_tool_calls_total` | `outcome` | Calls of desktop MCP servers' tools, together. |
+| `thoric_transfers_total` | `operation`, `outcome` | Transfer links used. |
+| `thoric_human_requests_pending` | | Agents' requests for a person that wait for an answer. |
+| `thoric_host_gpu_state` | `state` | 1 for the host GPU's state: `disabled`, `idle`, `sampling` or `unavailable`. |
+| `thoric_host_gpu_utilization_ratio`, `thoric_host_gpu_memory_used_bytes`, `thoric_host_gpu_memory_total_bytes` | `gpu`, `name` | The host's GPU while it is sampled: the whole adapter, Windows applications included in WSL, never a container's share. |
+
+A container keeps its series while it runs and Docker can be listed, under its Thoric ID and the name its record has now, and they end when it stops; its state stays in `thoric_containers`. A Grafana dashboard can be built from these series, for example `rate(thoric_container_cpu_seconds_total[5m])` by `name` for CPU and `thoric_container_memory_bytes / thoric_container_memory_limit_bytes` for memory.
 
 ## Move to another computer
 

@@ -1089,6 +1089,8 @@ export const fr: Messages = {
     "token exige un jeton sur /mcp et les points d'accès MCP ; none laisse les deux ouverts.",
   "settings.about.MCP_TOKEN":
     "Le jeton bearer de l'administrateur : /mcp l'exige, et il ouvre chaque point d'accès MCP.",
+  "settings.about.METRICS_TOKEN":
+    "Le jeton bearer avec lequel Prometheus lit /metrics ; vide laisse /metrics éteint.",
   "settings.about.DESKTOP_IMAGE": "L'image que le formulaire de création choisit d'abord.",
   "settings.about.DESKTOP_USER_NAMESPACES":
     "Permet aux navigateurs et aux applications Electron des bureaux de lancer leur sandbox.",
@@ -1147,6 +1149,37 @@ export const fr: Messages = {
     "L'étiquette qu'un volume doit porter pour être listé et monté ; none liste tous les volumes.",
   "settings.about.MANAGER_CONTAINER": "Le conteneur du manager, auquel Thoric ne touche pas.",
   "settings.about.UPDATE_CHECK": "Cherche de nouvelles versions sur GitHub toutes les six heures.",
+  "settings.about.NOTIFY_URL":
+    "Où vont les notifications : ntfy, Discord, Slack, Telegram ou un webhook JSON. L'adresse contient des identifiants, elle ne change donc que dans .env, avec thoric settings.",
+  "settings.about.NOTIFY_EVENTS":
+    "Ce qui est envoyé : human_request, job_failed et update_available, séparés par des virgules.",
+  "settings.about.DASHBOARD_URL":
+    "L'adresse à laquelle vous joignez le tableau de bord, pour qu'une notification renvoie au bureau qui a besoin de vous.",
+  "settings.section.notifications": "Notifications",
+  "settings.choice.humanRequests": "Demandes à une personne",
+  "notify.title": "Notifications",
+  "notify.description":
+    "Les demandes des agents à une personne arrivent sur votre téléphone, même quand personne n'a le tableau de bord ouvert.",
+  "notify.on": "Configurées",
+  "notify.off": "Non configurées",
+  "notify.notSet":
+    "Définissez NOTIFY_URL dans .env, avec thoric settings dans le paquet WSL, pour recevoir des notifications par ntfy, Discord, Slack, Telegram ou votre propre webhook.",
+  "notify.sends": "Envoie",
+  "notify.nothing": "Rien",
+  "notify.event.human_request": "Demandes à une personne",
+  "notify.event.job_failed": "Tâches en échec",
+  "notify.event.update_available": "Nouvelles versions",
+  "notify.noLink": "Sans DASHBOARD_URL, une notification ne renvoie pas au tableau de bord.",
+  "notify.test": "Envoyer une notification de test",
+  "notify.allTook": "Chaque adresse a accepté la notification de test.",
+  "notify.someFailed": "{failed} adresses sur {total} n'ont pas accepté la notification de test.",
+  "notify.took": "Acceptée, HTTP {status}",
+  "notify.target": "{format} sur {host}",
+  "notify.format.ntfy": "ntfy",
+  "notify.format.discord": "Discord",
+  "notify.format.slack": "Slack",
+  "notify.format.telegram": "Telegram",
+  "notify.format.json": "Webhook JSON",
   "dashboard.running": "{count} en cours d'exécution",
   "dashboard.attention.one": "{count} requiert votre attention",
   "dashboard.attention.other": "{count} requièrent votre attention",

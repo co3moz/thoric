@@ -34,8 +34,10 @@ mod jobs;
 mod layers;
 mod mcp;
 mod media;
+mod metrics;
 mod model;
 mod mount_parents;
+mod notify;
 mod ocr;
 mod openapi;
 mod outbound;
@@ -108,6 +110,10 @@ pub struct App {
     human: human::Requests,
     /// The proxies inside the desktops that use one.
     outbound: outbound::Outbound,
+    /// Notices on their way to `NOTIFY_URL`.
+    notifier: notify::Notifier,
+    /// What `/metrics` counts since the manager started.
+    metrics: metrics::Metrics,
 }
 /// The interface's content security policy. The templates page reads its list, the templates
 /// and their icons from another host, which is the one exception to `'self'`. No page needs a
@@ -132,6 +138,7 @@ fn router(app: Arc<App>) -> Router {
         .route("/api/system", get(api::system))
         .route("/api/update", get(releases::status).post(releases::start))
         .route("/api/update/check", post(releases::check))
+        .route("/api/settings/notify/test", post(notify::test))
         .route(
             "/api/backup",
             get(backup::export).layer(middleware::from_fn(auth::same_origin)),
@@ -389,6 +396,8 @@ fn router(app: Arc<App>) -> Router {
         )
         .route("/healthz", get(|| async { "ok" }))
         .route("/readyz", get(health::ready))
+        // Prometheus holds no session: METRICS_TOKEN opens it, and nothing while it is unset.
+        .route("/metrics", get(metrics::serve))
         .fallback_service(ServeDir::new(&app.config.web).append_index_html_on_directories(true))
         .layer(axum::extract::DefaultBodyLimit::max(1_100_000))
         .layer(middleware::from_fn_with_state(
@@ -536,8 +545,11 @@ async fn main() -> anyhow::Result<()> {
         cancels: Default::default(),
         human: human::Requests::default(),
         outbound: outbound::Outbound::default(),
+        notifier: notify::Notifier::default(),
+        metrics: metrics::Metrics::default(),
     });
     usage::spawn(app.clone());
+    notify::spawn(app.clone());
     events::docker::spawn(app.clone());
     desktop_mcp::spawn(app.clone());
     releases::spawn(app.clone());
