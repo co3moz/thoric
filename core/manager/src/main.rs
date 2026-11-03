@@ -7,6 +7,7 @@ mod auth;
 mod backup;
 mod capture;
 mod catalog;
+mod changes;
 mod compose;
 mod config;
 mod db;
@@ -167,6 +168,7 @@ fn router(app: Arc<App>) -> Router {
             "/api/containers/{id}/files/download",
             get(files::download).layer(middleware::from_fn(auth::same_origin)),
         )
+        .route("/api/containers/{id}/changes", get(changes::list))
         .route("/api/containers/{id}/audio-capture", post(audio::capture))
         .route("/api/containers/{id}/audio-inject", post(audio::inject))
         .route(

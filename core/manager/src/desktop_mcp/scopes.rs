@@ -94,7 +94,7 @@ impl Scope {
                 "application_diagnostics",
                 "sample_metrics",
             ],
-            Scope::FilesRead => &["list_files", "read_file", "download_file"],
+            Scope::FilesRead => &["list_files", "read_file", "download_file", "get_changes"],
             Scope::FilesWrite => &[
                 "write_file",
                 "upload_file",

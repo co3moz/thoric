@@ -1,7 +1,7 @@
 import { test } from "bun:test"
 import assert from "node:assert/strict"
 
-import { href, pageKey, parseRoute } from "../src/lib/route"
+import { href, keepsHeld, pageKey, parseRoute } from "../src/lib/route"
 
 test("page links survive a reload and unknown pages fall back to the dashboard", () => {
   for (const page of [
@@ -48,6 +48,18 @@ test("the files page keeps the chosen container in its link", () => {
   assert.deepEqual(parseRoute("#/files"), { page: "files" })
   assert.deepEqual(parseRoute("#/files/"), { page: "files" })
   assert.equal(href({ page: "files" }), "#/files")
+  // The change list keeps its container and its view.
+  const changes = { page: "files", container, view: "changes" } as const
+  assert.deepEqual(parseRoute(href(changes)), changes)
+  // Only another view of the same container keeps what the page holds, such as its uploads.
+  assert.ok(keepsHeld({ page: "files", container }, changes))
+  assert.ok(!keepsHeld({ page: "files", container }, { page: "files", container: "other" }))
+  assert.ok(!keepsHeld({ page: "files" }, { page: "files" }))
+  assert.ok(!keepsHeld({ page: "files", container }, { page: "containers" }))
+  assert.deepEqual(parseRoute(`#/files/${encodeURIComponent(container)}/other`), {
+    page: "files",
+    container,
+  })
 })
 
 test("the network groups page keeps the open group in its link", () => {

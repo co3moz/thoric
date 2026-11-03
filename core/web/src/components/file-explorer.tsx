@@ -104,6 +104,9 @@ function useUploads(onDone: () => void) {
   return uploads
 }
 
+/** A folder the explorer is asked to open, and the entry of it to mark. */
+export type Reveal = { folder: string; name?: string; at: number }
+
 export type ExplorerProps = {
   /** The API path whose `files/*` routes hold the files: `containers/{id}` or `volumes/{name}`. */
   base: string
@@ -113,6 +116,11 @@ export type ExplorerProps = {
   rootName: string
   /** The folder shown first. */
   start?: string
+  /**
+   * A folder to open with an entry of it marked, such as one the change list shows; a new `at`
+   * asks again. Open edits stay, with the question whether to discard them.
+   */
+  reveal?: Reveal
   /** Folders listed beside the files, as the upload dialog lists them for a container. */
   places?: QuickFolder[]
   /** Why files cannot be uploaded and folders not created in a folder, or an empty string. */
@@ -138,6 +146,7 @@ export function FileExplorer({
   queryKey,
   rootName,
   start = "/",
+  reveal,
   places,
   writeProblem = () => "",
   describeFailure = (message) => message,
@@ -146,11 +155,22 @@ export function FileExplorer({
   active = true,
 }: ExplorerProps) {
   const limit = useSettings().data?.upload_limit_bytes ?? 0
-  const [path, setPath] = React.useState(start)
-  const [address, setAddress] = React.useState(start)
+  const [path, setPath] = React.useState(reveal?.folder ?? start)
+  const [address, setAddress] = React.useState(reveal?.folder ?? start)
   const [editing, setEditing] = React.useState<Editing | null>(null)
   const [pending, setPending] = React.useState<Pending | null>(null)
   const [discarding, setDiscarding] = React.useState(false)
+  const [mark, setMark] = React.useState(reveal)
+  // A new request opens its folder behind an open file, which closes unless it has edits, and
+  // those it asks about: neither they nor the uploads are lost.
+  if (reveal && reveal.at !== mark?.at) {
+    setMark(reveal)
+    setPath(reveal.folder)
+    setAddress(reveal.folder)
+    setPending(null)
+    if (editing && editing.text !== editing.saved) setDiscarding(true)
+    else setEditing(null)
+  }
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState("")
   const listing = useQuery({
@@ -161,6 +181,10 @@ export function FileExplorer({
     // The list says why it is empty, so the failure needs no toast.
     meta: { quiet: true },
   })
+  const marked = React.useRef<HTMLLIElement>(null)
+  React.useEffect(() => {
+    marked.current?.scrollIntoView({ block: "nearest" })
+  }, [listing.data, mark])
   const refresh = () => queryClient.invalidateQueries({ queryKey })
   const uploads = useUploads(() => void refresh())
   const input = React.useRef<HTMLInputElement>(null)
@@ -551,7 +575,14 @@ export function FileExplorer({
                   </li>
                 )}
                 {entries.map((entry) => (
-                  <li key={entry.name} className="flex items-center gap-2 pr-2">
+                  <li
+                    key={entry.name}
+                    ref={path === mark?.folder && entry.name === mark.name ? marked : undefined}
+                    className={cn(
+                      "flex items-center gap-2 pr-2",
+                      path === mark?.folder && entry.name === mark.name && "bg-muted"
+                    )}
+                  >
                     <button
                       type="button"
                       disabled={busy || entry.type === "symlink" || entry.type === "special"}

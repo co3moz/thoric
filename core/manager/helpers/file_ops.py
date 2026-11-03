@@ -45,6 +45,33 @@ def stat_file(path):
         os.close(descriptor)
 
 
+# The most paths one stats call describes.
+STATS_LIMIT = 1000
+
+
+def stat_paths(paths):
+    """Describe each of the paths, or give None for one that is gone or lies behind a symlink."""
+    if not isinstance(paths, list) or len(paths) > STATS_LIMIT or not all(isinstance(path, str) for path in paths):
+        raise ValueError(f"stats takes a JSON list of at most {STATS_LIMIT} paths")
+    described = []
+    for path in paths:
+        parent, name = os.path.split(path)
+        try:
+            descriptor = open_dir(parent)
+        except OSError:
+            described.append(None)
+            continue
+        try:
+            entry = describe(name, os.lstat(name, dir_fd=descriptor))
+            del entry["name"]
+            described.append(entry)
+        except OSError:
+            described.append(None)
+        finally:
+            os.close(descriptor)
+    return described
+
+
 def list_files(path, limit):
     descriptor = open_dir(path)
     try:
@@ -149,6 +176,9 @@ try:
         print(json.dumps(delete_file(arguments[0], arguments[1] == "true")))
     elif command == "mkdir":
         print(json.dumps(make_directory(arguments[0])))
+    elif command == "stats":
+        # The paths come on stdin, since a name may hold anything but a NUL.
+        print(json.dumps(stat_paths(json.loads(sys.stdin.buffer.read()))))
     else:
         sys.exit(2)
 except SystemExit:

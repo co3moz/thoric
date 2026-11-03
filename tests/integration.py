@@ -540,7 +540,7 @@ try:
     except urllib.error.HTTPError as error:
         assert error.code == 401
     assert mcp("initialize", {"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"acceptance","version":"1"}})["serverInfo"]["name"] == "thoric"
-    assert len(mcp("tools/list")["tools"]) == 79
+    assert len(mcp("tools/list")["tools"]) == 80
     assert tool("get_system")["structuredContent"]["connected"]
     assert stdio_tool("get_system")["structuredContent"]["connected"]
     print("PASS MCP authentication, negotiation and discovery", flush=True)
@@ -1124,6 +1124,27 @@ try:
     assert tool("write_file", {"container_id":env_id,"path":"/home/desktop/agent-link/blocked.txt","data":"blocked"}, allow_error=True)["isError"]
     assert tool("read_file", {"container_id":env_id,"path":"/home/desktop/agent-link/hello.txt"}, allow_error=True)["isError"]
     print("PASS MCP/HTTP execution, exit failures, timeout, bounded file read/write, upload and screenshot", flush=True)
+    # What changed in the container's own files: the agent's files and a system file root deleted are
+    # listed, a file written and deleted again is not, and the session's own files only when asked.
+    tool("write_file", {"container_id":env_id,"path":"/home/desktop/agent-files/gone.txt","data":"brief"})
+    tool("delete_file", {"container_id":env_id,"path":"/home/desktop/agent-files/gone.txt"})
+    docker("exec", container, "rm", "-f", "/etc/legal")
+    changes_listed = tool("get_changes", {"container_id":env_id,"limit":5000})["structuredContent"]
+    changes_by_path = {entry["path"]: entry for entry in changes_listed["changes"]}
+    added_binary = changes_by_path["/home/desktop/agent-files/agent.bin"]
+    assert (added_binary["kind"], added_binary["type"], added_binary["size"]) == ("added", "file", 256), added_binary
+    assert changes_by_path["/etc/legal"]["kind"] == "deleted" and "/home/desktop/agent-files/gone.txt" not in changes_by_path, changes_listed
+    assert changes_listed["base"]["image_id"].startswith("sha256:") and changes_listed["base"]["created_at"] > 0, changes_listed["base"]
+    assert any(mount["path"] == "/tmp" and mount["type"] == "tmpfs" for mount in changes_listed["mounts"]), changes_listed["mounts"]
+    assert changes_listed["details"] == "read" and changes_listed["noise"]["left_out"] and changes_listed["noise"]["count"] > 0, changes_listed["noise"]
+    # The suite's desktop has the GPU, so in WSL the toolkit's driver files are mounted into it too.
+    assert not any(listed.startswith(("/home/desktop/.dbus", "/home/desktop/.cache/", "/proc/", "/tmp/", "/usr/bin/nvidia-", "/usr/lib/x86_64-linux-gnu/libcuda", "/etc/ld.so.cache")) for listed in changes_by_path), sorted(changes_by_path)
+    changes_all = api(f"containers/{env_id}/changes?path=/home/desktop/.dbus&all=true")
+    assert changes_all["changes"][0]["path"] == "/home/desktop/.dbus" and changes_all["changes"][0]["noise"] == "session", changes_all["changes"]
+    changes_narrowed = api(f"containers/{env_id}/changes?path=/home/desktop/agent-files&kinds=added")
+    assert changes_narrowed["changes"] and all(entry["kind"] == "added" and entry["path"].startswith("/home/desktop/agent-files") for entry in changes_narrowed["changes"]), changes_narrowed
+    assert changes_narrowed["summary"]["total"] == changes_narrowed["total"] and changes_narrowed["summary"]["deleted"] == 0, changes_narrowed["summary"]
+    print("PASS the change list names an agent's files and a deletion against the container's image, without the session's own files unless asked", flush=True)
     docker("exec", "--detach", "--user", "desktop", "--env", "DISPLAY=:0", container, "bash", "-c", 'exec xev -geometry 320x180+80+80 -name "Thoric input test" -event mouse -event keyboard > /home/desktop/input-events.log 2>&1')
     def input_position():
         info = docker("exec", "--env", "DISPLAY=:0",container,"xwininfo","-name","Thoric input test").decode()

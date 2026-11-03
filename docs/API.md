@@ -112,6 +112,7 @@ A transfer ends when its client stops. A download of an image, volume or folder 
 | POST | `/api/containers/{id}/files/move` | Rename or move within the same volume. |
 | POST | `/api/containers/{id}/files/delete` | Delete a file, symlink or directory. |
 | GET | `/api/containers/{id}/files/download` | Stream a file with `path`, limited by `UPLOAD_MAX_MB`, or a folder as a `.tar.gz` (`folder-download` job). |
+| GET | `/api/containers/{id}/changes` | [What changed in the container's own files](#changed-files) since its Docker container was created, with `path`, `kinds`, `all` and `limit`. |
 | POST | `/api/containers/{id}/files` | Stream a binary upload. |
 | GET | `/api/images` | Every [image](#images): the catalog images first, then script builds, snapshots and imports, with ancestry and availability. A script build carries `build` with its `base_image`, `internet` and, when [merged from templates](#merged-templates), its `parts` without their scripts, a compose its parameters without the scripts, an [icon](#image-icons) its version and an image built from templates their ids in `template_ids`. `mcp_servers` names the [desktop MCP servers](#desktop-mcp-servers-and-endpoints) its builds declared, and `base_compose_missing: true` marks a build that lacks steps of the [compose of the image it was built on](#a-base-images-compose). |
 | POST | `/api/images` | Import a desktop-compatible local image using `name` and `reference`. |
@@ -549,6 +550,39 @@ curl --cookie thoric.cookies \
 ```
 
 Replace `FILE_SIZE_IN_BYTES` with the exact size. URL-encode filenames and destination paths when necessary. Streaming uploads are limited by `UPLOAD_MAX_MB`. They return the saved `path`, its `bytes` and its `download_url`, and create missing folders of the destination. The body is received whole into a temporary file of the manager first, after the destination is checked, so a slow transfer holds nothing of the container; only the delivery into the desktop shares the container's lock, and it waits five seconds for a reset, a snapshot or another change of the container and answers 409 after that. The same holds for a volume's upload and its write lock.
+
+### Changed files
+
+`GET /api/containers/{id}/changes` lists what changed in the container's own files: Docker's change list of its Docker container, each path `added`, `changed` or `deleted` against the image that Docker container was created from. It reads the Engine API's `GET /containers/{id}/changes` where the manager reaches the socket and `docker container diff` otherwise, and works whether the container runs or not. A container whose Docker container is missing answers 409 with a hint to retry it.
+
+The list starts when the Docker container was created. A reset, a retry that recreates a missing container, a settings change that recreates the container and a restore of a backup with the container's files each start it again, and after the last two the earlier changes are inside the commit it was created from. `base` says which: `image` is the reference Docker created it from, `image_id` that image, `commit` is true for such a commit of the earlier files, and `created_at` is when Docker created it, in Unix seconds. Docker keeps no list from a snapshot, so none is offered. Named volumes, host folders and the folders in memory are mounted over the container's files and never in the list; `mounts` names each with its `path`, `type` (`volume`, `bind` or `tmpfs`), `read_only` and, for a volume, `volume`, without a host folder's own path. The paths are Docker's view of the whole filesystem, so the list also names files in folders the desktop user cannot open, such as `/root`, though never what is in them; an [MCP endpoint](#desktop-mcp-servers-and-endpoints) with `files_read` sees them the same way. At most two lists are read at once, and a third request waits its turn.
+
+Query parameters, all optional:
+
+| Parameter | Meaning |
+| --- | --- |
+| `path` | A canonical absolute folder; only what is at or below it is listed and counted. |
+| `kinds` | Some of `added`, `changed` and `deleted`, separated by commas. All three by default. |
+| `all` | `true` also lists what the desktop changes on its own. |
+| `limit` | The most entries listed, 1 to 5000, 500 by default. |
+
+What the desktop changes on its own is left out by default, since a desktop's session writes dozens of files at every start: `noise` has `left_out`, whether it was, `count`, how many listed or left out entries the rules matched, and its `rules`, each with its `id`, `description`, `count` and, when it matched an entry, its `paths`, where a path ending in `/**` stands for a folder and everything in it and one ending in `*` for every path that starts so. The rules are `system` (`/proc`, `/sys`, `/dev`), `temporary` (`/tmp`, `/run`, `/var/tmp`, `/var/run` and `/var/lock`, with the X11 and ICE sockets), `caches` (`/var/cache`, `/var/log`, apt's package lists, the library cache `/etc/ld.so.cache`, `~/.cache` and root's), `start` (the sudo rules, the login profile and the machine ID every start writes), `session` (the session's bus, sound and input method state, the XFCE and GNOME settings and state, the services GNOME starts and the standard folders such as `~/Documents`, whose files are still listed, as are GNOME Shell extensions, file manager scripts and Thunar's files beside its default actions), `gpu` (the driver files and tools the NVIDIA Container Toolkit mounts into a desktop that has the GPU through it, only for such a desktop), `mounts` (the folders mounts sit on) and `folders` (a changed folder whose entries below say what changed in it, and a new folder whose entries below are all left out). They live in `core/manager/src/changes/noise.rs`, whose tests hold a fresh desktop of either catalog image, and one with the GPU in WSL, to an empty list. A desktop with render devices under `/dev/dri` still lists `/etc/group` and `/etc/gshadow`, which its start changes to join their groups, since who belongs to which group is never left out. With `all=true` every entry is listed, one a rule matches with that rule as `noise`.
+
+```json
+{"container_id":"...","running":true,
+ "base":{"image":"ghcr.io/co3moz/thoric/ubuntu-xfce:24.04","image_id":"sha256:...","commit":false,"created_at":1793740921},
+ "mounts":[{"path":"/home/desktop/project","type":"volume","volume":"project","read_only":false},{"path":"/tmp","type":"tmpfs","read_only":false}],
+ "path":"/",
+ "summary":{"total":3,"added":2,"changed":0,"deleted":1,"folders_truncated":false,
+   "folders":[{"path":"/home/desktop/notes","total":2,"added":2,"changed":0,"deleted":0},{"path":"/etc","total":1,"added":0,"changed":0,"deleted":1}]},
+ "noise":{"left_out":true,"count":47,"rules":[{"id":"session","description":"...","count":38,"paths":["/home/desktop/.dbus/**","..."]}]},
+ "total":3,"returned":3,"truncated":false,"details":"read",
+ "changes":[{"path":"/etc/legal","kind":"deleted"},
+   {"path":"/home/desktop/notes","kind":"added","type":"directory","modified_at":1793741000},
+   {"path":"/home/desktop/notes/todo.txt","kind":"added","type":"file","size":42,"modified_at":1793741000}]}
+```
+
+`changes` are sorted by path, with what is below a folder right after it. `summary` counts what is listed by kind, and in `folders` the entries right below `path`, folders or files, with the most entries at or below them first, at most 100; without `path` the desktop home's own entries count apart. `total` is how many entries match, `returned` how many are in `changes` and `truncated` whether `limit` cut the list. In a running desktop, each listed entry under `/home/desktop` that still exists also has `type`, `size` for a file and `modified_at`, read as the desktop user without following symlinks; `details` is `read`, `partial` when only the first 1000 such entries were read, `failed` when they could not be, and `stopped` for a stopped container.
 
 Uploads, saved screenshots and exported artifacts follow the same destination rule. The folder may be anywhere in the desktop home, `/home/desktop`, in a volume mounted writable, by the `mounts` setting or a compose's volume parameter, or in one of the `places` in the container's `setup`; nothing under a read-only volume is accepted. The rule keeps writes out of the system folders. What protects the desktop is that files are written as the desktop user, so its permissions apply, and that no symlink in the destination is followed.
 

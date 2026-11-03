@@ -57,6 +57,7 @@ The projects sit in three folders: `core/` holds the manager (`core/manager`, Ru
 | Accessibility inspection and file download | `core/manager/helpers/inspect_ui.py` (in `core/manager/src/windows.rs`), `core/manager/helpers/download_file.py` (in `core/manager/src/files.rs`) |
 | Stdio bridge for local agent clients | `core/bridge/mcp_bridge.py`, `core/bridge/tests/test_mcp_bridge.py` |
 | File read/write/list/move/delete API | `core/manager/src/files.rs`, `core/manager/helpers/read_file.py`, `core/manager/helpers/upload_file.py`, `core/manager/helpers/file_ops.py` |
+| What changed in a container's files | `core/manager/src/changes.rs`, `core/manager/src/changes/source.rs`, `core/manager/src/changes/noise.rs`, `core/manager/helpers/file_ops.py` (`stats`), `core/manager/tests/test_file_ops.py`, `core/web/src/components/container-changes.tsx`, `core/web/src/lib/changes.ts` |
 | Browser uploads and container delivery | `core/manager/src/uploads.rs`, `core/manager/helpers/upload_file.py`, `core/web/src/lib/uploads.ts` |
 | Folder downloads as `.tar.gz` | `core/manager/src/folder_archive.rs`, `core/manager/helpers/archive_folder.py`, `core/web/src/components/dialogs/download-dialog.tsx`, `core/manager/tests/test_archive_folder.py` |
 | Volume files through a helper container | `core/manager/src/volumes.rs`, `core/manager/src/volumes/`, `core/manager/helpers/volume_claim.py`, `core/web/src/components/dialogs/volume-browser.tsx`, `core/web/src/lib/volume-files.ts` |
