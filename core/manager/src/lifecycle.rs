@@ -22,7 +22,8 @@
 //! open repeats them and would keep every desktop running.
 //!
 //! [`reaper`] carries the policies out every 30 seconds, through the stop and delete code the
-//! routes use, as jobs of their own kinds.
+//! routes use, as jobs of their own kinds, and each that is done sends a `container_lifecycle`
+//! notice when `NOTIFY_EVENTS` names it.
 mod activity;
 mod reaper;
 

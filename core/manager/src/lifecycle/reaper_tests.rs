@@ -145,8 +145,8 @@ async fn an_expiry_is_due_running_or_not_unless_its_action_failed_lately() {
 }
 
 /// An installation that started `ago`, with a Docker CLI stand-in that knows the desktop `id`,
-/// running or not, stops it, removes it and lists nothing else, and records its arguments in the
-/// returned file. `stop` fails when `stop_fails`.
+/// running or not, stops it, removes it and lists nothing else, no volume of its own either, and
+/// records its arguments in the returned file. `stop` fails when `stop_fails`.
 #[cfg(unix)]
 fn docker(id: &str, ago: Duration, up: bool, stop_fails: bool) -> (Arc<App>, std::path::PathBuf) {
     let mut app = crate::test_support::app(false);
@@ -166,7 +166,7 @@ fn docker(id: &str, ago: Duration, up: bool, stop_fails: bool) -> (Arc<App>, std
     crate::test_support::write_script(
         &dir.join("docker"),
         &format!(
-            "#!/bin/sh\necho \"$*\" >> '{calls}'\ncase \"$*\" in\n  'container inspect thoric-{id}') echo '{info}' ;;\n  'stop cid') {stop} ;;\n  'rm --force cid') ;;\n  'ps --filter label=thoric.managed=true --format {{{{.Names}}}}') echo thoric-{id} ;;\n  'ps -a --format {{{{.Names}}}}') echo thoric-{id} ;;\n  'network ls --format {{{{.Name}}}}') ;;\n  *) exit 1 ;;\nesac\n",
+            "#!/bin/sh\necho \"$*\" >> '{calls}'\ncase \"$*\" in\n  'container inspect thoric-{id}') echo '{info}' ;;\n  'stop cid') {stop} ;;\n  'rm --force cid') ;;\n  'ps --filter label=thoric.managed=true --format {{{{.Names}}}}') echo thoric-{id} ;;\n  'ps -a --format {{{{.Names}}}}') echo thoric-{id} ;;\n  'network ls --format {{{{.Name}}}}') ;;\n  'volume ls --filter label=thoric.managed=true --filter label=thoric.environment={id} --format {{{{.Name}}}}') ;;\n  *) exit 1 ;;\nesac\n",
             calls = calls.display(),
         ),
     );
@@ -317,6 +317,63 @@ async fn a_failed_stop_is_reported_once_and_not_tried_again_at_once() {
     let jobs = app.db.jobs_summary().unwrap();
     assert_eq!(jobs.len(), 1);
     assert_eq!(jobs[0].status, "failed");
+}
+
+/// [`docker`]'s installation, sending notices of the lifecycle to an address.
+#[cfg(unix)]
+fn notifying(id: &str, stop_fails: bool) -> Arc<App> {
+    let (mut app, _) = docker(id, 2 * MINUTE, true, stop_fails);
+    Arc::get_mut(&mut app).unwrap().config.notify = crate::notify::settings(&|key| match key {
+        "NOTIFY_URL" => Some("https://ntfy.sh/thoric-lifecycle-test".into()),
+        "NOTIFY_EVENTS" => Some("container_lifecycle".into()),
+        _ => None,
+    })
+    .unwrap();
+    app
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_stop_the_lifecycle_made_sends_one_notice_once_it_is_done() {
+    let app = notifying("desk", false);
+    save(&app, &record("desk", idle(1)));
+    let job = acted(&app, "desk").await.expect("a job");
+    let notices = app.notifier.queued();
+    assert_eq!(notices.len(), 1);
+    let notice = &notices[0];
+    assert_eq!(notice.kind, crate::notify::Kind::ContainerLifecycle);
+    assert_eq!(notice.title, "Desk desk was stopped");
+    assert!(notice.body.contains("for 1 minutes"), "{}", notice.body);
+    assert_eq!(notice.container.as_deref(), Some("Desk desk"));
+    assert_eq!(notice.link.as_deref(), Some("#/containers"));
+    assert_eq!(
+        notice.key.as_deref(),
+        Some(format!("container_lifecycle:desk:{job}").as_str())
+    );
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_delete_at_expiry_says_so_and_a_failed_stop_sends_nothing_of_its_own() {
+    let app = notifying("throwaway", false);
+    let mut lifecycle = expired(OnExpiry::Delete);
+    lifecycle.delete_volumes = true;
+    save(&app, &record("throwaway", lifecycle));
+    acted(&app, "throwaway").await.expect("a job");
+    let notices = app.notifier.queued();
+    assert_eq!(notices.len(), 1);
+    assert_eq!(notices[0].title, "Desk throwaway was deleted");
+    assert!(
+        notices[0].body.contains("with the volumes"),
+        "{}",
+        notices[0].body
+    );
+    assert_eq!(notices[0].link.as_deref(), Some("#/jobs"));
+    // A failed job is a job_failed notice, which this installation does not send.
+    let app = notifying("stuck", true);
+    save(&app, &record("stuck", idle(1)));
+    Reaper::default().round(&app).await.unwrap();
+    assert!(app.notifier.queued().is_empty());
 }
 
 #[cfg(unix)]

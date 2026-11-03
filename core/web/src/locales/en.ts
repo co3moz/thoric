@@ -1161,7 +1161,7 @@ export const en = {
   "settings.about.NOTIFY_URL":
     "Where notices go: ntfy, Discord, Slack, Telegram or a JSON webhook. It holds credentials, so it changes only in .env, with thoric settings.",
   "settings.about.NOTIFY_EVENTS":
-    "What is sent: human_request, job_failed and update_available, separated by commas.",
+    "What is sent: human_request, job_failed, update_available and container_lifecycle, separated by commas.",
   "settings.about.DASHBOARD_URL":
     "The address you reach the dashboard at, so a notice links to the desktop that needs you.",
   "settings.section.notifications": "Notifications",
@@ -1178,6 +1178,7 @@ export const en = {
   "notify.event.human_request": "Requests for a person",
   "notify.event.job_failed": "Failed jobs",
   "notify.event.update_available": "New releases",
+  "notify.event.container_lifecycle": "Automatic stops and deletes",
   "notify.noLink": "Without DASHBOARD_URL a notice does not link to the dashboard.",
   "notify.test": "Send test notification",
   "notify.allTook": "Every address took the test notice.",

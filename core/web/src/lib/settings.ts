@@ -221,6 +221,7 @@ export const NOTIFY_EVENTS: Record<string, MessageKey> = {
   human_request: "notify.event.human_request",
   job_failed: "notify.event.job_failed",
   update_available: "notify.event.update_available",
+  container_lifecycle: "notify.event.container_lifecycle",
 }
 
 /**

@@ -2,7 +2,11 @@
 //! manager writes for a person outside the dashboard is, and never carry a secret value or what a
 //! tool returned.
 use super::{Kind, Notice};
-use crate::{App, human::HumanRequest, model::Job};
+use crate::{
+    App,
+    human::HumanRequest,
+    model::{Container, Job},
+};
 
 /// An agent asked for a person: its message, in the container it asked for, linking to that
 /// desktop, where the request waits under the toolbar. One notice per request, however often the
@@ -50,6 +54,49 @@ pub(crate) fn job_failed(app: &App, job: &Job) -> Notice {
         container,
         link: Some("#/jobs".into()),
         key: Some(format!("job_failed:{}", job.id)),
+    }
+}
+
+/// The container's lifecycle stopped or deleted it, as its job `job_id` did: what happened and
+/// why. A stopped one links to the containers, where it starts again; a deleted one to the jobs,
+/// since it has no page left. A lifecycle job that fails sends `job_failed` instead.
+pub(crate) fn container_lifecycle(
+    container: &Container,
+    due: crate::lifecycle::Due,
+    job_id: &str,
+) -> Notice {
+    use crate::lifecycle::{Due, OnExpiry};
+    let name = &container.spec.name;
+    let (title, body, link) = match due {
+        Due::IdleStop(minutes) => (
+            format!("{name} was stopped"),
+            format!(
+                "Nothing used its desktop for {minutes} minutes, so Thoric stopped it. Its files stay; start it again to go on."
+            ),
+            "#/containers",
+        ),
+        Due::Expiry(OnExpiry::Stop) => (
+            format!("{name} expired"),
+            "Thoric stopped it at its expiry and cleared the expiry, so starting it again keeps it running.".to_owned(),
+            "#/containers",
+        ),
+        Due::Expiry(OnExpiry::Delete) => (
+            format!("{name} was deleted"),
+            if container.spec.lifecycle.delete_volumes {
+                "It expired, so Thoric deleted it with the volumes created for it.".to_owned()
+            } else {
+                "It expired, so Thoric deleted it. Its named volumes stay.".to_owned()
+            },
+            "#/jobs",
+        ),
+    };
+    Notice {
+        kind: Kind::ContainerLifecycle,
+        title,
+        body,
+        container: Some(name.clone()),
+        link: Some(link.into()),
+        key: Some(format!("container_lifecycle:{}:{job_id}", container.id)),
     }
 }
 

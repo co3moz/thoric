@@ -1139,7 +1139,7 @@ export const tr: Messages = {
   "settings.about.NOTIFY_URL":
     "Bildirimlerin gittiği yer: ntfy, Discord, Slack, Telegram ya da bir JSON webhook. Kimlik bilgilerini taşıdığı için yalnızca .env içinde, thoric settings ile değişir.",
   "settings.about.NOTIFY_EVENTS":
-    "Gönderilenler: human_request, job_failed ve update_available, virgülle ayrılarak.",
+    "Gönderilenler: human_request, job_failed, update_available ve container_lifecycle, virgülle ayrılarak.",
   "settings.about.DASHBOARD_URL":
     "Panele ulaştığınız adres; bildirim sizi bekleyen masaüstüne bağlantı verir.",
   "settings.section.notifications": "Bildirimler",
@@ -1156,6 +1156,7 @@ export const tr: Messages = {
   "notify.event.human_request": "Kişiden istenenler",
   "notify.event.job_failed": "Başarısız işler",
   "notify.event.update_available": "Yeni sürümler",
+  "notify.event.container_lifecycle": "Otomatik durdurma ve silmeler",
   "notify.noLink": "DASHBOARD_URL olmadan bildirim panele bağlantı vermez.",
   "notify.test": "Deneme bildirimi gönder",
   "notify.allTook": "Deneme bildirimini her adres aldı.",

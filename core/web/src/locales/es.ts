@@ -1150,7 +1150,7 @@ export const es: Messages = {
   "settings.about.NOTIFY_URL":
     "Adónde van los avisos: ntfy, Discord, Slack, Telegram o un webhook JSON. Lleva credenciales, así que solo cambia en .env, con thoric settings.",
   "settings.about.NOTIFY_EVENTS":
-    "Qué se envía: human_request, job_failed y update_available, separados por comas.",
+    "Qué se envía: human_request, job_failed, update_available y container_lifecycle, separados por comas.",
   "settings.about.DASHBOARD_URL":
     "La dirección con la que llegas al panel, para que un aviso enlace al escritorio que te necesita.",
   "settings.section.notifications": "Avisos",
@@ -1167,6 +1167,7 @@ export const es: Messages = {
   "notify.event.human_request": "Peticiones a una persona",
   "notify.event.job_failed": "Trabajos fallidos",
   "notify.event.update_available": "Versiones nuevas",
+  "notify.event.container_lifecycle": "Detenciones y eliminaciones automáticas",
   "notify.noLink": "Sin DASHBOARD_URL, un aviso no enlaza al panel.",
   "notify.test": "Enviar aviso de prueba",
   "notify.allTook": "Todas las direcciones aceptaron el aviso de prueba.",

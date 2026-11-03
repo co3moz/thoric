@@ -1157,7 +1157,7 @@ export const fr: Messages = {
   "settings.about.NOTIFY_URL":
     "Où vont les notifications : ntfy, Discord, Slack, Telegram ou un webhook JSON. L'adresse contient des identifiants, elle ne change donc que dans .env, avec thoric settings.",
   "settings.about.NOTIFY_EVENTS":
-    "Ce qui est envoyé : human_request, job_failed et update_available, séparés par des virgules.",
+    "Ce qui est envoyé : human_request, job_failed, update_available et container_lifecycle, séparés par des virgules.",
   "settings.about.DASHBOARD_URL":
     "L'adresse à laquelle vous joignez le tableau de bord, pour qu'une notification renvoie au bureau qui a besoin de vous.",
   "settings.section.notifications": "Notifications",
@@ -1174,6 +1174,7 @@ export const fr: Messages = {
   "notify.event.human_request": "Demandes à une personne",
   "notify.event.job_failed": "Tâches en échec",
   "notify.event.update_available": "Nouvelles versions",
+  "notify.event.container_lifecycle": "Arrêts et suppressions automatiques",
   "notify.noLink": "Sans DASHBOARD_URL, une notification ne renvoie pas au tableau de bord.",
   "notify.test": "Envoyer une notification de test",
   "notify.allTook": "Chaque adresse a accepté la notification de test.",

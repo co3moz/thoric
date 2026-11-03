@@ -51,6 +51,7 @@ pub(crate) enum Kind {
     HumanRequest,
     JobFailed,
     UpdateAvailable,
+    ContainerLifecycle,
     /// The Management page's test, which is sent whatever `NOTIFY_EVENTS` says.
     Test,
 }
@@ -62,6 +63,7 @@ const EVENTS: &[(Kind, &str, bool, u8)] = &[
     (Kind::HumanRequest, "human_request", true, 4),
     (Kind::JobFailed, "job_failed", false, 3),
     (Kind::UpdateAvailable, "update_available", false, 2),
+    (Kind::ContainerLifecycle, "container_lifecycle", false, 2),
 ];
 
 impl Kind {

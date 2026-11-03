@@ -250,10 +250,22 @@ pub(super) async fn act(app: &Arc<App>, id: &str) -> Result<Acted> {
     })
 }
 
-/// The work of the reaper's job, which holds the container from [`act`]'s check on.
+/// The work of the reaper's job, which holds the container from [`act`]'s check on. Once it is
+/// done, it sends the lifecycle's one notice (`container_lifecycle`); a job that fails sends
+/// `job_failed` instead, as every failed job does.
 async fn carry_out(app: &App, id: &str, due: Due, job_id: &str) -> Result<Value> {
     let record = app.container(id).map_err(|error| anyhow!(error.1))?;
-    let name = &record.spec.name;
+    let result = carried_out(app, &record, due, job_id).await?;
+    crate::notify::send(
+        app,
+        crate::notify::notices::container_lifecycle(&record, due, job_id),
+    );
+    Ok(result)
+}
+
+/// The stop or delete itself.
+async fn carried_out(app: &App, record: &Container, due: Due, job_id: &str) -> Result<Value> {
+    let (id, name) = (record.id.as_str(), &record.spec.name);
     match due {
         Due::IdleStop(minutes) => {
             app.append_log(
@@ -291,7 +303,7 @@ async fn carry_out(app: &App, id: &str, due: Due, job_id: &str) -> Result<Value>
         Due::Expiry(OnExpiry::Delete) => {
             app.append_log(job_id, &format!("\"{name}\" expired; deleting it."))?;
             let volumes = record.spec.lifecycle.delete_volumes;
-            let removed = app.remove_container(&record, job_id, volumes).await?;
+            let removed = app.remove_container(record, job_id, volumes).await?;
             Ok(crate::api::removal(id, name, volumes, removed))
         }
     }
