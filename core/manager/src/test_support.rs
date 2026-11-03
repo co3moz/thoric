@@ -1,10 +1,10 @@
 //! Fixtures the tests of several modules share: an installation without Docker on an in-memory
 //! database, its root MCP channel and a request to it, a container's settings, what the log
-//! writes, a writer of the shell scripts tests run as stand-ins for programs, and a Docker CLI
-//! stand-in that answers as a manager with a data volume of its own.
+//! writes, a writer of the shell scripts tests run as stand-ins for programs, a Docker CLI
+//! stand-in that answers as a manager with a data volume of its own, and a sample of the host GPU.
 use crate::{
-    App, config, db, desktop_limits, desktop_mcp, events, human, layers, model, notify, outbound,
-    releases, router, transfers, usage,
+    App, config, db, desktop_limits, desktop_mcp, events, human, layers, metrics, model, notify,
+    outbound, releases, router, transfers, usage,
 };
 use axum::{
     body::Body,
@@ -66,6 +66,7 @@ impl config::Config {
             archive_limit: 4 * 1024 * 1024,
             root_mcp_enabled: false,
             mcp_token: Some(String::new()),
+            metrics_token: None,
             templates_url: None,
             volume_filter: None,
             proxy: None,
@@ -108,7 +109,18 @@ pub(crate) fn app(auth: bool) -> Arc<App> {
         human: human::Requests::default(),
         outbound: outbound::Outbound::default(),
         notifier: notify::Notifier::default(),
+        metrics: metrics::Metrics::default(),
     })
+}
+/// A sample of the host's GPU `index` with 1 GiB of its 8 in use, as the GPU sampler stores one.
+pub(crate) fn sampled_gpu(usage: &usage::Usage, index: u32, name: &str, utilization: f32) {
+    usage.record_gpu(&usage::GpuReading {
+        index,
+        name: name.into(),
+        utilization: Some(utilization),
+        memory_used: Some(1 << 30),
+        memory_total: Some(8 << 30),
+    });
 }
 /// A container's settings that name only its name and image.
 pub(crate) fn spec() -> model::ContainerSpec {

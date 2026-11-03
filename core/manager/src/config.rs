@@ -73,6 +73,9 @@ pub struct Config {
     /// too, or `None` when `MCP_AUTH_MODE=none` turns the check off for both. Empty when no token
     /// is set, which opens nothing.
     pub mcp_token: Option<String>,
+    /// The bearer token `/metrics` asks for, or `None` while `METRICS_TOKEN` is empty, which keeps
+    /// the route off; see [`crate::metrics`].
+    pub metrics_token: Option<String>,
     /// The template list the templates page reads in the browser, or `None` to turn it off.
     pub templates_url: Option<String>,
     /// The label a volume carries for a request to list and choose it, `key` or `key=value`, or
@@ -433,6 +436,7 @@ impl Config {
             archive_limit: archive_mb * 1024 * 1024,
             root_mcp_enabled,
             mcp_token,
+            metrics_token: metrics_token(var("METRICS_TOKEN").as_deref())?,
             templates_url: templates_url(var("TEMPLATES_URL").as_deref())?,
             volume_filter: volume_filter(var("VOLUME_FILTER").as_deref())?,
             proxy,
@@ -507,6 +511,7 @@ impl Config {
                     .as_ref()
                     .is_some_and(|token| !token.is_empty()),
             ),
+            secret("METRICS_TOKEN", self.metrics_token.is_some()),
             value("DESKTOP_IMAGE", json!(self.base_image)),
             value("DESKTOP_USER_NAMESPACES", json!(self.user_namespaces)),
             value("DESKTOP_PIDS_LIMIT", json!(self.pids_limit)),
@@ -600,6 +605,19 @@ impl Config {
         let host = url.find("://")? + 3;
         Some(&url[..url[host..].find('/').map_or(url.len(), |end| host + end)])
     }
+}
+
+/// `METRICS_TOKEN`: empty keeps `/metrics` off, and anything else is the token it asks for, held
+/// to what an `Authorization` header carries as it is.
+pub(crate) fn metrics_token(value: Option<&str>) -> Result<Option<String>> {
+    let token = value.unwrap_or_default();
+    if token.is_empty() {
+        return Ok(None);
+    }
+    if token.len() > 256 || !token.bytes().all(|b| b.is_ascii_graphic()) {
+        bail!("METRICS_TOKEN must be empty or 1 to 256 visible ASCII characters without spaces");
+    }
+    Ok(Some(token.into()))
 }
 
 /// `TEMPLATES_URL`: empty for the project wiki's list, `none` for no templates page, or the URL

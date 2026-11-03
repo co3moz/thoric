@@ -7,9 +7,10 @@
 //!
 //! Reads a page or a health check repeats on a timer are written at debug while they succeed, so
 //! the log at info holds what people and agents do rather than thousands of timer ticks a day:
-//! the health checks (Docker's every 20 seconds), the usage charts (every second), a job being
-//! followed (every two seconds), the Activity page (every five), the desktop previews (every ten)
-//! and the interface's own files, which name their content. Event streams, screens and other
+//! the health checks (Docker's every 20 seconds), a Prometheus scrape of `/metrics`, the usage
+//! charts (every second), a job being followed (every two seconds), the Activity page (every
+//! five), the desktop previews (every ten) and the interface's own files, which name their
+//! content. Event streams, screens and other
 //! sockets are one line each when they open, and lists the event stream keeps current are read
 //! once a minute, so neither floods the log.
 use crate::transfers;
@@ -106,7 +107,7 @@ fn repeated(method: &Method, path: &str) -> bool {
     }
     if matches!(
         path,
-        "/healthz" | "/readyz" | "/api/usage" | "/api/activity"
+        "/healthz" | "/readyz" | "/metrics" | "/api/usage" | "/api/activity"
     ) || path.starts_with("/assets/")
     {
         return true;

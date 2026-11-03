@@ -129,6 +129,7 @@ absent_volume = f"thoric-test-absent-{tag}"
 outside_volume = f"thoric-test-outside-{tag}"
 password = uuid.uuid4().hex
 mcp_token = uuid.uuid4().hex + uuid.uuid4().hex
+metrics_token = uuid.uuid4().hex
 container_ids = []
 image_refs = []
 # Volumes the manager names after this run's containers, which exist only once they are created.
@@ -288,7 +289,7 @@ def job(response):
 
 
 def start_manager():
-    docker("run", "-d", "--name", manager, "--label", "thoric.manager=true", "-e", f"MANAGER_CONTAINER={manager}", "-e", "AUTH_MODE=password", "-e", f"ADMIN_PASSWORD={password}", "-e", "ROOT_MCP_ENABLED=true", "-e", "GPU_DEFAULT=false", "-e", f"MCP_TOKEN={mcp_token}", "-e", "GPU_ADAPTER=NVIDIA", "-e", f"NOTIFY_URL={notify_url}", "-e", "NOTIFY_EVENTS=human_request,job_failed", "-e", f"DASHBOARD_URL={dashboard_url}", "-v", "/var/run/docker.sock:/var/run/docker.sock", "-v", f"{volume}:/data", "-p", f"127.0.0.1:{port or ''}:8080", "thoric/manager:local")
+    docker("run", "-d", "--name", manager, "--label", "thoric.manager=true", "-e", f"MANAGER_CONTAINER={manager}", "-e", "AUTH_MODE=password", "-e", f"ADMIN_PASSWORD={password}", "-e", "ROOT_MCP_ENABLED=true", "-e", "GPU_DEFAULT=false", "-e", f"MCP_TOKEN={mcp_token}", "-e", f"METRICS_TOKEN={metrics_token}", "-e", "GPU_ADAPTER=NVIDIA", "-e", f"NOTIFY_URL={notify_url}", "-e", "NOTIFY_EVENTS=human_request,job_failed", "-e", f"DASHBOARD_URL={dashboard_url}", "-v", "/var/run/docker.sock:/var/run/docker.sock", "-v", f"{volume}:/data", "-p", f"127.0.0.1:{port or ''}:8080", "thoric/manager:local")
     return int(docker("port", manager, "8080/tcp").decode().strip().rsplit(":", 1)[1])
 
 
@@ -1217,6 +1218,36 @@ try:
     assert summary["containers"][0]["id"] == env_id and summary["containers"][0]["cpu_cores"]["peak"] >= 0, summary
     assert summary["gpu"]["devices"] and summary["gpu"]["devices"][0]["utilization_percent"] is not None, summary
     print("PASS resource usage history, cursor, per-container route, host GPU helper and MCP summary", flush=True)
+    # Prometheus scrapes /metrics with a token of its own: neither none nor the MCP token opens it.
+    for bearer in (None, mcp_token):
+        headers = {"Authorization": f"Bearer {bearer}"} if bearer else {}
+        try:
+            urllib.request.urlopen(urllib.request.Request(f"http://127.0.0.1:{port}/metrics", headers=headers), timeout=10)
+            raise AssertionError("metrics answered without their token")
+        except urllib.error.HTTPError as error:
+            assert error.code == 401, error.code
+    def scrape():
+        request = urllib.request.Request(f"http://127.0.0.1:{port}/metrics", headers={"Authorization": f"Bearer {metrics_token}"})
+        with urllib.request.urlopen(request, timeout=10) as response:
+            assert response.headers["Content-Type"] == "text/plain; version=0.0.4; charset=utf-8", response.headers
+            return response.read().decode()
+    # The collector's latest stats message of the running desktop, under its ID and name.
+    page = wait_for(lambda: (p if f'thoric_container_cpu_seconds_total{{id="{env_id}",' in (p := scrape()) else None), 30)
+    samples = [line for line in page.splitlines() if not line.startswith("#")]
+    assert any(line.startswith('thoric_info{version="') for line in samples), page
+    assert any(line.startswith('thoric_containers{state="running"} ') and float(line.split()[-1]) >= 1 for line in samples), page
+    mine = [line for line in samples if f'{{id="{env_id}",name="' in line]
+    for family in ("thoric_container_start_time_seconds", "thoric_container_memory_bytes", "thoric_container_network_receive_bytes_total", "thoric_container_block_read_bytes_total", "thoric_container_pids"):
+        assert any(line.startswith(family + "{") for line in mine), (family, mine)
+    limit = next(line for line in mine if line.startswith("thoric_container_memory_limit_bytes{"))
+    assert float(limit.split()[-1]) == 2048 * 1024 ** 2, limit
+    started = next(line for line in mine if line.startswith("thoric_container_start_time_seconds{"))
+    assert time.time() - 3600 < float(started.split()[-1]) <= time.time(), started
+    # The GPU desktop runs, so the host's GPU is sampled, and no container's series names a GPU.
+    assert 'thoric_host_gpu_state{state="sampling"} 1' in samples, page
+    assert any(line.startswith("thoric_host_gpu_utilization_ratio{") for line in samples), page
+    assert not any(line.startswith("thoric_container_") and "gpu" in line for line in samples), mine
+    print("PASS Prometheus metrics need their own token and report the running desktop and the host GPU", flush=True)
     # Script stdin is closed: a command reading input cannot consume the rest of the script.
     isolated = mcp_job(tool("exec_container", {"container_id":env_id,"script":"consumed=$(cat); echo \"stdin-bytes=${#consumed}\"\necho AFTER_STDIN\n"}))
     assert "stdin-bytes=0" in isolated["log"] and "AFTER_STDIN" in isolated["log"], isolated["log"]

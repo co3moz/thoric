@@ -1093,6 +1093,8 @@ export const en = {
     "token requires a token on /mcp and the MCP endpoints; none leaves both open.",
   "settings.about.MCP_TOKEN":
     "The administrator's bearer token: /mcp requires it, and it opens every MCP endpoint.",
+  "settings.about.METRICS_TOKEN":
+    "The bearer token Prometheus reads /metrics with; empty keeps /metrics off.",
   "settings.about.DESKTOP_IMAGE": "The image the create form selects first.",
   "settings.about.DESKTOP_USER_NAMESPACES":
     "Lets browsers and Electron apps in desktops start their sandbox.",
