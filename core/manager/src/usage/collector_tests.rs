@@ -1,6 +1,7 @@
 //! Pins down the collector's lifecycle: a stream is open exactly while its container runs, a
-//! recreated container is followed under its new Docker ID, and a deleted container's history
-//! outlives its record, under the name the record had.
+//! recreated container is followed under its new Docker ID, a deleted container's history
+//! outlives its record, under the name the record had, and `/metrics` learns each running
+//! container's start and latest counters.
 use super::*;
 
 fn running(entries: &[(&str, &str)]) -> BTreeMap<String, Running> {
@@ -74,7 +75,8 @@ mod engine_socket {
         .to_string()
     }
 
-    /// Answers container lists from `listed` and streams stats until the client goes away.
+    /// Answers container lists from `listed`, an inspect with the container's start, and streams
+    /// stats until the client goes away.
     async fn engine(
         listener: tokio::net::UnixListener,
         listed: Arc<Mutex<Value>>,
@@ -95,6 +97,14 @@ mod engine_socket {
                 let request = String::from_utf8(request).unwrap();
                 if request.starts_with("GET /containers/json?") {
                     let body = listed.lock().unwrap().to_string();
+                    let _ = socket
+                        .write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}", body.len()).as_bytes())
+                        .await;
+                    return;
+                }
+                if request.starts_with(&format!("GET /containers/{DOCKER_ID}/json ")) {
+                    let body =
+                        json!({"State": {"StartedAt": "2026-10-16T09:00:00.5Z"}}).to_string();
                     let _ = socket
                         .write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}", body.len()).as_bytes())
                         .await;
@@ -138,7 +148,7 @@ mod engine_socket {
         std::fs::create_dir_all(&dir).unwrap();
         let socket = dir.join("docker.sock");
         let listener = tokio::net::UnixListener::bind(&socket).unwrap();
-        let entry = json!({"Id": DOCKER_ID, "Names": ["/thoric-a"], "Labels": {"thoric.managed": "true", "thoric.environment": "a"}});
+        let entry = json!({"Id": DOCKER_ID, "Names": ["/thoric-a"], "State": "running", "Labels": {"thoric.managed": "true", "thoric.environment": "a"}});
         let listed = Arc::new(Mutex::new(json!([entry])));
         let streams = Arc::new(AtomicUsize::new(0));
         let server = tokio::spawn(engine(listener, listed.clone(), streams.clone()));
@@ -192,10 +202,35 @@ mod engine_socket {
             1,
             "one stream per container"
         );
+        // The inspect runs beside the stream.
+        until("the start is known", || {
+            app.usage
+                .current()
+                .running
+                .first()
+                .is_some_and(|running| running.started.is_some())
+        })
+        .await;
+        let current = app.usage.current();
+        assert_eq!(
+            current.states,
+            Some(BTreeMap::from([("a".to_owned(), "running".to_owned())]))
+        );
+        let [running] = current.running.as_slice() else {
+            panic!("{current:?}");
+        };
+        // 2026-10-16T09:00:00.5Z
+        assert_eq!(running.started, Some(1_792_141_200.5));
+        let counters = running.counters.unwrap();
+        assert!(counters.cpu_time >= 500_000_000, "{counters:?}");
+        assert_eq!(counters.memory_limit, 1 << 30);
 
         // Stopped: the stream closes, the history stays.
         *listed.lock().unwrap() = json!([]);
         until("the stream closes", || streams.load(Ordering::SeqCst) == 0).await;
+        let current = app.usage.current();
+        assert_eq!(current.states, Some(BTreeMap::new()));
+        assert!(current.running.is_empty());
         let kept = samples(&app);
         tokio::time::sleep(Duration::from_millis(200)).await;
         assert_eq!(samples(&app), kept, "no samples after a stop");
@@ -224,4 +259,16 @@ mod engine_socket {
         server.abort();
         let _ = std::fs::remove_dir_all(dir);
     }
+}
+
+#[test]
+fn a_start_time_is_read_from_the_inspect_and_never_from_go_s_zero_time() {
+    use serde_json::json;
+    let inspected = |at: &str| json!({"State": {"StartedAt": at}});
+    assert_eq!(
+        started_at(&inspected("2026-10-16T09:00:00.25Z")),
+        Some(1_792_141_200.25)
+    );
+    assert_eq!(started_at(&inspected("0001-01-01T00:00:00Z")), None);
+    assert_eq!(started_at(&json!({"State": {}})), None);
 }
