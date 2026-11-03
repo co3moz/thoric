@@ -105,6 +105,21 @@ fn base64_payloads_are_kept_as_their_size() {
 }
 
 #[test]
+fn clipboard_text_is_kept_as_its_size() {
+    let masked = masked_tool(
+        "set_clipboard",
+        json!({"container_id": "c1", "text": "hunter2 şifre 密码", "selection": "both", "paste": true, "paste_keys": "ctrl+shift+v"}),
+    );
+    assert!(!keeps(&masked, "hunter2"));
+    assert_eq!(
+        masked.arguments["text"],
+        json!({"$masked": "string", "length": 16})
+    );
+    assert_eq!(masked.arguments["selection"], "both");
+    assert_eq!(masked.arguments["paste_keys"], "ctrl+shift+v");
+}
+
+#[test]
 fn typed_text_and_single_keys_are_masked_while_clicks_and_named_keys_stay() {
     let actions = json!([
         {"type": "click", "x": 400, "y": 250},

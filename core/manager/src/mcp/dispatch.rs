@@ -3,9 +3,9 @@
 //! and that answer becomes the call's result.
 use super::ThoricMcp;
 use crate::{
-    api, apps, audio, capture, compose, desktop_input, desktop_mcp, error, exec, files, gamepad,
-    human, image_removal, jobs, layers, ocr, recordings, terminal, transfers, uploads, usage,
-    volumes, waits, windows,
+    api, apps, audio, capture, clipboard, compose, desktop_input, desktop_mcp, error, exec, files,
+    gamepad, human, image_removal, jobs, layers, ocr, recordings, terminal, transfers, uploads,
+    usage, volumes, waits, windows,
 };
 use axum::{
     Json,
@@ -402,6 +402,22 @@ impl ThoricMcp {
                 return Ok(sound(value));
             }
             "inject_audio" => audio::inject_audio(&self.app, &id.unwrap(), &parse(args)?).await?,
+            "get_clipboard" => {
+                Box::pin(clipboard::get_clipboard(
+                    &self.app,
+                    &id.unwrap(),
+                    &parse(args)?,
+                ))
+                .await?
+            }
+            "set_clipboard" => {
+                Box::pin(clipboard::set_clipboard(
+                    &self.app,
+                    &id.unwrap(),
+                    &parse(args)?,
+                ))
+                .await?
+            }
             "inspect_ui" => windows::inspect_ui(&self.app, &id.unwrap(), &parse(args)?).await?,
             "gamepad_input" => {
                 gamepad::gamepad_input(&self.app, &id.unwrap(), &parse(args)?).await?
