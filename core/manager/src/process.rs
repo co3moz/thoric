@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use std::{
     process::{Output, Stdio},
     time::Duration,
@@ -13,6 +13,16 @@ pub enum Overflow {
     Reject,
     Tail,
 }
+
+/// What [`Overflow::Reject`] fails with, which a caller can tell from other failures.
+#[derive(Debug)]
+pub struct Exceeded(pub usize);
+impl std::fmt::Display for Exceeded {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Docker output exceeded the {}-byte limit", self.0)
+    }
+}
+impl std::error::Error for Exceeded {}
 
 pub(crate) async fn read_limited(
     mut read: impl AsyncRead + Unpin,
@@ -31,7 +41,7 @@ pub(crate) async fn read_limited(
         }
         if result.len() + n > limit {
             match overflow {
-                Overflow::Reject => bail!("Docker output exceeded the {limit}-byte limit"),
+                Overflow::Reject => return Err(Exceeded(limit).into()),
                 Overflow::Tail => {
                     let discard = (result.len() + n - limit).min(result.len());
                     result.drain(..discard);

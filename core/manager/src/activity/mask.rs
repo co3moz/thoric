@@ -276,6 +276,12 @@ pub(super) fn policy(tool: &str) -> Option<&'static [Rule]> {
         ],
         "delete_file" => &[("path", Text, true), ("recursive", Text, true)],
         "download_file" => &[("path", Text, true), ("max_bytes", Text, false)],
+        "get_changes" => &[
+            ("path", Text, true),
+            ("kinds", Text, false),
+            ("all", Text, false),
+            ("limit", Text, false),
+        ],
         "wait_for_condition" => &[
             ("window_title", Text, true),
             ("text", Text, true),

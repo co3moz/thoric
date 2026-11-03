@@ -109,7 +109,7 @@ async fn mcp_negotiates_and_lists_tools_with_useful_results() {
     let (status, body) = mcp_request(app.clone(), "tools/list", serde_json::json!({})).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     let tools = body["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 81);
+    assert_eq!(tools.len(), 82);
     // Usage is read for every container unless one is named.
     let usage = tools.iter().find(|t| t["name"] == "get_usage").unwrap();
     assert_eq!(usage["annotations"]["readOnlyHint"], true);

@@ -173,7 +173,7 @@ pub async fn write(
     ))
 }
 
-const FILE_OPS: &str = include_str!("../helpers/file_ops.py");
+pub(crate) const FILE_OPS: &str = include_str!("../helpers/file_ops.py");
 #[derive(Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ListFiles {
