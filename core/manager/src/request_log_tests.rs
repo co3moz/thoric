@@ -155,6 +155,7 @@ fn only_a_timer_s_reads_are_repeated() {
     for (method, path) in [
         (Method::GET, "/healthz"),
         (Method::HEAD, "/readyz"),
+        (Method::GET, "/metrics"),
         (Method::GET, "/api/usage"),
         (Method::GET, "/api/containers/e/usage"),
         (Method::GET, "/api/containers/e/screenshot"),
