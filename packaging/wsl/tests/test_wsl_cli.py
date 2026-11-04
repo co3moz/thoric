@@ -760,6 +760,31 @@ class ApplySettingsTest(unittest.TestCase):
         self.assertNotIn("a$ecret", result.stdout)
         self.assertEqual(list(self.tmp.iterdir()), [])
 
+    def test_a_secret_reaches_env_alone(self):
+        url = "https://ntfy.sh/topic-of-the-phone?token=tk_notify"
+        result, _ = self.apply(f"NOTIFY_URL={url}", "SECURE_COOKIE=true")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(self.env_file.read_text().endswith(f"\nNOTIFY_URL={url}\n"))
+        # The output is the dashboard job's log, so it names the secret without its value.
+        self.assertIn("  NOTIFY_URL=[hidden]\n", result.stdout)
+        self.assertIn("  SECURE_COOKIE=true\n", result.stdout)
+        self.assertNotIn("of-the-phone", result.stdout + result.stderr)
+        # The request keeps only the job's line, which the next manager follows.
+        self.assertEqual((self.dir / "settings-started").read_text(), "job-id\n")
+        # Removing it has nothing to hide.
+        result, _ = self.apply("NOTIFY_URL=")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("  NOTIFY_URL=\n", result.stdout)
+        self.assertTrue(self.env_file.read_text().endswith("\nNOTIFY_URL=\n"))
+
+    def test_a_refused_request_keeps_no_value_either(self):
+        result, calls = self.apply("NOTIFY_URL=https://ntfy.sh/topic-of-the-phone", "MCP_TOKEN=x")
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(self.env_file.read_text(), self.ENV)
+        self.assertEqual((self.dir / "settings-started").read_text(), "job-id\n")
+        self.assertNotIn("of-the-phone", result.stdout + result.stderr)
+        self.assertFalse(any(call.startswith("docker compose up") for call in calls))
+
     def test_a_setting_the_dashboard_may_not_change_changes_nothing(self):
         for lines in (
             ("ADMIN_PASSWORD=new-password",),
@@ -876,6 +901,12 @@ class PackageTest(unittest.TestCase):
         accepted = re.search(r"^DASHBOARD_SETTINGS=\((.*)\)$", CLI.read_text(), re.M).group(1).split()
         self.assertGreater(len(editable), 10)
         self.assertEqual(accepted, editable)
+        # The values the command keeps out of its log are those of the secrets the page sets.
+        secrets = re.search(r'^pub\(crate\) const EDITABLE_SECRETS: &\[&str\] = &\[(.*)\];$', config, re.M)
+        self.assertIsNotNone(secrets)
+        hidden = re.search(r"^DASHBOARD_SECRETS=\((.*)\)$", CLI.read_text(), re.M).group(1).split()
+        self.assertEqual(hidden, re.findall(r'"([A-Z_]+)"', secrets.group(1)))
+        self.assertTrue(set(hidden) <= set(accepted))
         # Every one of them is an installation setting the manager reads from .env.
         example = (ROOT / ".env.example").read_text()
         for name in accepted:

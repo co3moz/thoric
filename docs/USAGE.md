@@ -107,13 +107,15 @@ Some steps are for a person only, such as a CAPTCHA, a second sign-in factor, a 
 
 ### Get notified on your phone
 
-A request for a person waits until someone answers it, and nobody sees it while no dashboard is open. Set `NOTIFY_URL` in `.env`, with `thoric settings` in the WSL package and `thoric restart` after it, and Thoric sends each new request to your phone: the container's name in the title, what the agent needs, and once `DASHBOARD_URL` says where you reach the dashboard, a link to that desktop. One request sends one notice, however long its agent waits on it. For example:
+A request for a person waits until someone answers it, and nobody sees it while no dashboard is open. Set `NOTIFY_URL` and Thoric sends each new request to your phone: the container's name in the title, what the agent needs, and once `DASHBOARD_URL` says where you reach the dashboard, a link to that desktop. One request sends one notice, however long its agent waits on it. For example:
 
 ```bash
 NOTIFY_URL=https://ntfy.sh/thoric-7f3k2q9xw4
 NOTIFY_EVENTS=human_request,job_failed
 DASHBOARD_URL=https://thoric.lan:8443
 ```
+
+In the WSL package the **Management** page sets them under **Notifications** and restarts the manager; it never shows `NOTIFY_URL` once it is set, only replaces or removes it. Elsewhere, put them in `.env` and recreate the manager; `thoric settings` and `thoric restart` do the same in the package.
 
 Each address is one of these, and several separated by commas all get every notice:
 

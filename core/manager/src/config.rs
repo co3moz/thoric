@@ -166,9 +166,14 @@ pub(crate) const EDITABLE: &[&str] = &[
     "PROXY_USERNAME",
     "PROXY_BYPASS",
     "UPDATE_CHECK",
+    "NOTIFY_URL",
     "NOTIFY_EVENTS",
     "DASHBOARD_URL",
 ];
+/// The [`EDITABLE`] settings that are secrets: the Settings page replaces or removes one without
+/// ever reading it back, and `thoric apply-settings` writes its value into `.env` alone, never
+/// into its log. `DASHBOARD_SECRETS` in `packaging/wsl/thoric` is the same list.
+pub(crate) const EDITABLE_SECRETS: &[&str] = &["NOTIFY_URL"];
 /// The template list on the project's GitHub wiki.
 pub(crate) const TEMPLATES_URL: &str =
     "https://raw.githubusercontent.com/wiki/co3moz/thoric/templates/index.json";
@@ -490,8 +495,9 @@ impl Config {
     /// The settings of `.env.example` that Compose passes to the manager, in the order the settings
     /// page lists them, each with the value the manager runs with rather than the text it was
     /// given: an empty `TEMPLATES_URL` shows the wiki's list. A secret says only whether it is
-    /// set; its value never leaves the manager. An [`EDITABLE`] setting also has the text its
-    /// environment gave, empty when none did, which the Settings page edits.
+    /// set and whether the page may replace it; its value never leaves the manager. Any other
+    /// [`EDITABLE`] setting also has the text its environment gave, empty when none did, which the
+    /// Settings page edits.
     pub(crate) fn shown(&self) -> Vec<Value> {
         let value = |name: &str, value: Value| {
             let editable = EDITABLE.contains(&name);
@@ -501,7 +507,11 @@ impl Config {
             }
             entry
         };
-        let secret = |name: &str, set: bool| json!({"name": name, "secret": true, "set": set});
+        // The page replaces an editable secret without ever reading it.
+        let secret = |name: &str, set: bool| {
+            let editable = EDITABLE_SECRETS.contains(&name);
+            json!({"name": name, "secret": true, "set": set, "editable": editable})
+        };
         let mib = |bytes: u64| json!(bytes / (1024 * 1024));
         let on = |enabled: bool, mode: &'static str| if enabled { mode } else { "none" };
         vec![

@@ -27,7 +27,10 @@ SETTINGS_UNITS=(thoric-settings.path thoric-settings.service)
 # The settings the dashboard's Settings page may change, through apply-settings: EDITABLE in
 # core/manager/src/config.rs, and the tests hold the two lists together. The rest of .env, such as
 # the password, the agent token and the published port, changes only with 'thoric settings'.
-DASHBOARD_SETTINGS=(SECURE_COOKIE ALLOWED_HOSTS DESKTOP_IMAGE DESKTOP_USER_NAMESPACES DESKTOP_PIDS_LIMIT DESKTOP_ADDRESS_POOL WSL_GPU NVIDIA_COMPUTE GPU_ADAPTER AUDIO_ENABLED MICROPHONE_ENABLED INTERNET_ENABLED SUDO_ENABLED GAMEPAD_ENABLED VPN_ENABLED GPU_DEFAULT INTERNET_DEFAULT SUDO_DEFAULT AUDIO_DEFAULT MICROPHONE_DEFAULT GAMEPAD_DEFAULT VPN_DEFAULT IDLE_STOP_DEFAULT UPLOAD_MAX_MB IMAGE_ARCHIVE_MAX_MB TEMPLATES_URL VOLUME_FILTER PROXY_URL PROXY_USERNAME PROXY_BYPASS UPDATE_CHECK NOTIFY_EVENTS DASHBOARD_URL)
+DASHBOARD_SETTINGS=(SECURE_COOKIE ALLOWED_HOSTS DESKTOP_IMAGE DESKTOP_USER_NAMESPACES DESKTOP_PIDS_LIMIT DESKTOP_ADDRESS_POOL WSL_GPU NVIDIA_COMPUTE GPU_ADAPTER AUDIO_ENABLED MICROPHONE_ENABLED INTERNET_ENABLED SUDO_ENABLED GAMEPAD_ENABLED VPN_ENABLED GPU_DEFAULT INTERNET_DEFAULT SUDO_DEFAULT AUDIO_DEFAULT MICROPHONE_DEFAULT GAMEPAD_DEFAULT VPN_DEFAULT IDLE_STOP_DEFAULT UPLOAD_MAX_MB IMAGE_ARCHIVE_MAX_MB TEMPLATES_URL VOLUME_FILTER PROXY_URL PROXY_USERNAME PROXY_BYPASS UPDATE_CHECK NOTIFY_URL NOTIFY_EVENTS DASHBOARD_URL)
+# Those of them that are secrets, EDITABLE_SECRETS in core/manager/src/config.rs: apply-settings
+# writes their values into .env alone, never into its output, which is the dashboard job's log.
+DASHBOARD_SECRETS=(NOTIFY_URL)
 # How long apply-settings waits for the manager to answer with the new settings, and an update for
 # the new manager, which may first move its database to a new layout, in seconds.
 SETTINGS_WAIT=90
@@ -400,6 +403,13 @@ dashboard_setting() {
     done
     return 1
 }
+dashboard_secret() {
+    local name
+    for name in "${DASHBOARD_SECRETS[@]}"; do
+        if [[ $1 == "$name" ]]; then return 0; fi
+    done
+    return 1
+}
 # Whether the manager answers its health check within the seconds given, SETTINGS_WAIT unless
 # named, asked inside its container, so whatever address Compose publishes it on. A manager that
 # refuses its settings or its database exits, and Docker starts it again.
@@ -413,24 +423,35 @@ manager_answers() {
     done
     return 1
 }
+# Leave only the first line, the dashboard job's, in a request apply-settings has read: the next
+# manager reads that line to follow the job, and the rest can hold a secret such as NOTIFY_URL,
+# which then stays in .env alone.
+forget_request() {
+    printf '%s\n' "$2" | sudo tee "$1.new" >/dev/null
+    sudo mv -f "$1.new" "$1"
+}
 # A settings change the dashboard asked for: the request's first line names the dashboard's job,
 # and each line after it is KEY=value for one of DASHBOARD_SETTINGS. Nothing changes unless every
 # line is one; then only those lines of .env change, in place, a missing one is added at the end
 # and the rest of the file, comments and order, stays. The previous file is kept as .env.previous,
-# and is put back when the manager does not answer with the new one.
+# and is put back when the manager does not answer with the new one. The output names the value of
+# a secret of DASHBOARD_SECRETS as [hidden].
 apply_settings() {
-    local request=$1 line key value count=0 i
-    local -a keys=() values=()
+    local request=$1 line key value i
+    local -a keys=() values=() lines=()
     local -A asked=()
     while IFS= read -r line || [[ -n $line ]]; do
-        count=$((count + 1))
-        if ((count == 1)); then
-            continue
+        lines+=("$line")
+        if ((${#lines[@]} > ${#DASHBOARD_SETTINGS[@]} + 1)); then
+            break
         fi
-        if ((count > ${#DASHBOARD_SETTINGS[@]} + 1)); then
-            echo "The request asks for more settings than the dashboard can change; nothing was changed." >&2
-            return 1
-        fi
+    done <"$request"
+    forget_request "$request" "${lines[0]:-}"
+    if ((${#lines[@]} > ${#DASHBOARD_SETTINGS[@]} + 1)); then
+        echo "The request asks for more settings than the dashboard can change; nothing was changed." >&2
+        return 1
+    fi
+    for line in "${lines[@]:1}"; do
         key=${line%%=*}
         value=${line#*=}
         if [[ $line != *=* ]] || ! dashboard_setting "$key"; then
@@ -448,7 +469,7 @@ apply_settings() {
         asked[$key]=1
         keys+=("$key")
         values+=("$value")
-    done <"$request"
+    done
     if ((${#keys[@]} == 0)); then
         echo "The request changes no setting; nothing was changed." >&2
         return 1
@@ -463,7 +484,11 @@ apply_settings() {
     echo "The dashboard asks for these settings:"
     for i in "${!keys[@]}"; do
         changes+="${keys[i]}=${values[i]}"$'\n'
-        echo "  ${keys[i]}=${values[i]}"
+        if [[ -n ${values[i]} ]] && dashboard_secret "${keys[i]}"; then
+            echo "  ${keys[i]}=[hidden]"
+        else
+            echo "  ${keys[i]}=${values[i]}"
+        fi
     done
     # Values go through the environment, so awk reads them as they are.
     CHANGES=$changes awk '

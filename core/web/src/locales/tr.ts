@@ -1102,6 +1102,10 @@ export const tr: Messages = {
   "settings.edit.problem.text":
     "Tırnak, $, #, ters eğik çizgi, ters tırnak ve baştaki ya da sondaki boşluk olmadan tek satır yazdırılabilir ASCII kullanın.",
   "settings.edit.problem.number": "{min} ile {max} arasında bir tam sayı girin.",
+  "settings.edit.secretReplace": "Gizli, yenisini yazın",
+  "settings.edit.secretRemoving": "Uyguladığınızda kaldırılır",
+  "settings.edit.secretRemove": "{name} değerini kaldır",
+  "settings.edit.secretNew": "Yeni bir değer, gizli",
   "settings.choice.automatic": "Otomatik",
   "settings.choice.wiki": "Thoric wiki",
   "settings.choice.off": "Kapalı",
@@ -1191,7 +1195,7 @@ export const tr: Messages = {
   "settings.about.MANAGER_CONTAINER": "Manager'ın kendi konteyneri; Thoric ona dokunmaz.",
   "settings.about.UPDATE_CHECK": "Altı saatte bir GitHub'da yeni sürüm arar.",
   "settings.about.NOTIFY_URL":
-    "Bildirimlerin gittiği yer: ntfy, Discord, Slack, Telegram ya da bir JSON webhook. Kimlik bilgilerini taşıdığı için yalnızca .env içinde, thoric settings ile değişir.",
+    "Bildirimlerin gittiği yer: ntfy, Discord, Slack, Telegram ya da bir JSON webhook. Kimlik bilgilerini taşıdığı için hiç gösterilmez, yalnızca yeni bir adresle değiştirilir.",
   "settings.about.NOTIFY_EVENTS":
     "Gönderilenler: human_request, job_failed, update_available ve container_lifecycle, virgülle ayrılarak.",
   "settings.about.DASHBOARD_URL":
@@ -1205,6 +1209,8 @@ export const tr: Messages = {
   "notify.off": "Kurulu değil",
   "notify.notSet":
     "Bildirimleri ntfy, Discord, Slack, Telegram ya da kendi webhook'unuzla almak için .env içinde NOTIFY_URL değerini verin; WSL paketinde thoric settings ile.",
+  "notify.notSetHere":
+    "Bildirimleri ntfy, Discord, Slack, Telegram ya da kendi webhook'unuzla almak için aşağıdaki Bildirimler bölümünde NOTIFY_URL değerini verin.",
   "notify.sends": "Gönderilenler",
   "notify.nothing": "Hiçbir şey",
   "notify.event.human_request": "Kişiden istenenler",

@@ -2,6 +2,7 @@ import * as React from "react"
 import {
   RiAlertLine,
   RiArrowGoBackLine,
+  RiDeleteBinLine,
   RiInformationLine,
   RiLockLine,
   RiTerminalBoxLine,
@@ -150,6 +151,64 @@ type Edit = {
   error?: string
   disabled: boolean
   onChange: (text: string, other?: boolean) => void
+  /** A secret, whose value the page never has: only a new one, or its removal, is typed here. */
+  secret?: { set: boolean; removing: boolean; onRemove: () => void }
+}
+
+/**
+ * A secret's field: empty while it stays as it is, a new value that replaces it, or removed. What
+ * it holds now is never shown, since the page never gets it.
+ */
+function SecretControl({
+  name,
+  edit,
+  secret,
+}: {
+  name: string
+  edit: Edit
+  secret: NonNullable<Edit["secret"]>
+}) {
+  const remove = t("settings.edit.secretRemove", { name })
+  return (
+    <div className="flex w-full items-center gap-1 @md/settings:justify-end">
+      <Input
+        id={`setting-${name}`}
+        aria-label={name}
+        aria-invalid={edit.error ? true : undefined}
+        type="password"
+        value={edit.text}
+        placeholder={
+          secret.removing
+            ? t("settings.edit.secretRemoving")
+            : secret.set
+              ? t("settings.edit.secretReplace")
+              : t("settings.notSet")
+        }
+        spellCheck={false}
+        autoComplete="new-password"
+        disabled={edit.disabled || secret.removing}
+        onChange={(event) => edit.onChange(event.target.value)}
+        className="min-w-0 flex-1 font-mono text-xs"
+      />
+      {secret.set && !secret.removing && edit.text === "" && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="shrink-0 text-muted-foreground"
+              aria-label={remove}
+              disabled={edit.disabled}
+              onClick={secret.onRemove}
+            >
+              <RiDeleteBinLine />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{remove}</TooltipContent>
+        </Tooltip>
+      )}
+    </div>
+  )
 }
 
 /**
@@ -160,6 +219,7 @@ function Control({ name, edit, idle }: { name: string; edit: Edit; idle: boolean
   const field = fieldOf(name)
   const id = `setting-${name}`
   const invalid = edit.error ? true : undefined
+  if (edit.secret) return <SecretControl name={name} edit={edit} secret={edit.secret} />
   if (field.kind === "switch")
     return (
       <Switch
@@ -354,10 +414,7 @@ function ApplyDialog({
 }) {
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string>()
-  const before = (name: string) => {
-    const variable = variables.find((entry) => entry.name === name)
-    return variable ? initialText(variable) : ""
-  }
+  const variableOf = (name: string) => variables.find((entry) => entry.name === name)
   const apply = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!pending) return
@@ -377,6 +434,20 @@ function ApplyDialog({
   }
   const shown = (text: string) =>
     text === "" ? <span className="text-muted-foreground">{t("settings.notSet")}</span> : text
+  // A secret reads as whether it is set, before and after: the page never has its value, and
+  // never repeats the one typed.
+  const before = (name: string) => {
+    const variable = variableOf(name)
+    if (variable?.secret)
+      return (
+        <span className="text-muted-foreground">
+          {variable.set ? t("settings.secretSet") : t("settings.notSet")}
+        </span>
+      )
+    return shown(variable ? initialText(variable) : "")
+  }
+  const after = (name: string, text: string) =>
+    variableOf(name)?.secret && text !== "" ? t("settings.edit.secretNew") : shown(text)
   return (
     <AlertDialog open={!!pending} onOpenChange={(open) => !open && !busy && onClose()}>
       <AlertDialogContent>
@@ -391,8 +462,8 @@ function ApplyDialog({
                 <li key={name} className="flex flex-col gap-0.5">
                   <code className="font-mono font-medium">{name}</code>
                   <span className="font-mono break-all text-muted-foreground">
-                    {shown(before(name))} {"→"}{" "}
-                    <span className="text-foreground">{shown(text)}</span>
+                    {before(name)} {"→"}{" "}
+                    <span className="text-foreground">{after(name, text)}</span>
                   </span>
                 </li>
               ))}
@@ -511,7 +582,7 @@ export function ConfigurationEditor() {
     )
 
   const editable = !!data.editable
-  const canEdit = (variable: ConfigVariable) => editable && !variable.secret && !!variable.editable
+  const canEdit = (variable: ConfigVariable) => editable && !!variable.editable
   const textOf = (variable: ConfigVariable) => draft[variable.name] ?? initialText(variable)
   // A switch reads as the draft has it, so a default goes idle as soon as its feature is off.
   const idle = idleSettings(data.variables, (name) => {
@@ -627,7 +698,19 @@ export function ConfigurationEditor() {
                                 other: other[name] ?? false,
                                 error: problem(name),
                                 disabled: !!job,
-                                onChange: (text, custom) => set(variable, text, custom),
+                                // A secret's field emptied again leaves it as it is; only
+                                // its remove button takes it away.
+                                onChange: (text, custom) =>
+                                  variable.secret && text === ""
+                                    ? reset(name)
+                                    : set(variable, text, custom),
+                                secret: variable.secret
+                                  ? {
+                                      set: variable.set,
+                                      removing: draft[name] === "",
+                                      onRemove: () => set(variable, ""),
+                                    }
+                                  : undefined,
                               }
                             : undefined
                         }

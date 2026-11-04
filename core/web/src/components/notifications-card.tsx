@@ -56,7 +56,13 @@ export function NotificationsCard() {
     <Card>
       <CardHeader>
         <CardTitle>{t("notify.title")}</CardTitle>
-        <CardDescription>{set ? t("notify.description") : t("notify.notSet")}</CardDescription>
+        <CardDescription>
+          {set
+            ? t("notify.description")
+            : url?.secret && url.editable && configuration.editable
+              ? t("notify.notSetHere")
+              : t("notify.notSet")}
+        </CardDescription>
         <CardAction>
           <StatusBadge
             state={set ? "on" : "off"}

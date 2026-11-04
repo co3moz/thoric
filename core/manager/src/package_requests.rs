@@ -18,7 +18,7 @@ use std::{
     sync::Arc,
     time::Duration,
 };
-use tokio::io::{AsyncReadExt, AsyncSeekExt};
+use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 
 /// One kind of request: the names of its files in the folder and of what takes it.
 pub(crate) struct Channel {
@@ -62,18 +62,19 @@ pub(crate) async fn request(
     timing: Timing,
 ) -> anyhow::Result<String> {
     let dir = &app.config.update_dir;
-    // What the last request left; the request alone names this job.
+    // Renamed into place, so the path unit never finds half a request.
+    let partial = dir.join(format!("{}.new", channel.request));
+    // What the last request left, also half of one; the request alone names this job.
     for name in [channel.request, channel.started, channel.log, channel.exit] {
         remove(&dir.join(name)).await?;
     }
+    remove(&partial).await?;
     let mut body = format!("{id}\n");
     for line in lines {
         body.push_str(line);
         body.push('\n');
     }
-    // Renamed into place, so the path unit never finds half a request.
-    let partial = dir.join(format!("{}.new", channel.request));
-    tokio::fs::write(&partial, body)
+    write_private(&partial, &body)
         .await
         .with_context(|| format!("Could not write {}", partial.display()))?;
     tokio::fs::rename(&partial, dir.join(channel.request)).await?;
@@ -217,6 +218,20 @@ async fn read_text(path: &Path) -> anyhow::Result<Option<String>> {
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
         Err(error) => Err(error).with_context(|| format!("Could not read {}", path.display())),
     }
+}
+
+/// Write a new file only its owner reads: a settings change can carry a secret such as
+/// `NOTIFY_URL`, and the folder is the distribution's, where anyone may list it. The service that
+/// takes the request runs as root.
+async fn write_private(path: &Path, body: &str) -> std::io::Result<()> {
+    let mut options = tokio::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    options.mode(0o600);
+    let mut file = options.open(path).await?;
+    file.write_all(body.as_bytes()).await?;
+    // A tokio file finishes its last write in the background unless asked to wait for it.
+    file.flush().await
 }
 
 async fn remove(path: &Path) -> anyhow::Result<()> {

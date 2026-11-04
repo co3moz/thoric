@@ -112,6 +112,7 @@ test("a draft changes only what differs, and only editable settings", () => {
     { name: "UPLOAD_MAX_MB", value: 1024, editable: true, text: "1024" },
     { name: "AUTH_MODE", value: "password", editable: false },
     { name: "ADMIN_PASSWORD", secret: true, set: true },
+    { name: "NOTIFY_URL", secret: true, set: true, editable: true },
   ]
   assert.deepEqual(
     changesOf(variables, {
@@ -122,6 +123,13 @@ test("a draft changes only what differs, and only editable settings", () => {
     }),
     { SECURE_COOKIE: "true" }
   )
+  // The page never has an editable secret's value, so one in the draft replaces it, and an empty
+  // one removes it.
+  assert.deepEqual(changesOf(variables, { NOTIFY_URL: "https://ntfy.sh/phone" }), {
+    NOTIFY_URL: "https://ntfy.sh/phone",
+  })
+  assert.deepEqual(changesOf(variables, { NOTIFY_URL: "" }), { NOTIFY_URL: "" })
+  assert.deepEqual(changesOf(variables, {}), {})
 })
 
 test("a text is refused before the manager is asked, as .env would misread it", () => {
