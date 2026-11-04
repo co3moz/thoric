@@ -65,6 +65,10 @@ pub struct ContainerSpec {
     pub memory_mb: Option<u64>,
     #[serde(default = "shm")]
     pub shm_mb: u64,
+    /// The size of the desktop's `/tmp`, a tmpfs that keeps its files in memory, where they
+    /// count against the container's memory limit.
+    #[serde(default = "tmp")]
+    pub tmp_mb: u64,
     #[serde(default)]
     pub mounts: Vec<Mount>,
     /// When the manager stops or deletes the container by itself (see `lifecycle`). It is the
@@ -84,6 +88,9 @@ pub(crate) fn is_true(value: &bool) -> bool {
     *value
 }
 fn shm() -> u64 {
+    512
+}
+fn tmp() -> u64 {
     512
 }
 
@@ -113,6 +120,9 @@ impl ContainerSpec {
         }
         if self.shm_mb < 64 || self.shm_mb > u64::MAX / 1_048_576 {
             bail!("Shared memory must be at least 64 MB");
+        }
+        if self.tmp_mb < 64 || self.tmp_mb > u64::MAX / 1_048_576 {
+            bail!("The /tmp folder must be at least 64 MB");
         }
         if self.microphone && !self.audio {
             bail!("Enable audio to use the microphone");

@@ -38,6 +38,7 @@ export type MountDraft = Mount & { key: number }
 export type SpecDraft = {
   resolution: string
   shm_mb: string
+  tmp_mb: string
   cpus: string
   memory_mb: string
   ports: string
@@ -57,6 +58,7 @@ export function specDraft(spec: Partial<ContainerSpec>, settings?: Settings): Sp
   return {
     resolution: spec.resolution || RESOLUTIONS[0],
     shm_mb: String(spec.shm_mb ?? 512),
+    tmp_mb: String(spec.tmp_mb ?? 512),
     cpus: spec.cpus ? String(spec.cpus) : "",
     memory_mb: spec.memory_mb ? String(spec.memory_mb) : "",
     ...featureDraft(spec, settings),
@@ -74,6 +76,7 @@ export function specBody(draft: SpecDraft) {
   return {
     resolution: draft.resolution,
     shm_mb: number(draft.shm_mb),
+    tmp_mb: number(draft.tmp_mb),
     cpus: number(draft.cpus),
     memory_mb: number(draft.memory_mb),
     ...Object.fromEntries(FLAGS.map((flag) => [flag, draft[flag]])),

@@ -35,6 +35,7 @@ const spec: ContainerSpec = {
   cpus: null,
   memory_mb: null,
   shm_mb: 512,
+  tmp_mb: 512,
   mounts: [],
 }
 

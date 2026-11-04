@@ -40,6 +40,7 @@ const EDITABLE: &[&str] = &[
     "cpus",
     "memory_mb",
     "shm_mb",
+    "tmp_mb",
     "mounts",
     "lifecycle",
 ];
@@ -122,7 +123,7 @@ pub(crate) fn classify(old: &ContainerSpec, new: &ContainerSpec) -> Changes {
         new.memory_mb.is_some(),
         "memory_mb",
     );
-    // Environment variables, devices, shared memory and mounts are fixed at creation.
+    // Environment variables, devices, shared memory, /tmp and mounts are fixed at creation.
     note(old.gpu != new.gpu, false, "gpu");
     note(old.audio != new.audio, false, "audio");
     note(old.microphone != new.microphone, false, "microphone");
@@ -142,6 +143,7 @@ pub(crate) fn classify(old: &ContainerSpec, new: &ContainerSpec) -> Changes {
     note(old.mac_address != new.mac_address, false, "mac_address");
     note(old.machine_id != new.machine_id, false, "machine_id");
     note(old.shm_mb != new.shm_mb, false, "shm_mb");
+    note(old.tmp_mb != new.tmp_mb, false, "tmp_mb");
     let by_target = |mounts: &[Mount]| {
         let mut mounts = mounts.to_vec();
         mounts.sort_by(|a, b| a.target.cmp(&b.target));

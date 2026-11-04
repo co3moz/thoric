@@ -104,7 +104,7 @@ export function ScreenFields({
           </>
         )}
       </Field>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field>
           <FieldLabel htmlFor={`${id}-cpus`}>{t("spec.cpuLimit")}</FieldLabel>
           <Input
@@ -139,7 +139,19 @@ export function ScreenFields({
             onChange={(event) => set({ shm_mb: event.target.value })}
           />
         </Field>
+        <Field>
+          <FieldLabel htmlFor={`${id}-tmp`}>{t("spec.tmpSize")}</FieldLabel>
+          <Input
+            id={`${id}-tmp`}
+            type="number"
+            min={64}
+            required
+            value={draft.tmp_mb}
+            onChange={(event) => set({ tmp_mb: event.target.value })}
+          />
+        </Field>
       </div>
+      <FieldDescription>{t("spec.inMemoryHint")}</FieldDescription>
     </FieldGroup>
   )
 }

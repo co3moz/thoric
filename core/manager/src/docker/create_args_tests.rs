@@ -15,6 +15,7 @@ fn a_recreated_container_gets_every_setting_from_the_commit_that_holds_its_files
     spec.gamepad = true;
     spec.vpn = true;
     spec.shm_mb = 1024;
+    spec.tmp_mb = 2048;
     spec.memory_mb = Some(2048);
     spec.mounts = vec![Mount {
         volume: "work".into(),
@@ -42,6 +43,7 @@ fn a_recreated_container_gets_every_setting_from_the_commit_that_holds_its_files
         seccomp.as_str(),
         "--name thoric-args-id",
         "--shm-size 1024m",
+        "--tmpfs /tmp:rw,nosuid,size=2048m",
         "--env DESKTOP_RESOLUTION=1280x720",
         "--env DESKTOP_AUDIO=true",
         "--env DESKTOP_GPU=true",

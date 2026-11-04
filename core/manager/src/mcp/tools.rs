@@ -147,6 +147,7 @@ pub(super) static TOOLS: LazyLock<Vec<Tool>> = LazyLock::new(|| {
                 "mcp_endpoint":{"type":"boolean","default":true,"description":"Create an MCP endpoint at /mcp/NAME for the new container, named after it, with every scope but commands and all its desktop MCP servers, without a token of its own yet (create_mcp_endpoint_token)."},
                 "cpus":{"type":["number","null"],"exclusiveMinimum":0},"memory_mb":{"type":["integer","null"],"minimum":256},
                 "shm_mb":{"type":"integer","minimum":64,"default":512},
+                "tmp_mb":{"type":"integer","minimum":64,"default":512,"description":"Size of /tmp in MiB. It is a tmpfs that keeps its files in memory, counted against memory_mb, so large or growing files such as logs belong in a volume or the home folder instead."},
                 "mounts":{"type":"array","default":[],"items":schema(json!({"volume":text,"target":text,"readonly":{"type":"boolean","default":false}}), &["volume","target"])},
                 "lifecycle":lifecycle_schema()
             }),
@@ -175,7 +176,7 @@ pub(super) static TOOLS: LazyLock<Vec<Tool>> = LazyLock::new(|| {
         ),
         tool(
             "update_container",
-            "Change an existing container's settings; pass only the fields to change. name, internet, ports, groups, aliases and a new or changed cpus/memory_mb limit apply in place, as do proxy_password, changes to a proxy the container has and lifecycle, which Thoric alone reads. resolution changes the running desktop's screen in place, so applications keep running but see the new size, and the desktop gets it again whenever it starts. gpu, audio, microphone, sudo, gamepad, vpn, turning proxy on or off, hostname, mac_address, machine_id, shm_mb, mounts and removing a limit (null) recreate the container: the desktop restarts and running applications close, while the files in its container layer are kept, and the previous container is restored when the new desktop is not ready. A feature the installation switched off (get_settings, such as internet_enabled false) can be turned off but not on. dry_run=true returns the live and restart lists without changing anything. Returns job_id otherwise; get_job lists the stages of a change that recreates the container.",
+            "Change an existing container's settings; pass only the fields to change. name, internet, ports, groups, aliases and a new or changed cpus/memory_mb limit apply in place, as do proxy_password, changes to a proxy the container has and lifecycle, which Thoric alone reads. resolution changes the running desktop's screen in place, so applications keep running but see the new size, and the desktop gets it again whenever it starts. gpu, audio, microphone, sudo, gamepad, vpn, turning proxy on or off, hostname, mac_address, machine_id, shm_mb, tmp_mb, mounts and removing a limit (null) recreate the container: the desktop restarts and running applications close, while the files in its container layer are kept, and the previous container is restored when the new desktop is not ready. A feature the installation switched off (get_settings, such as internet_enabled false) can be turned off but not on. dry_run=true returns the live and restart lists without changing anything. Returns job_id otherwise; get_job lists the stages of a change that recreates the container.",
             json!({
                 "container_id":id,"dry_run":{"type":"boolean","default":false},
                 "name":{"type":"string","minLength":1,"maxLength":100},
@@ -185,7 +186,7 @@ pub(super) static TOOLS: LazyLock<Vec<Tool>> = LazyLock::new(|| {
                 "groups":group_schemas().0,"aliases":group_schemas().1,
                 "hostname":{"type":"string","maxLength":63},"mac_address":{"type":"string"},"machine_id":{"type":"string"},
                 "cpus":{"type":["number","null"],"exclusiveMinimum":0},"memory_mb":{"type":["integer","null"],"minimum":256},
-                "shm_mb":{"type":"integer","minimum":64},
+                "shm_mb":{"type":"integer","minimum":64},"tmp_mb":{"type":"integer","minimum":64},
                 "mounts":{"type":"array","items":schema(json!({"volume":text,"target":text,"readonly":{"type":"boolean","default":false}}), &["volume","target"])},
                 "lifecycle":lifecycle_schema()
             }),

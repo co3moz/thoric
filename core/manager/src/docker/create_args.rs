@@ -31,7 +31,7 @@ impl App {
             "--tmpfs",
             "/run:rw,nosuid,size=128m",
             "--tmpfs",
-            "/tmp:rw,nosuid,size=512m",
+            &format!("/tmp:rw,nosuid,size={}m", env.spec.tmp_mb),
         ]
         .into_iter()
         .map(str::to_owned)

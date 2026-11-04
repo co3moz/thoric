@@ -398,6 +398,7 @@ export const fr: Messages = {
   "restart.field.mac_address": "l'adresse MAC",
   "restart.field.machine_id": "l'identifiant de machine",
   "restart.field.shm_mb": "la mémoire partagée",
+  "restart.field.tmp_mb": "la taille de /tmp",
   "restart.field.mounts": "le montage des volumes",
   "restart.field.cpus": "la suppression de la limite CPU",
   "restart.field.memory_mb": "la suppression de la limite de mémoire",
@@ -1395,6 +1396,9 @@ export const fr: Messages = {
   "spec.resolution.height": "Hauteur",
   "spec.resolution.customHint": "Toute taille de {min} à {max}.",
   "spec.sharedMemory": "Mémoire partagée (MB)",
+  "spec.tmpSize": "Taille de /tmp (MB)",
+  "spec.inMemoryHint":
+    "La mémoire partagée et /tmp résident en mémoire vive et comptent dans la limite de mémoire.",
   "spec.cpuLimit": "Limite CPU",
   "spec.unlimited": "Illimité",
   "spec.memoryLimit": "Limite de mémoire (MB)",
