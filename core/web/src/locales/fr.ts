@@ -1127,6 +1127,8 @@ export const fr: Messages = {
   "settings.choice.ownLabel": "Le label de Thoric",
   "settings.choice.everyVolume": "Tous les volumes",
   "settings.choice.custom": "Autre",
+  "settings.choice.thoricRange": "La plage de Thoric",
+  "settings.choice.dockerPools": "Les pools d'adresses de Docker",
   "settings.about.AUTH_MODE":
     "password demande le mot de passe administrateur ; none désactive la connexion.",
   "settings.about.ADMIN_USERNAME": "Le nom d'utilisateur de l'administrateur.",
@@ -1149,6 +1151,8 @@ export const fr: Messages = {
     "Permet aux navigateurs et aux applications Electron des bureaux de lancer leur sandbox.",
   "settings.about.DESKTOP_PIDS_LIMIT":
     "Le nombre maximal de processus et de threads d'un bureau, au moins 1024 ; 0 pour aucune limite.",
+  "settings.about.DESKTOP_ADDRESS_POOL":
+    "La plage dans laquelle les réseaux des bureaux prennent de petits sous-réseaux, une que votre LAN et vos VPN n'utilisent pas ; docker laisse ce choix aux pools de Docker, épuisés vers 14 bureaux.",
   "settings.about.AUDIO_ENABLED": "Le son du bureau dans le navigateur.",
   "settings.about.MICROPHONE_ENABLED": "Le micro du navigateur dans les bureaux ; requiert le son.",
   "settings.about.INTERNET_ENABLED": "Si les conteneurs peuvent avoir accès à Internet.",

@@ -1108,6 +1108,8 @@ export const tr: Messages = {
   "settings.choice.ownLabel": "Thoric'in kendi etiketi",
   "settings.choice.everyVolume": "Tüm volume'lar",
   "settings.choice.custom": "Diğer",
+  "settings.choice.thoricRange": "Thoric'in kendi aralığı",
+  "settings.choice.dockerPools": "Docker'ın adres havuzları",
   "settings.about.AUTH_MODE": "password yönetici parolasını sorar; none girişi kapatır.",
   "settings.about.ADMIN_USERNAME": "Yöneticinin kullanıcı adı.",
   "settings.about.ADMIN_PASSWORD": "Yöneticinin parolası.",
@@ -1129,6 +1131,8 @@ export const tr: Messages = {
     "Masaüstlerindeki tarayıcıların ve Electron uygulamalarının sandbox'ını açmasına izin verir.",
   "settings.about.DESKTOP_PIDS_LIMIT":
     "Bir masaüstünün çalıştırabileceği en fazla süreç ve iş parçacığı, en az 1024; sınırsız için 0.",
+  "settings.about.DESKTOP_ADDRESS_POOL":
+    "Masaüstü ağlarının küçük alt ağlarını aldığı aralık; LAN'ınızın ve VPN'lerinizin kullanmadığı bir aralık seçin. docker, seçimi yaklaşık 14 masaüstünde tükenen Docker'ın kendi havuzlarına bırakır.",
   "settings.about.AUDIO_ENABLED": "Masaüstü sesi tarayıcıda.",
   "settings.about.MICROPHONE_ENABLED": "Tarayıcının mikrofonu masaüstlerinde; ses gerekir.",
   "settings.about.INTERNET_ENABLED": "Konteynerlerin internet erişimi olup olamayacağı.",

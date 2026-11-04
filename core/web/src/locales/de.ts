@@ -1127,6 +1127,8 @@ export const de: Messages = {
   "settings.choice.ownLabel": "Thorics eigenes Label",
   "settings.choice.everyVolume": "Jedes Volume",
   "settings.choice.custom": "Andere",
+  "settings.choice.thoricRange": "Thorics eigener Bereich",
+  "settings.choice.dockerPools": "Adresspools von Docker",
   "settings.about.AUTH_MODE":
     "password fragt nach dem Administratorpasswort; none schaltet die Anmeldung aus.",
   "settings.about.ADMIN_USERNAME": "Der Benutzername des Administrators.",
@@ -1149,6 +1151,8 @@ export const de: Messages = {
     "Lässt Browser und Electron-Apps in Desktops ihre Sandbox starten.",
   "settings.about.DESKTOP_PIDS_LIMIT":
     "Wie viele Prozesse und Threads ein Desktop höchstens ausführt, mindestens 1024; 0 für keine Grenze.",
+  "settings.about.DESKTOP_ADDRESS_POOL":
+    "Der Bereich, aus dem die Netzwerke der Desktops kleine Subnetze nehmen, einer, den LAN und VPNs nicht nutzen; docker überlässt es Dockers eigenen Pools, die bei etwa 14 Desktops erschöpft sind.",
   "settings.about.AUDIO_ENABLED": "Desktop-Ton im Browser.",
   "settings.about.MICROPHONE_ENABLED": "Das Mikrofon des Browsers in Desktops; braucht Ton.",
   "settings.about.INTERNET_ENABLED": "Ob Container Internetzugang haben dürfen.",

@@ -1113,6 +1113,8 @@ export const es: Messages = {
   "settings.choice.ownLabel": "La etiqueta de Thoric",
   "settings.choice.everyVolume": "Todos los volúmenes",
   "settings.choice.custom": "Otro",
+  "settings.choice.thoricRange": "El rango de Thoric",
+  "settings.choice.dockerPools": "Los pools de direcciones de Docker",
   "settings.about.AUTH_MODE":
     "password pide la contraseña del administrador; none desactiva el inicio de sesión.",
   "settings.about.ADMIN_USERNAME": "El nombre de usuario del administrador.",
@@ -1135,6 +1137,8 @@ export const es: Messages = {
     "Permite que los navegadores y las apps Electron de los escritorios inicien su sandbox.",
   "settings.about.DESKTOP_PIDS_LIMIT":
     "El máximo de procesos e hilos que ejecuta un escritorio, al menos 1024; 0 para ningún límite.",
+  "settings.about.DESKTOP_ADDRESS_POOL":
+    "El rango del que las redes de los escritorios toman subredes pequeñas, uno que tu LAN y tus VPN no usen; docker lo deja a los pools propios de Docker, que se agotan hacia los 14 escritorios.",
   "settings.about.AUDIO_ENABLED": "El sonido del escritorio en el navegador.",
   "settings.about.MICROPHONE_ENABLED":
     "El micrófono del navegador en los escritorios; necesita sonido.",

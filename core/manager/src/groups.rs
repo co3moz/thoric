@@ -13,7 +13,7 @@
 //! so with `vnc_private`.
 use crate::{
     App,
-    docker::{Reach, create_args, isolated},
+    docker::{GROUP_PREFIX, Reach, isolated},
     model::{CONTAINERS, Container, ContainerSpec, LABEL},
 };
 use anyhow::{Context, Result, bail};
@@ -267,13 +267,11 @@ impl App {
         Ok(id.to_owned())
     }
 
+    /// A group's network, in a /24 of `DESKTOP_ADDRESS_POOL` for its members.
     async fn create_group_network(&self, group: &str) -> Result<Value> {
         let labels = [format!("{LABEL}=true"), format!("{GROUP_LABEL}={group}")];
         let reach = self.internal_reach().await;
-        let id = self
-            .docker_args(&create_args(&network(group), &labels, reach, None))
-            .await?;
-        self.inspect("network", String::from_utf8_lossy(&id).trim())
+        self.make_network(&network(group), &labels, reach, None, GROUP_PREFIX)
             .await
     }
 

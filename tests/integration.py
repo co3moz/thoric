@@ -7,6 +7,7 @@ import gzip
 import hashlib
 import http.cookiejar
 import io
+import ipaddress
 import json
 import math
 import os
@@ -127,6 +128,12 @@ cache_volume = f"thoric-test-cache-{tag}"
 settings_volume = f"thoric-test-settings-{tag}"
 absent_volume = f"thoric-test-absent-{tag}"
 outside_volume = f"thoric-test-outside-{tag}"
+# The range of the run's own manager, apart from the default one an installation in another WSL
+# distribution uses, since every distribution shares one network namespace and the bridges of one
+# that stopped stay in it.
+address_pool = "10.214.0.0/16"
+# Networks that fill Docker's own address pools for a phase.
+fillers = []
 password = uuid.uuid4().hex
 mcp_token = uuid.uuid4().hex + uuid.uuid4().hex
 metrics_token = uuid.uuid4().hex
@@ -289,7 +296,7 @@ def job(response):
 
 
 def start_manager():
-    docker("run", "-d", "--name", manager, "--label", "thoric.manager=true", "-e", f"MANAGER_CONTAINER={manager}", "-e", "AUTH_MODE=password", "-e", f"ADMIN_PASSWORD={password}", "-e", "ROOT_MCP_ENABLED=true", "-e", "GPU_DEFAULT=false", "-e", f"MCP_TOKEN={mcp_token}", "-e", f"METRICS_TOKEN={metrics_token}", "-e", "GPU_ADAPTER=NVIDIA", "-e", f"NOTIFY_URL={notify_url}", "-e", "NOTIFY_EVENTS=human_request,job_failed", "-e", f"DASHBOARD_URL={dashboard_url}", "-v", "/var/run/docker.sock:/var/run/docker.sock", "-v", f"{volume}:/data", "-p", f"127.0.0.1:{port or ''}:8080", "thoric/manager:local")
+    docker("run", "-d", "--name", manager, "--label", "thoric.manager=true", "-e", f"MANAGER_CONTAINER={manager}", "-e", "AUTH_MODE=password", "-e", f"ADMIN_PASSWORD={password}", "-e", "ROOT_MCP_ENABLED=true", "-e", "GPU_DEFAULT=false", "-e", f"DESKTOP_ADDRESS_POOL={address_pool}", "-e", f"MCP_TOKEN={mcp_token}", "-e", f"METRICS_TOKEN={metrics_token}", "-e", "GPU_ADAPTER=NVIDIA", "-e", f"NOTIFY_URL={notify_url}", "-e", "NOTIFY_EVENTS=human_request,job_failed", "-e", f"DASHBOARD_URL={dashboard_url}", "-v", "/var/run/docker.sock:/var/run/docker.sock", "-v", f"{volume}:/data", "-p", f"127.0.0.1:{port or ''}:8080", "thoric/manager:local")
     return int(docker("port", manager, "8080/tcp").decode().strip().rsplit(":", 1)[1])
 
 
@@ -664,6 +671,64 @@ try:
     assert len(api("containers")) == before
     docker("image", "rm", newer_ref)
     print("PASS a desktop image made for a newer Thoric is refused with the reason", flush=True)
+    # Every network the manager makes takes a small subnet of DESKTOP_ADDRESS_POOL, a /28 for a
+    # desktop's private and internet networks and a /24 for a group's, instead of a whole one of
+    # Docker's default address pools, which a stock daemon ran out of at about 14 desktops. The
+    # pools are filled first with internal networks that have no address on the host, so nothing
+    # on the host routes differently meanwhile; an engine that cannot make those fills nothing.
+    pool = ipaddress.ip_network(address_pool)
+    api_version = tuple(map(int, docker("version", "--format", "{{.Server.APIVersion}}").decode().strip().split(".")))
+    filled = False
+    pool_group = f"p-{tag}"
+    try:
+        while api_version >= (1, 48) and len(fillers) < 64:
+            name = f"thoric-test-filler-{tag}-{len(fillers)}"
+            made = subprocess.run(["docker", "network", "create", "--internal", "--opt", "com.docker.network.bridge.gateway_mode_ipv4=isolated", "--label", f"thoric.test={tag}", name], capture_output=True, timeout=120)
+            if made.returncode:
+                assert b"fully subnetted" in made.stderr, made.stderr
+                filled = True
+                break
+            fillers.append(name)
+        pooled = []
+        for n in range(2):
+            pooled.append(job(api("containers", {"name": f"Pooled {n}", "image": xfce["reference"], "gpu": False, "internet": n == 0, "groups": [pool_group]}))["container_id"])
+            container_ids.append(pooled[-1])
+
+        def ipv4_subnet(name):
+            configs = json.loads(docker("network", "inspect", name))[0]["IPAM"]["Config"] or []
+            subnets = [subnet for subnet in (ipaddress.ip_network(c["Subnet"]) for c in configs) if subnet.version == 4]
+            assert len(subnets) == 1, (name, configs)
+            return subnets[0]
+        given = []
+        for eid in pooled:
+            private, egress = ipv4_subnet(f"thoric-{eid}-private"), ipv4_subnet(f"thoric-{eid}-egress")
+            assert private.prefixlen == egress.prefixlen == 28 and private.subnet_of(pool) and egress.subnet_of(pool), (private, egress)
+            # The desktop's VNC server listens on its address in the /28, where the manager reaches it.
+            info = json.loads(docker("inspect", f"thoric-{eid}"))[0]
+            assert f"DESKTOP_PRIVATE_SUBNET={private}" in info["Config"]["Env"], info["Config"]["Env"]
+            ready(f"thoric-{eid}")
+            viewer = WebSocket(port, f"/api/containers/{eid}/vnc", "; ".join(f"{c.name}={c.value}" for c in cookies))
+            assert viewer.read(12).startswith(b"RFB 003.")
+            viewer.close()
+            given += [private, egress]
+        # Only the one with internet is on its internet network, with an address in its /28.
+        networks = [json.loads(docker("inspect", f"thoric-{eid}"))[0]["NetworkSettings"]["Networks"] for eid in pooled]
+        online = networks[0][f"thoric-{pooled[0]}-egress"]["IPAddress"]
+        assert ipaddress.ip_address(online) in given[1], (online, given[1])
+        assert f"thoric-{pooled[1]}-egress" not in networks[1], networks[1]
+        grouped = ipv4_subnet(f"thoric-group-{pool_group}")
+        assert grouped.prefixlen == 24 and grouped.subnet_of(pool), grouped
+        given.append(grouped)
+        assert not any(a.overlaps(b) for i, a in enumerate(given) for b in given[i + 1:]), given
+        for eid in pooled:
+            job(api(f"containers/{eid}", method="DELETE"))
+            container_ids.remove(eid)
+        assert subprocess.run(["docker", "network", "inspect", f"thoric-group-{pool_group}"], capture_output=True).returncode != 0
+    finally:
+        for name in fillers:
+            docker("network", "rm", name, check=False)
+    while_full = " while Docker's own address pools are full" if filled else ""
+    print(f"PASS two desktops and their group take /28 and /24 subnets of {address_pool}{while_full}", flush=True)
     api("volumes", {"name": share})
     api("volumes", {"name": clone_share})
     # A volume's files are reachable without a container, as the desktop user.
@@ -2872,9 +2937,15 @@ finally:
                 docker("network","disconnect","--force",info["Id"],manager,check=False)
                 docker("network","rm",info["Id"],check=False)
     # A group network this run named, left by a phase that stopped early.
-    info=inspect_cleanup("network",f"thoric-group-g-{tag}")
-    if info and info["Labels"].get("thoric.group")==f"g-{tag}":
-        docker("network","rm",info["Id"],check=False)
+    for group_name in [f"g-{tag}",f"p-{tag}"]:
+        info=inspect_cleanup("network",f"thoric-group-{group_name}")
+        if info and info["Labels"].get("thoric.group")==group_name:
+            docker("network","rm",info["Id"],check=False)
+    # The networks that filled Docker's address pools, left by a phase that stopped early.
+    for name in fillers:
+        info=inspect_cleanup("network",name)
+        if info and info["Labels"].get("thoric.test")==tag:
+            docker("network","rm",info["Id"],check=False)
     docker("rm","--force",manager,check=False)
     for name in [volume,share,clone_share,files_volume,restored_volume,streamed_volume,cut_volume,interrupted_volume,copied_volume,mcp_copy_volume,device_volume,device_copy_volume,linked_volume,installs_volume,cache_volume,settings_volume,absent_volume,outside_volume,backup_volume,backup_data]: docker("volume","rm",name,check=False)
     # A volume created for one of this run's containers goes only while its label names that container.
