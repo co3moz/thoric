@@ -79,6 +79,14 @@ COPY packaging/wsl/thoric-update.path /app/install/systemd/thoric-update.path
 COPY packaging/wsl/thoric-update.service /app/install/systemd/thoric-update.service
 COPY packaging/wsl/thoric-settings.path /app/install/systemd/thoric-settings.path
 COPY packaging/wsl/thoric-settings.service /app/install/systemd/thoric-settings.service
+# The WSL package's system files at the paths it has them, which `thoric update` brings to
+# installations of older packages (SYSTEM_FILES in packaging/wsl/thoric).
+COPY packaging/wsl/thoric-docker.pref /app/install/system/etc/apt/preferences.d/thoric-docker.pref
+COPY packaging/wsl/daemon.json /app/install/system/etc/docker/daemon.json
+COPY packaging/wsl/thoric-firewall.service /app/install/system/etc/systemd/system/thoric-firewall.service
+COPY packaging/wsl/firewall-watch.sh /app/install/system/usr/lib/wsl/firewall-watch.sh
+COPY packaging/wsl/keepalive.sh /app/install/system/usr/lib/wsl/keepalive.sh
+COPY packaging/wsl/thoric-completion.bash /app/install/system/usr/share/bash-completion/completions/thoric
 COPY LICENSE /usr/share/doc/thoric/LICENSE
 COPY --from=dependencies /dependencies.json /usr/share/doc/thoric/dependencies.json
 ENV DATA_DIR=/data WEB_DIR=/app/web DESKTOP_CONTEXT=/app/desktop LISTEN_ADDR=0.0.0.0:8080
