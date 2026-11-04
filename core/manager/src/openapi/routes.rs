@@ -413,7 +413,7 @@ pub(super) fn all() -> Vec<Route> {
         get(
             "/api/containers/{id}/vnc",
             DESKTOP,
-            "The desktop's screen over VNC, binary subprotocol; the Origin must match.",
+            "The desktop's screen over VNC in binary frames, binary subprotocol, and whether the viewer fits it to its window in text frames, {\"fit\":true|false}; the Origin must match.",
         )
         .websocket(),
         get(

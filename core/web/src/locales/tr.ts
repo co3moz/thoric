@@ -1485,7 +1485,7 @@ export const tr: Messages = {
   "desktop.reconnect": "Yeniden bağlan",
   "desktop.resize": "Pencereye uyarla",
   "desktop.resizeHint":
-    "Kapalıyken görünüm masaüstünü ölçekler, çözünürlüğü değişmez. Açıkken masaüstünün çözünürlüğü bu pencereye uyar; bu, ajanlar ve diğer izleyiciler için de geçerlidir ve masaüstü yeniden başlayana kadar öyle kalır.",
+    "Kapalıyken görünüm masaüstünü ayarlarındaki çözünürlükte ölçekler. Açıkken masaüstünün çözünürlüğü bu pencereyi izler; bu, ajanlar ve diğer izleyiciler için de geçerlidir. Kapatıldığında ya da bağlantı koptuğunda masaüstü ayarlarındaki çözünürlüğe döner.",
   "desktop.lost.failed": "Masaüstüyle bağlantı koptu. Devam etmek için yeniden bağlanın.",
   "desktop.lost.disconnected": "Masaüstü bağlantıyı kapattı.",
   "desktop.exitFullscreen": "Tam ekrandan çık",

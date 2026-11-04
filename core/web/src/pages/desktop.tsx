@@ -43,6 +43,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useFileDrop } from "@/hooks/use-file-drop"
 import { attempt, containerAction } from "@/lib/actions"
 import { wsUrl } from "@/lib/api"
+import { tellFit } from "@/lib/desktop-fit"
 import { openDialog } from "@/lib/dialogs"
 import { t } from "@/lib/i18n"
 import { DesktopMedia, type MediaState } from "@/lib/media"
@@ -145,7 +146,9 @@ const RESIZE_KEY = "thoric.desktop.resize"
 
 /**
  * Whether the desktop takes this window's size, a choice kept in this browser only. It is off
- * unless chosen: a new size reaches the agents and the other viewers of the desktop too.
+ * unless chosen: a new size reaches the agents and the other viewers of the desktop too. The size
+ * lasts while the choice is on and the view connected; then the manager gives the desktop the
+ * resolution of its settings again.
  */
 function storedResize() {
   try {
@@ -199,6 +202,8 @@ export function DesktopPage({ id }: { id: string }) {
   const view = React.useRef<HTMLElement>(null)
   const screen = React.useRef<HTMLDivElement>(null)
   const rfb = React.useRef<RFB | null>(null)
+  // The current connection's socket, on which the manager also hears whether this window fits.
+  const channel = React.useRef<WebSocket | null>(null)
   const [generation, setGeneration] = React.useState(0)
   // Each connection attempt reports under its own key; a new attempt starts out connecting.
   const attemptKey = `${id}:${generation}:${running}`
@@ -208,6 +213,8 @@ export function DesktopPage({ id }: { id: string }) {
   const [clipboard, setClipboard] = React.useState<string | null>(null)
   const [fullscreen, setFullscreen] = React.useState(false)
   const [resize, setResize] = React.useState(storedResize)
+  // What a socket that opens later tells the manager.
+  const fits = React.useRef(resize)
   const { media, state: audio } = useMedia()
   const drop = useFileDrop((files) => openDialog({ kind: "upload", id, files }))
 
@@ -216,15 +223,23 @@ export function DesktopPage({ id }: { id: string }) {
     media.select(id)
     const report = (value: Connection) => setStatus({ key: attemptKey, value })
     let current: RFB
+    let socket: WebSocket | null = null
     try {
-      current = new RFB(screen.current, wsUrl(`containers/${encodeURIComponent(id)}/vnc`))
+      // The view opens the socket itself, so it can speak to the manager beside noVNC.
+      socket = new WebSocket(wsUrl(`containers/${encodeURIComponent(id)}/vnc`))
+      const opened = socket
+      // Heard before noVNC asks for a size, so the manager knows whose size the screen takes.
+      opened.addEventListener("open", () => tellFit(opened, fits.current))
+      current = new RFB(screen.current, opened)
     } catch (error) {
+      socket?.close()
       toast.error((error as Error).message)
       // Reported like the connection's own events, after the effect has run.
       queueMicrotask(() => report("failed"))
       return
     }
     rfb.current = current
+    channel.current = socket
     // The view scales the desktop to fit; its resolution changes only when the toggle asks.
     current.scaleViewport = true
     current.showDotCursor = true
@@ -244,14 +259,20 @@ export function DesktopPage({ id }: { id: string }) {
       setClipboard((open) => (open === null ? null : text))
     })
     return () => {
-      if (rfb.current === current) rfb.current = null
+      if (rfb.current === current) {
+        rfb.current = null
+        channel.current = null
+      }
       current.disconnect()
       media.close()
     }
   }, [id, running, attemptKey, media])
 
-  // Applied to every new connection too. Turned off, the desktop keeps the size it was given.
+  // Applied to every new connection too. The manager hears it before noVNC asks for a size, and
+  // once no viewer fits the screen, it gives the desktop the resolution of its settings again.
   React.useEffect(() => {
+    fits.current = resize
+    if (channel.current) tellFit(channel.current, resize)
     if (rfb.current) rfb.current.resizeSession = resize
   }, [resize, attemptKey])
 

@@ -1510,7 +1510,7 @@ export const en = {
   "desktop.reconnect": "Reconnect",
   "desktop.resize": "Resize to window",
   "desktop.resizeHint":
-    "Off, the view scales the desktop and its resolution stays. On, the desktop's resolution changes to fit this window, for agents and other viewers too, and keeps that size until the desktop restarts.",
+    "Off, the view scales the desktop at the resolution of its settings. On, the desktop's resolution follows this window, for agents and other viewers too. Turned off or disconnected, the desktop goes back to the resolution of its settings.",
   "desktop.lost.failed": "The connection to the desktop was lost. Reconnect to continue.",
   "desktop.lost.disconnected": "The desktop closed the connection.",
   "desktop.exitFullscreen": "Exit fullscreen",

@@ -3,7 +3,7 @@ declare module "@novnc/novnc" {
   export default class RFB extends EventTarget {
     constructor(
       target: HTMLElement,
-      url: string,
+      urlOrChannel: string | WebSocket,
       options?: { shared?: boolean; wsProtocols?: string[] }
     )
     scaleViewport: boolean
