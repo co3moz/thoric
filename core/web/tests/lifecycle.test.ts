@@ -6,6 +6,7 @@ import {
   lifecycleBadges,
   lifecycleBody,
   lifecycleDraft,
+  lifecycleSummary,
   localTime,
   minutesText,
   NEVER,
@@ -142,4 +143,37 @@ test("a card says when the container expires and what happens then", () => {
   assert.match(deleting.detail, /with the volumes created for it/)
   const [passed] = lifecycleBadges(item({ ...deletes, expires_at: NOW - 5 }), NOW)
   assert.equal(passed.text, "Expiring now")
+})
+
+test("an expiry chosen from the list is sent in minutes, which the manager counts from then", () => {
+  const draft = { ...lifecycleDraft({}), expiresIn: "480" }
+  assert.deepEqual(lifecycleBody(draft), {
+    lifecycle: {
+      idle_stop_minutes: 0,
+      expires_in_minutes: 480,
+      on_expiry: "stop",
+      delete_volumes: false,
+    },
+  })
+  const start = lifecycleDraft({
+    lifecycle: { idle_stop_minutes: 0, expires_at: NOW, on_expiry: "stop", delete_volumes: false },
+  })
+  // Never both: the manager refuses a time beside a length.
+  assert.deepEqual(lifecycleBody({ ...start, expires: "", expiresIn: "60" }, start), {
+    lifecycle: { expires_in_minutes: 60 },
+  })
+})
+
+test("lengths of a day or more read in days and weeks", () => {
+  assert.equal(minutesText(1440), "1 day")
+  assert.equal(minutesText(10080), "1 wk")
+  assert.equal(minutesText(2880), "2 days")
+})
+
+test("the footer says what the lifecycle does, or that it does nothing", () => {
+  assert.equal(lifecycleSummary(lifecycleDraft({}), NOW), "Never stops by itself")
+  assert.equal(
+    lifecycleSummary({ ...lifecycleDraft({}), idle: "30", expiresIn: "480" }, NOW),
+    "Stops after 30 min idle · Expires in 8 hr."
+  )
 })

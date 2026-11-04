@@ -20,6 +20,10 @@ import {
   composeFor,
   composeImage,
   composeSteps,
+  inheritedSteps,
+  missingValues,
+  setupVolumes,
+  valueMissing,
   imageSteps,
   orderSteps,
   setupGroups,
@@ -604,4 +608,115 @@ test("a container's setup values are shown by the step that asked for them", () 
   assert.deepEqual(setupGroups({ parameters: { A: "1" }, secrets: ["B"] }), [
     { values: [["A", "1"]], secrets: ["B"] },
   ])
+})
+
+const parameter = (patch: Partial<ComposeParameter>): ComposeParameter => ({
+  name: "VALUE",
+  label: "",
+  description: "",
+  type: "text",
+  required: true,
+  secret: false,
+  default: "",
+  ...patch,
+})
+
+test("a step counts the required values it still lacks, as the manager would refuse them", () => {
+  const merged: Compose = {
+    steps: [
+      {
+        id: "unity",
+        parameters: [
+          parameter({ name: "EMAIL" }),
+          parameter({ name: "BRANCH", required: false }),
+          parameter({ name: "LICENSE", type: "boolean" }),
+        ],
+        script: "",
+        root: false,
+        timeout_seconds: 60,
+      },
+      {
+        id: "chrome",
+        parameters: [
+          // An empty volume parameter that makes one for the container lacks nothing.
+          parameter({ name: "PROFILE", type: "volume", new_volume: true, path: "/home/p" }),
+          parameter({ name: "CACHE", type: "volume", path: "/home/c" }),
+          parameter({ name: "TOOLS", type: "choices" }),
+        ],
+        script: "",
+        root: false,
+        timeout_seconds: 60,
+      },
+    ],
+  }
+  assert.deepEqual(missingValues(merged, {}), [2, 2])
+  assert.deepEqual(
+    missingValues(merged, {
+      "unity.EMAIL": "ada@example.com",
+      "unity.LICENSE": "true",
+      "chrome.CACHE": "cache",
+      "chrome.TOOLS": "network",
+    }),
+    [0, 0]
+  )
+  // A dash still means no volume, which a required parameter refuses.
+  assert.deepEqual(
+    missingValues(merged, { "chrome.PROFILE": WITHOUT_VOLUME, "chrome.CACHE": "cache" }),
+    [2, 2]
+  )
+  assert.deepEqual(missingValues(unity, { UNITY_EMAIL: "a@b.c" }), [1])
+  assert.equal(valueMissing(parameter({ required: false }), ""), false)
+})
+
+test("the volumes a compose mounts follow its values, and none for a parameter left without", () => {
+  const compose: Compose = {
+    steps: [
+      {
+        id: "re",
+        name: "Reverse engineering",
+        parameters: [
+          parameter({ name: "ANALYSIS", type: "volume", new_volume: true, path: "/home/a" }),
+          parameter({ name: "CACHE", type: "volume", required: false, path: "/home/c" }),
+        ],
+        script: "",
+        root: false,
+        timeout_seconds: 60,
+      },
+      {
+        id: "chrome",
+        parameters: [parameter({ name: "PROFILE", type: "volume", path: "/home/p" })],
+        script: "",
+        root: false,
+        timeout_seconds: 60,
+      },
+    ],
+  }
+  assert.deepEqual(setupVolumes(compose, { "chrome.PROFILE": "profiles" }), [
+    { volume: null, target: "/home/a", step: "Reverse engineering" },
+    { volume: "profiles", target: "/home/p", step: "chrome" },
+  ])
+  assert.deepEqual(setupVolumes(compose, { "re.ANALYSIS": WITHOUT_VOLUME }), [])
+})
+
+test("steps an image kept from the saved image it was built on are named by that image", () => {
+  const step = (id: string) => ({ id, parameters: [], root: false, timeout_seconds: 60 })
+  const base = {
+    image_id: "sha256:base",
+    parent_image_id: null,
+    name: "Unity desk",
+    template_ids: ["unity"],
+    compose: { parameters: [], root: false, timeout_seconds: 60 },
+  }
+  const built = {
+    image_id: "sha256:built",
+    parent_image_id: "sha256:base",
+    name: "Unity and Chrome",
+    compose: { steps: [step("unity"), step("chrome")] },
+  }
+  const records = [built, base]
+  assert.deepEqual(inheritedSteps(built, records), { name: "Unity desk", ids: new Set(["unity"]) })
+  // A snapshot keeps every step of its image, so none is told apart.
+  const snapshot = { ...built, image_id: "sha256:snap", parent_image_id: "sha256:built" }
+  assert.equal(inheritedSteps(snapshot, [snapshot, ...records]), null)
+  assert.equal(inheritedSteps(base, records), null)
 })

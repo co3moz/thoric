@@ -32,6 +32,7 @@ import {
   pickedChoices,
   sliderValue,
   toggleChoice,
+  valueMissing,
   volumeChoices,
   volumeExtras,
   volumeNameValid,
@@ -65,6 +66,7 @@ export function ParameterField({
   hints,
   createVolumes,
   defaults,
+  compact,
 }: {
   parameter: ComposeParameter
   value: string
@@ -78,17 +80,42 @@ export function ParameterField({
   createVolumes?: boolean
   /** Pick a default: a volume parameter offers a new volume for each container as NEW_VOLUME. */
   defaults?: boolean
+  /**
+   * The create form's hints: the variable name beside the label, a mark while a required value
+   * is missing, and the description cut to two lines that open on request.
+   */
+  compact?: boolean
 }) {
   const id = React.useId()
   const title = label ?? (parameter.label || parameter.name)
   const display = displayOf(parameter)
   const required = !optional && parameter.required
-  const help = hints && parameter.description && (
-    <FieldDescription className="whitespace-pre-line">{parameter.description}</FieldDescription>
-  )
-  const name = hints && parameter.label && (
+  const help = compact
+    ? parameter.description && <ShortDescription text={parameter.description} />
+    : hints &&
+      parameter.description && (
+        <FieldDescription className="whitespace-pre-line">{parameter.description}</FieldDescription>
+      )
+  const name = !compact && hints && parameter.label && (
     <FieldDescription className="font-mono text-xs">{parameter.name}</FieldDescription>
   )
+  const heading = (labelProps: React.ComponentProps<typeof FieldLabel>) =>
+    compact ? (
+      // The variable name moves under a label it does not fit beside.
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <FieldLabel {...labelProps}>{title}</FieldLabel>
+        {required && valueMissing(parameter, value) && (
+          <span className="text-xs text-destructive">{t("setup.required")}</span>
+        )}
+        {parameter.label && (
+          <span className="ml-auto font-mono text-xs break-all text-muted-foreground">
+            {parameter.name}
+          </span>
+        )}
+      </div>
+    ) : (
+      <FieldLabel {...labelProps}>{title}</FieldLabel>
+    )
 
   if (parameter.type === "boolean") {
     const on = value === "true"
@@ -100,8 +127,8 @@ export function ParameterField({
         ) : (
           <Switch id={id} checked={on} onCheckedChange={set} />
         )}
-        <div className="flex flex-col gap-0.5">
-          <FieldLabel htmlFor={id}>{title}</FieldLabel>
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          {heading({ htmlFor: id })}
           {help}
           {name}
         </div>
@@ -111,9 +138,7 @@ export function ParameterField({
 
   return (
     <Field className={cn(WIDE.has(display) && "sm:col-span-2")}>
-      <FieldLabel id={`${id}-label`} htmlFor={id}>
-        {title}
-      </FieldLabel>
+      {heading({ id: `${id}-label`, htmlFor: id })}
       {parameter.type === "volume" ? (
         <VolumeControl
           parameter={parameter}
@@ -483,6 +508,49 @@ function TextControl({
       )}
       {checked && <FieldError>{message}</FieldError>}
     </>
+  )
+}
+
+/**
+ * A parameter's description in at most two lines, with **More** when the rest is cut off, so a
+ * long one does not push the fields after it out of view.
+ */
+function ShortDescription({ text }: { text: string }) {
+  const ref = React.useRef<HTMLParagraphElement>(null)
+  const [open, setOpen] = React.useState(false)
+  const [cut, setCut] = React.useState(false)
+  React.useLayoutEffect(() => {
+    const element = ref.current
+    if (!element || open) return
+    // A hidden section measures nothing; the observer measures again once it shows.
+    const measure = () => setCut(element.scrollHeight > element.clientHeight + 1)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [open, text])
+  return (
+    <div className="flex flex-col items-start gap-0.5">
+      <p
+        ref={ref}
+        className={cn(
+          "text-xs leading-normal whitespace-pre-line text-muted-foreground",
+          !open && "line-clamp-2"
+        )}
+      >
+        {text}
+      </p>
+      {(cut || open) && (
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+          className="rounded-sm text-xs font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        >
+          {open ? t("parameter.less") : t("parameter.more")}
+        </button>
+      )}
+    </div>
   )
 }
 

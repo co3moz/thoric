@@ -1,17 +1,20 @@
 import * as React from "react"
-import { RiAlertLine } from "@remixicon/react"
+import {
+  RiAlertLine,
+  RiAspectRatioLine,
+  RiBox3Line,
+  RiDatabase2Line,
+  RiFingerprintLine,
+  RiListCheck3,
+  RiPlugLine,
+  RiRouterLine,
+  RiTimerLine,
+} from "@remixicon/react"
 import { toast } from "sonner"
 
 import { ImageChoiceItem } from "@/components/image-icon"
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogClose,
@@ -21,16 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import {
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-  FieldLegend,
-  FieldSet,
-} from "@/components/ui/field"
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -42,20 +36,44 @@ import {
 import { Spinner } from "@/components/ui/spinner"
 import { runJob } from "@/lib/actions"
 import { api } from "@/lib/api"
+import {
+  composeImage,
+  inheritedSteps,
+  missingValues,
+  parameterBody,
+  setupVolumes,
+  type SetupVolume,
+} from "@/lib/compose"
 import { closeDialog, useDraft } from "@/lib/dialogs"
 import { imageChoices, initialImage, restartNotice } from "@/lib/format"
-import { knownGroups } from "@/lib/groups"
-import { formatList, plural, t } from "@/lib/i18n"
+import { type KnownGroup, knownGroups } from "@/lib/groups"
+import { formatList, t } from "@/lib/i18n"
+import {
+  lifecycleBody,
+  lifecycleDraft,
+  lifecycleSummary,
+  type LifecycleDraft,
+} from "@/lib/lifecycle"
 import { imageServers } from "@/lib/mcp"
 import { useContainers, useImages, useSettings, useVolumes } from "@/lib/queries"
-import { composeEntries, composeFor, composeSteps, parameterBody, stepTitle } from "@/lib/compose"
-import { lifecycleBody, lifecycleDraft, type LifecycleDraft } from "@/lib/lifecycle"
-import type { ImageItem, SettingsPreview } from "@/lib/types"
-import type { DialogProps } from "./side-drawer"
+import type { Settings, SettingsPreview, Volume } from "@/lib/types"
+import { mountableVolumes } from "@/lib/volume-files"
+import { FormSections, type FormSection } from "./form-sections"
 import { identityBody, identityDraft, IdentityFields, type IdentityDraft } from "./identity-fields"
 import { LifecycleFields } from "./lifecycle-fields"
-import { ParameterField } from "./parameter-field"
-import { specBody, specDraft, SpecFields, type SpecDraft } from "./spec-fields"
+import { MountFields } from "./mount-fields"
+import { NetworkFields } from "./network-fields"
+import { ScreenFields } from "./screen-fields"
+import { SetupFields } from "./setup-fields"
+import type { DialogProps } from "./side-drawer"
+import {
+  FeatureFields,
+  specBody,
+  specDraft,
+  specSummary,
+  SwitchTile,
+  type SpecDraft,
+} from "./spec-fields"
 
 /** A dialog whose form submits once at a time and shows the manager's error in place. */
 export function useSubmit() {
@@ -76,81 +94,94 @@ export function useSubmit() {
   return { busy, error, setError, submit }
 }
 
-const scrollBody = "-mx-4 flex max-h-[min(36rem,70vh)] flex-col gap-5 overflow-y-auto px-4 py-1"
+/**
+ * A container dialog as wide as its sections need and of one height, so moving between them does
+ * not resize it; on a phone it fills the window.
+ */
+const sectionedDialog = "flex h-[min(44rem,calc(100dvh-2rem))] flex-col gap-0 p-0 sm:max-w-4xl"
 
 /**
- * The values an image's compose asks for, filled in with its defaults. A compose of several
- * steps, such as one merged from templates, asks for each step's values in a section of its own,
- * since two steps may ask for the same name.
+ * The sections the create and settings dialogs share, after their own first ones. `setup` are the
+ * volumes the image setup mounts, and `groups` the groups other containers list.
  */
-function ComposeValues({
-  compose,
-  values,
-  onChange,
+function optionSections({
+  draft,
+  setDraft,
+  lifecycle,
+  setLifecycle,
+  lifecycleStart,
+  settings,
+  volumes,
+  setup,
+  groups,
+  vncPrivate,
 }: {
-  compose: NonNullable<ImageItem["compose"]>
-  values: Record<string, string>
-  onChange: (values: Record<string, string>) => void
-}) {
-  const steps = composeSteps(compose)
-  const entries = composeEntries(compose)
-  if (!entries.length) return <FieldDescription>{t("compose.runsScript")}</FieldDescription>
-  const fields = (step: (typeof steps)[number]) => (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      {entries
-        .filter((entry) => entry.step === step)
-        .map(({ parameter, key }) => (
-          <ParameterField
-            key={`${key}-${parameter.type}`}
-            parameter={parameter}
-            value={values[key] ?? parameter.default}
-            onChange={(value) => onChange({ ...values, [key]: value })}
-            hints
-            createVolumes
-          />
-        ))}
-    </div>
-  )
+  draft: SpecDraft
+  setDraft: (draft: SpecDraft) => void
+  lifecycle: LifecycleDraft
+  setLifecycle: (draft: LifecycleDraft) => void
+  lifecycleStart?: LifecycleDraft
+  settings?: Settings
+  volumes: Volume[]
+  setup: SetupVolume[]
+  groups: KnownGroup[]
+  vncPrivate?: boolean | null
+}): FormSection[] {
+  const group = t("sections.options")
+  return [
+    {
+      id: "screen",
+      label: t("sections.screen"),
+      icon: RiAspectRatioLine,
+      group,
+      content: <ScreenFields draft={draft} onChange={setDraft} />,
+    },
+    {
+      id: "network",
+      label: t("sections.network"),
+      icon: RiRouterLine,
+      group,
+      content: (
+        <NetworkFields
+          draft={draft}
+          onChange={setDraft}
+          settings={settings}
+          groups={groups}
+          vncPrivate={vncPrivate}
+          basics="basics"
+        />
+      ),
+    },
+    {
+      id: "volumes",
+      label: t("nav.volumes"),
+      icon: RiDatabase2Line,
+      group,
+      content: (
+        <MountFields
+          draft={draft}
+          onChange={setDraft}
+          volumes={mountableVolumes(volumes)}
+          setup={setup}
+        />
+      ),
+    },
+    {
+      id: "lifecycle",
+      label: t("lifecycle.title"),
+      icon: RiTimerLine,
+      group,
+      content: <LifecycleFields draft={lifecycle} onChange={setLifecycle} start={lifecycleStart} />,
+    },
+  ]
+}
+
+/** The form's choices in one line beside its buttons, so they are known from any section. */
+function FormSummary({ parts }: { parts: (string | undefined)[] }) {
   return (
-    <FieldSet>
-      <FieldLegend variant="label">{t("compose.name")}</FieldLegend>
-      <FieldDescription className="text-xs">
-        {steps.length > 1 ? t("compose.valuesHintSteps") : t("compose.valuesHint")}
-      </FieldDescription>
-      {steps.length > 1 ? (
-        // Every section starts open, so no required value is hidden.
-        <Accordion
-          type="multiple"
-          defaultValue={steps.map((_, index) => String(index))}
-          className="rounded-2xl border px-4"
-        >
-          {steps.map((step, index) => (
-            <AccordionItem key={index} value={String(index)}>
-              <AccordionTrigger>
-                <span className="flex min-w-0 flex-wrap items-center gap-2">
-                  <span className="truncate">{stepTitle(step)}</span>
-                  <span className="text-xs font-normal text-muted-foreground">
-                    {plural(step.parameters.length, {
-                      one: "compose.parameterCount.one",
-                      other: "compose.parameterCount.other",
-                    })}
-                  </span>
-                </span>
-              </AccordionTrigger>
-              <AccordionContent className="px-1">
-                {step.parameters.length ? (
-                  fields(step)
-                ) : (
-                  <FieldDescription>{t("compose.stepRunsScript")}</FieldDescription>
-                )}
-              </AccordionContent>
-            </AccordionItem>
-          ))}
-        </Accordion>
-      ) : (
-        fields(steps[0])
-      )}
-    </FieldSet>
+    <p className="hidden min-w-0 flex-1 truncate text-xs text-muted-foreground sm:block">
+      {parts.filter(Boolean).join(" · ")}
+    </p>
   )
 }
 
@@ -167,22 +198,121 @@ export function CreateContainerDialog({ image, ...props }: DialogProps & { image
     lifecycleDraft({}, settings)
   )
   const chosen = selected ?? initialImage(choices, image ?? settings?.base_image)
-  const compose = composeFor(images, chosen)
+  const record = composeImage(images, chosen)
+  const compose = record?.compose ?? undefined
   // Values typed for one image are kept while another is chosen, and sent only for its own fields.
   const [values, setValues] = React.useState<Record<string, string>>({})
   const servers = imageServers(images, chosen)
   const [endpoint, setEndpoint] = React.useState(true)
+  const [section, setSection] = React.useState("basics")
   useDraft({ name, selected, draft, lifecycle, values, endpoint })
   const { busy, error, submit } = useSubmit()
   const id = React.useId()
+  const missing = compose ? missingValues(compose, values).reduce((sum, n) => sum + n, 0) : 0
+  const [now] = React.useState(() => Math.floor(Date.now() / 1000))
+
+  const container = t("sections.container")
+  const sections: FormSection[] = [
+    {
+      id: "basics",
+      label: t("sections.basics"),
+      icon: RiBox3Line,
+      group: container,
+      content: (
+        <FieldGroup>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor={`${id}-name`}>{t("table.name")}</FieldLabel>
+              <Input
+                id={`${id}-name`}
+                required
+                maxLength={100}
+                placeholder={t("create.namePlaceholder")}
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                autoFocus
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor={`${id}-image`}>{t("create.image")}</FieldLabel>
+              <Select value={chosen ?? ""} onValueChange={setSelected}>
+                <SelectTrigger id={`${id}-image`} className="w-full">
+                  <SelectValue placeholder={t("build.noBase")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {choices.map((choice) => (
+                      <ImageChoiceItem key={choice.value} choice={choice} />
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              {servers.length > 0 && (
+                <FieldDescription className="text-xs">
+                  {t("images.mcpServers", { names: formatList(servers) })}
+                </FieldDescription>
+              )}
+            </Field>
+          </div>
+          <FeatureFields draft={draft} onChange={setDraft} settings={settings} />
+          <Field>
+            <SwitchTile
+              icon={RiPlugLine}
+              label={t("create.mcpEndpoint")}
+              checked={endpoint}
+              onCheckedChange={setEndpoint}
+              describedBy={`${id}-endpoint-hint`}
+            />
+            <FieldDescription id={`${id}-endpoint-hint`} className="text-xs">
+              {t("create.mcpEndpointHint")}
+            </FieldDescription>
+          </Field>
+        </FieldGroup>
+      ),
+    },
+    ...(compose
+      ? [
+          {
+            id: "setup",
+            label: t("sections.setup"),
+            icon: RiListCheck3,
+            group: container,
+            missing,
+            content: (
+              <SetupFields
+                compose={compose}
+                values={values}
+                onChange={setValues}
+                inherited={inheritedSteps(record, images)}
+              />
+            ),
+          },
+        ]
+      : []),
+    ...optionSections({
+      draft,
+      setDraft,
+      lifecycle,
+      setLifecycle,
+      settings,
+      volumes,
+      setup: compose ? setupVolumes(compose, values) : [],
+      groups,
+    }),
+  ]
 
   return (
     <Dialog {...props}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className={sectionedDialog}>
         <form
-          className="flex flex-col gap-4"
-          onSubmit={submit(() =>
-            runJob("containers", {
+          className="flex min-h-0 flex-1 flex-col"
+          onSubmit={submit(async () => {
+            // A switch or a set of choices that is required has no field the browser checks.
+            if (missing) {
+              setSection("setup")
+              throw new Error(t("setup.missingError"))
+            }
+            await runJob("containers", {
               name,
               image: chosen,
               ...specBody(draft),
@@ -190,83 +320,41 @@ export function CreateContainerDialog({ image, ...props }: DialogProps & { image
               ...(compose ? { parameters: parameterBody(compose, values) } : {}),
               mcp_endpoint: endpoint,
             })
-          )}
+          })}
         >
-          <DialogHeader>
+          <DialogHeader className="px-6 pt-6 pb-4">
             <DialogTitle>{t("containers.new")}</DialogTitle>
             <DialogDescription>{t("create.description")}</DialogDescription>
           </DialogHeader>
-          <div className={scrollBody}>
-            <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor={`${id}-name`}>{t("table.name")}</FieldLabel>
-                <Input
-                  id={`${id}-name`}
-                  required
-                  maxLength={100}
-                  placeholder={t("create.namePlaceholder")}
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  autoFocus
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor={`${id}-image`}>{t("create.image")}</FieldLabel>
-                <Select value={chosen ?? ""} onValueChange={setSelected}>
-                  <SelectTrigger id={`${id}-image`} className="w-full">
-                    <SelectValue placeholder={t("build.noBase")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {choices.map((choice) => (
-                        <ImageChoiceItem key={choice.value} choice={choice} />
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-                {servers.length > 0 && (
-                  <FieldDescription className="text-xs">
-                    {t("images.mcpServers", { names: formatList(servers) })}
-                  </FieldDescription>
-                )}
-              </Field>
-              {compose && <ComposeValues compose={compose} values={values} onChange={setValues} />}
-              <Field orientation="horizontal" className="items-start">
-                <Checkbox
-                  id={`${id}-endpoint`}
-                  checked={endpoint}
-                  onCheckedChange={(checked) => setEndpoint(checked === true)}
-                />
-                <FieldContent>
-                  <FieldLabel htmlFor={`${id}-endpoint`}>{t("create.mcpEndpoint")}</FieldLabel>
-                  <FieldDescription className="text-xs">
-                    {t("create.mcpEndpointHint")}
-                  </FieldDescription>
-                </FieldContent>
-              </Field>
-            </FieldGroup>
-            <SpecFields
-              draft={draft}
-              onChange={setDraft}
-              settings={settings}
-              volumes={volumes}
-              groups={groups}
-            />
-            <LifecycleFields draft={lifecycle} onChange={setLifecycle} />
-          </div>
+          <FormSections
+            sections={sections}
+            active={section}
+            onActiveChange={setSection}
+            label={t("sections.label")}
+            className="flex-1"
+          />
           {/* Outside the scrolling fields, so a long form cannot hide the outcome. */}
-          <FieldError>{error}</FieldError>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button type="button" variant="outline">
-                {t("common.cancel")}
+          <div className="flex flex-col gap-3 px-6 pt-3 pb-6">
+            <FieldError>{error}</FieldError>
+            <DialogFooter className="sm:items-center">
+              <FormSummary
+                parts={[
+                  choices.find((choice) => choice.value === chosen)?.label,
+                  ...specSummary(draft),
+                  lifecycleSummary(lifecycle, now),
+                ]}
+              />
+              <DialogClose asChild>
+                <Button type="button" variant="outline">
+                  {t("common.cancel")}
+                </Button>
+              </DialogClose>
+              <Button type="submit" disabled={busy || !chosen}>
+                {busy && <Spinner data-icon="inline-start" />}
+                {t("common.create")}
               </Button>
-            </DialogClose>
-            <Button type="submit" disabled={busy || !chosen}>
-              {busy && <Spinner data-icon="inline-start" />}
-              {t("common.create")}
-            </Button>
-          </DialogFooter>
+            </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>
@@ -288,12 +376,14 @@ export function SettingsDialog({ id, ...props }: DialogProps & { id: string }) {
   // meanwhile stays.
   const [lifecycleStart] = React.useState<LifecycleDraft>(() => lifecycleDraft(spec ?? {}))
   const [lifecycle, setLifecycleState] = React.useState(lifecycleStart)
+  const [section, setSection] = React.useState("basics")
   useDraft({ name, draft, identity, lifecycle })
   // A restart warning is confirmed for one set of values; editing the form asks again.
   const [notice, setNotice] = React.useState("")
   const { busy, error, submit } = useSubmit()
   const formId = React.useId()
   const running = item?.state === "running"
+  const [now] = React.useState(() => Math.floor(Date.now() / 1000))
 
   const setDraft = (next: SpecDraft) => {
     setNotice("")
@@ -335,61 +425,90 @@ export function SettingsDialog({ id, ...props }: DialogProps & { id: string }) {
   }
 
   if (!spec) return null
+  const container = t("sections.container")
+  const sections: FormSection[] = [
+    {
+      id: "basics",
+      label: t("sections.basics"),
+      icon: RiBox3Line,
+      group: container,
+      content: (
+        <FieldGroup>
+          <Field className="sm:max-w-sm">
+            <FieldLabel htmlFor={`${formId}-name`}>{t("table.name")}</FieldLabel>
+            <Input
+              id={`${formId}-name`}
+              required
+              maxLength={100}
+              value={name}
+              onChange={(event) => {
+                setNotice("")
+                setName(event.target.value)
+              }}
+            />
+          </Field>
+          <FeatureFields draft={draft} onChange={setDraft} settings={settings} spec={spec} />
+        </FieldGroup>
+      ),
+    },
+    {
+      id: "identity",
+      label: t("identity.title"),
+      icon: RiFingerprintLine,
+      group: container,
+      content: <IdentityFields draft={identity} onChange={setIdentity} spec={spec} />,
+    },
+    ...optionSections({
+      draft,
+      setDraft,
+      lifecycle,
+      setLifecycle,
+      lifecycleStart,
+      settings,
+      volumes,
+      setup: (item?.setup?.mounts ?? []).map(({ volume, target }) => ({ volume, target })),
+      groups: knownGroups(containers.filter((other) => other.id !== id)),
+      vncPrivate: item?.vnc_private,
+    }),
+  ]
+
   return (
     <Dialog {...props}>
-      <DialogContent className="sm:max-w-2xl">
-        <form className="flex flex-col gap-4" onSubmit={submit(save)}>
-          <DialogHeader>
+      <DialogContent className={sectionedDialog}>
+        <form className="flex min-h-0 flex-1 flex-col" onSubmit={submit(save)}>
+          <DialogHeader className="px-6 pt-6 pb-4">
             <DialogTitle>{t("settings.title")}</DialogTitle>
             <DialogDescription>{t("settings.description")}</DialogDescription>
           </DialogHeader>
-          <div className={scrollBody}>
-            <Field>
-              <FieldLabel htmlFor={`${formId}-name`}>{t("table.name")}</FieldLabel>
-              <Input
-                id={`${formId}-name`}
-                required
-                maxLength={100}
-                value={name}
-                onChange={(event) => {
-                  setNotice("")
-                  setName(event.target.value)
-                }}
-              />
-            </Field>
-            <SpecFields
-              draft={draft}
-              onChange={setDraft}
-              settings={settings}
-              volumes={volumes}
-              spec={spec}
-              groups={knownGroups(containers.filter((other) => other.id !== id))}
-              vncPrivate={item?.vnc_private}
-              // These settings are what this dialog is for, so they start in view.
-              advancedOpen
-            />
-            <LifecycleFields draft={lifecycle} onChange={setLifecycle} start={lifecycleStart} />
-            <IdentityFields draft={identity} onChange={setIdentity} spec={spec} />
-          </div>
+          <FormSections
+            sections={sections}
+            active={section}
+            onActiveChange={setSection}
+            label={t("sections.label")}
+            className="flex-1"
+          />
           {/* Outside the scrolling fields, next to the button whose label it changes. */}
-          {notice && (
-            <Alert>
-              <RiAlertLine className="text-warning" />
-              <AlertDescription>{notice}</AlertDescription>
-            </Alert>
-          )}
-          <FieldError>{error}</FieldError>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button type="button" variant="outline">
-                {t("common.cancel")}
+          <div className="flex flex-col gap-3 px-6 pt-3 pb-6">
+            {notice && (
+              <Alert>
+                <RiAlertLine className="text-warning" />
+                <AlertDescription>{notice}</AlertDescription>
+              </Alert>
+            )}
+            <FieldError>{error}</FieldError>
+            <DialogFooter className="sm:items-center">
+              <FormSummary parts={[...specSummary(draft), lifecycleSummary(lifecycle, now)]} />
+              <DialogClose asChild>
+                <Button type="button" variant="outline">
+                  {t("common.cancel")}
+                </Button>
+              </DialogClose>
+              <Button type="submit" disabled={busy}>
+                {busy && <Spinner data-icon="inline-start" />}
+                {notice && running ? t("settings.saveRestart") : t("common.save")}
               </Button>
-            </DialogClose>
-            <Button type="submit" disabled={busy}>
-              {busy && <Spinner data-icon="inline-start" />}
-              {notice && running ? t("settings.saveRestart") : t("common.save")}
-            </Button>
-          </DialogFooter>
+            </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>
