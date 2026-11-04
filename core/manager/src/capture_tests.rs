@@ -1,6 +1,6 @@
 //! Pins down the screenshot options that are refused, the size read from a JPEG's header, where
-//! a screenshot's pixels are on the desktop, and where a screenshot may be saved with the
-//! download link it gets.
+//! a screenshot's pixels are on the desktop, where a screenshot may be saved with the download
+//! link it gets, and that a desktop's screenshot is read by the manager's own reader.
 use super::*;
 use crate::{files, uploads, windows};
 
@@ -212,4 +212,111 @@ async fn a_screenshot_waits_a_bounded_time_for_its_turn() {
     .err()
     .expect("no turn came");
     assert_eq!(error.0, StatusCode::TOO_MANY_REQUESTS);
+}
+
+/// A desktop from an image made before the screenshot reader was fixed read Wine's windows as
+/// black with its own xwd script, so the manager runs its copy of the reader, the image's file,
+/// with the arguments the image's command takes.
+#[test]
+fn a_screenshot_runs_the_managers_own_reader() {
+    let options = Capture {
+        max_width: Some(640),
+        region: None,
+        window_id: Some("0x3a00007".into()),
+    };
+    let args = shot_args("abc", &options, "10,20,300,200");
+    assert_eq!(
+        args[..9],
+        [
+            "exec",
+            "--user",
+            "desktop",
+            "--env",
+            "DISPLAY=:0",
+            "abc",
+            "bash",
+            "-c",
+            SHOT
+        ]
+    );
+    assert_eq!(
+        args[9..],
+        [
+            "desktop-screenshot",
+            "640",
+            "10,20,300,200",
+            "0x3a00007",
+            READER
+        ]
+    );
+    let blank = shot_args("abc", &Capture::default(), "");
+    assert_eq!(blank[10..13], ["0", "", ""]);
+    assert!(READER.starts_with("#!/usr/bin/env python3\n"));
+    assert!(READER.contains("XGetImage") && READER.contains("CANNOT_RUN = 3"));
+}
+
+/// What the command in the desktop does with each answer of the reader: its screenshot and then
+/// the geometry, the image's own command when the reader cannot run there or python3 is missing,
+/// and the reader's failure as it is, without the image's command.
+#[cfg(unix)]
+#[test]
+fn the_image_command_takes_over_only_when_the_reader_cannot_run() {
+    use std::process::Command;
+    let dir = std::env::temp_dir().join(format!("thoric-shot-{}", uuid::Uuid::new_v4().simple()));
+    let tools = dir.join("tools");
+    let bare = dir.join("bare");
+    std::fs::create_dir_all(&tools).unwrap();
+    std::fs::create_dir_all(&bare).unwrap();
+    for folder in [&tools, &bare] {
+        crate::test_support::write_script(
+            &folder.join("xwininfo"),
+            "#!/bin/sh\necho \"  Absolute upper-left X:  0\"\n",
+        );
+    }
+    // The reader answers with the status in $SHOT_STATUS, and only a success prints an image.
+    crate::test_support::write_script(
+        &tools.join("python3"),
+        "#!/bin/sh\n[ \"$1 $2 $3\" = '-I -c reader-source' ] || exit 9\nshift 3\n\
+         [ \"$SHOT_STATUS\" = 0 ] && echo \"reader $*\"\nexit \"$SHOT_STATUS\"\n",
+    );
+    let image = dir.join("desktop-screenshot");
+    crate::test_support::write_script(&image, "#!/bin/sh\necho \"image $*\"\n");
+    let shot = SHOT.replace(
+        "/usr/local/bin/desktop-screenshot",
+        &image.display().to_string(),
+    );
+    // Found on the test's own PATH: a Command looks its program up in the PATH it gives the child.
+    let bash = std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())
+        .map(|folder| folder.join("bash"))
+        .find(|path| path.is_file())
+        .expect("bash is installed");
+    let run = |path: &std::path::Path, status: &str| {
+        let output = Command::new(&bash)
+            .args([
+                "-c",
+                &shot,
+                "desktop-screenshot",
+                "640",
+                "",
+                "0x3a00007",
+                "reader-source",
+            ])
+            .env("PATH", path)
+            .env("SHOT_STATUS", status)
+            .output()
+            .unwrap();
+        (
+            output.status.code(),
+            String::from_utf8(output.stdout).unwrap(),
+            String::from_utf8(output.stderr).unwrap(),
+        )
+    };
+    let (code, out, err) = run(&tools, "0");
+    assert_eq!((code, out.as_str()), (Some(0), "reader 640  0x3a00007\n"));
+    assert!(err.contains("Absolute upper-left X"), "{err}");
+    assert_eq!(run(&tools, "3").1, "image 640  0x3a00007\n");
+    assert_eq!(run(&bare, "0").1, "image 640  0x3a00007\n");
+    let (code, out, err) = run(&tools, "1");
+    assert_eq!((code, out.as_str(), err.as_str()), (Some(1), "", ""));
+    std::fs::remove_dir_all(&dir).unwrap();
 }

@@ -6,6 +6,12 @@ import sys
 import time
 
 directory, fps, max_seconds, max_width, region = sys.argv[1], float(sys.argv[2]), float(sys.argv[3]), sys.argv[4], sys.argv[5]
+# The manager's screenshot reader, the source of the desktop image's desktop-screenshot, which an
+# image older than the reader has only as an xwd script that reads Wine's windows as black.
+READER = sys.argv[6] if len(sys.argv) > 6 else ""
+IMAGE_SCREENSHOT = "/usr/local/bin/desktop-screenshot"
+# The reader's exit status when it cannot run in this desktop: the image's command then reads.
+CANNOT_RUN = 3
 LIMIT_BYTES = 256 * 1024 * 1024
 LIMIT_FRAMES = 3000
 os.makedirs(directory, 0o700, exist_ok=True)
@@ -15,6 +21,17 @@ for descriptor in (0, 1, 2):
 os.close(null)
 state = {"state": "recording", "frames": 0, "bytes": 0, "started_at": int(time.time() * 1000),
          "ended_at": None, "reason": None, "fps": fps, "max_width": int(max_width), "region": region or None}
+
+
+def screenshot():
+    """One frame as JPEG on the result's stdout, from the reader, or from the image's command when
+    the reader cannot run here."""
+    if READER:
+        result = subprocess.run([sys.executable, "-I", "-c", READER, max_width, region, ""],
+                                capture_output=True, timeout=10)
+        if result.returncode != CANNOT_RUN:
+            return result
+    return subprocess.run([IMAGE_SCREENSHOT, max_width, region, ""], capture_output=True, timeout=10)
 
 
 def record():
@@ -44,8 +61,7 @@ while True:
     # name carries that moment: the video shows each frame from it.
     captured = int(time.time() * 1000)
     try:
-        result = subprocess.run(["/usr/local/bin/desktop-screenshot", max_width, region, ""],
-                                capture_output=True, timeout=10)
+        result = screenshot()
     except (OSError, subprocess.TimeoutExpired):
         result = None
     if result is not None and result.returncode == 0 and result.stdout.startswith(b"\xff\xd8"):

@@ -219,6 +219,8 @@ pub async fn start_recording(app: &Arc<App>, id: &str, body: &StartRecording) ->
         &body.max_seconds.to_string(),
         &body.max_width.to_string(),
         &region,
+        // Frames are read with the manager's reader, as screenshots are.
+        crate::capture::READER,
     ])
     .await?;
     app.db.put("recording", &record.id, &record)?;
