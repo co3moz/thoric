@@ -38,6 +38,7 @@ import {
   type ComposeDraft,
   type StepDraft,
 } from "@/lib/compose"
+import { stepVariables } from "@/lib/script-completions"
 import type { Compose } from "@/lib/types"
 import { useSubmit } from "./container-dialogs"
 import type { DialogProps } from "./side-drawer"
@@ -160,6 +161,7 @@ function StepFields({
           onChange={(script) => set({ script })}
           required
           hint={t("compose.scriptHint")}
+          completions={{ place: "setup", variables: stepVariables(draft.parameters) }}
         />
         <FieldDescription className="text-xs">{t("compose.scriptHint")}</FieldDescription>
       </Field>

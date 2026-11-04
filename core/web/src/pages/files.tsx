@@ -37,6 +37,7 @@ import { stateLabel } from "@/lib/format"
 import { t } from "@/lib/i18n"
 import { useContainers } from "@/lib/queries"
 import { href, useRoute } from "@/lib/route"
+import { DESKTOP_FILE } from "@/lib/script-completions"
 import type { ContainerItem } from "@/lib/types"
 
 const byName = (a: ContainerItem, b: ContainerItem) => a.spec.name.localeCompare(b.spec.name)
@@ -55,6 +56,7 @@ function ContainerFiles({ container, reveal }: { container: ContainerItem; revea
       writeProblem={(path) => uploadProblem(container, path)}
       describeFailure={listingProblem}
       paneClassName="h-[max(16rem,calc(100svh-22rem))]"
+      scripts={DESKTOP_FILE}
     />
   )
 }

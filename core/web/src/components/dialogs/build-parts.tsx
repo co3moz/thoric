@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { FieldDescription } from "@/components/ui/field"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { t } from "@/lib/i18n"
+import { BUILD_SCRIPT } from "@/lib/script-completions"
 import type { BuildPart } from "@/lib/types"
 import { NumberedStep, NumberedSteps } from "./numbered-steps"
 import { ScriptCard, ScriptEditor } from "./script-field"
@@ -85,6 +86,7 @@ export function BuildParts({
         start={editing ?? parts[0]?.id ?? ""}
         language="bash"
         hint={t("build.partsHint")}
+        completions={BUILD_SCRIPT}
         onDone={(values) =>
           parts.forEach((part, index) => {
             if (values[part.id] !== part.script) onChange(index, values[part.id])

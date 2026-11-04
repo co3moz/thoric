@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog"
 import type { CodeLanguage } from "@/lib/highlight"
 import { plural, t } from "@/lib/i18n"
+import type { ScriptContext } from "@/lib/script-completions"
 import { tile } from "./form-sections"
 
 /** The lines a script's card shows of it. */
@@ -45,6 +46,7 @@ export function ScriptField({
   onChange,
   required,
   hint,
+  completions,
 }: {
   id?: string
   label: string
@@ -54,6 +56,8 @@ export function ScriptField({
   required?: boolean
   /** How the script runs, under the card and over the editor. */
   hint?: string
+  /** Where the script runs, which the editor completes the commands and values of. */
+  completions?: ScriptContext
 }) {
   const [open, setOpen] = React.useState(false)
   return (
@@ -73,6 +77,7 @@ export function ScriptField({
         start="script"
         language={language}
         hint={hint}
+        completions={completions}
         onDone={(values) => onChange(values.script)}
       />
     </>
@@ -180,6 +185,7 @@ export function ScriptEditor({
   start,
   language,
   hint,
+  completions,
   onDone,
 }: {
   open: boolean
@@ -189,6 +195,7 @@ export function ScriptEditor({
   start: string
   language: CodeLanguage
   hint?: string
+  completions?: ScriptContext
   onDone: (values: Record<string, string>) => void
 }) {
   const [drafts, setDrafts] = React.useState<Record<string, string>>({})
@@ -256,6 +263,7 @@ export function ScriptEditor({
               key={shown.key}
               fill
               language={language}
+              completions={completions}
               label={shown.title}
               value={text}
               onChange={(value) => setDrafts((all) => ({ ...all, [shown.key]: value }))}
@@ -269,6 +277,7 @@ export function ScriptEditor({
               {plural(lines, { one: "script.lines.one", other: "script.lines.other" })}
               {" · "}
               {t("script.saveKeys")}
+              {completions && ` · ${t("script.suggestKeys")}`}
             </p>
             <Button type="button" variant="outline" onClick={() => close(false)}>
               {t("common.cancel")}

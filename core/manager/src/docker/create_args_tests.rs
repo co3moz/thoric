@@ -89,3 +89,56 @@ fn an_installation_without_user_namespaces_leaves_dockers_seccomp_profile_in_pla
     let args = app.container_args(&env, None);
     assert!(!args.iter().any(|arg| arg == "--security-opt"), "{args:?}");
 }
+
+#[test]
+fn every_variable_a_desktop_is_given_is_one_the_script_editor_knows() {
+    let app = app(false);
+    let env = Container {
+        id: "known-id".into(),
+        container: "thoric-known-id".into(),
+        private_network: "thoric-known-id-private".into(),
+        egress_network: "thoric-known-id-egress".into(),
+        source_image_id: "sha256:source".into(),
+        created_at: 0,
+        spec: spec(),
+        last_error: None,
+        desktop: None,
+        working_image: None,
+        setup: None,
+    };
+    let args = app.container_args(&env, Some("172.30.0.0/16"));
+    let given: Vec<&str> = args
+        .windows(2)
+        .filter(|pair| pair[0] == "--env")
+        .filter_map(|pair| pair[1].split('=').next())
+        .collect();
+    // The dashboard's script editor completes these names, or leaves them out on purpose.
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../web/src/lib/script-completions.json");
+    let list: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+    let names = |value: &serde_json::Value| -> Vec<String> {
+        value
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|entry| {
+                entry
+                    .get("name")
+                    .unwrap_or(entry)
+                    .as_str()
+                    .unwrap()
+                    .to_owned()
+            })
+            .collect()
+    };
+    let mut known = names(&list["variables"]);
+    known.extend(names(&list["unlisted"]["variables"]));
+    assert!(given.contains(&"DESKTOP_GPU"), "{given:?}");
+    for name in given {
+        assert!(
+            known.iter().any(|known| known == name),
+            "{name} is given to every desktop; name it in core/web/src/lib/script-completions.json"
+        );
+    }
+}

@@ -45,6 +45,7 @@ import { useDraft } from "@/lib/dialogs"
 import { imageChoices, initialImage } from "@/lib/format"
 import { formatList, rich, t } from "@/lib/i18n"
 import { useImages, useSettings } from "@/lib/queries"
+import { BUILD_SCRIPT } from "@/lib/script-completions"
 import {
   optionGroups,
   resolveOptions,
@@ -357,6 +358,7 @@ export function BuildImageDialog({
                 onChange={setScript}
                 required
                 hint={t("build.scriptHint")}
+                completions={BUILD_SCRIPT}
               />
               <FieldDescription className="text-xs">{t("build.scriptHint")}</FieldDescription>
             </Field>

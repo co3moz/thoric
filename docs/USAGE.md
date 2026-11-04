@@ -67,6 +67,8 @@ rm -rf /var/lib/apt/lists/*
 
 Keep the desktop startup, VNC and GPU components in place when adding software. The result must still start as a Thoric desktop.
 
+The script editor knows what a script finds in a desktop. **Ctrl+Space** suggests the commands Thoric installs, such as `gpu-run` for the launchers a build writes, with their usage, the variables a desktop gets, such as `$DESKTOP_SESSION`, the step lines below and the script's own words, and typing `$` or `${` lists the variable names. A compose's setup script also gets its own parameters first, and `thoric-mcp`, `desktop-screenshot` and the desktop's variables such as `$DESKTOP_GPU`, which a build does not have. A shell script opened under **Files** gets the same commands and variables.
+
 While the script runs, the job panel shows how far it is under **Running the setup script**. A script can name its steps with a line such as `echo "THORIC_STAGE=2/4 Installing tools"` as each begins, and `echo "THORIC_SKIP=3/4 Optional extras"` for one it leaves out; the panel lists them with their times and keeps the list once the build ends. Without those lines it shows the line of the script that runs, and a rough percentage from where that line is. A compose setup script can print the same lines, and its container's creation job shows them. [The API guide](API.md#script-progress) has the details.
 
 **Build image** also takes an optional description and an icon. Choose any picture, PNG, JPEG, WebP, GIF or SVG; it is scaled down to fit 256 by 256 pixels and saved as a PNG. **Images** shows the icon beside the name, and selecting it, or the plain image symbol of a saved image without one, changes or removes it. Snapshots keep the icon of the image their container came from.
