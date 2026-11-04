@@ -78,6 +78,9 @@ impl App {
         let started = Instant::now();
         let mut counted = None;
         let mut waited = false;
+        // How the desktop last exited, from a look of this wait that saw it exited: Docker
+        // clears the code once it starts the desktop again, which the last look may catch.
+        let mut exited = String::new();
         loop {
             let info = self.owned(env).await?;
             let id = info["Id"]
@@ -85,6 +88,9 @@ impl App {
                 .context("Missing container ID")?
                 .to_owned();
             let state = &info["State"];
+            if let Some(exit) = exit_of(state) {
+                exited = exit;
+            }
             // Restarts by hand count none, and the count from before the wait is not this one's.
             let restarts = info["RestartCount"].as_u64().unwrap_or(0);
             let restarted = restarts.saturating_sub(*counted.get_or_insert(restarts));
@@ -98,21 +104,25 @@ impl App {
                 }
             } else if state["Restarting"] != true {
                 bail!(
-                    self.unready(&id, state, "The desktop stopped before it was ready".into())
-                        .await
+                    self.unready(
+                        &id,
+                        &exited,
+                        "The desktop stopped before it was ready".into()
+                    )
+                    .await
                 );
             }
             if restarted >= patience.restarts {
                 let what =
                     format!("The desktop restarted {restarted} times without becoming ready");
-                bail!(self.unready(&id, state, what).await);
+                bail!(self.unready(&id, &exited, what).await);
             }
             if started.elapsed() >= patience.limit {
                 let what = format!(
                     "The desktop was not ready within {} seconds",
                     patience.limit.as_secs()
                 );
-                bail!(self.unready(&id, state, what).await);
+                bail!(self.unready(&id, &exited, what).await);
             }
             if !waited {
                 self.append_log(job_id, "Waiting for the desktop to be ready.")?;
@@ -122,19 +132,11 @@ impl App {
         }
     }
 
-    /// Why a desktop is not ready: `what` happened, the code it last exited with and the last
-    /// lines it logged.
-    async fn unready(&self, id: &str, state: &Value, what: String) -> String {
+    /// Why a desktop is not ready: `what` happened, how it last `exited` and the last lines it
+    /// logged.
+    async fn unready(&self, id: &str, exited: &str, what: String) -> String {
         let mut text = what;
-        // A desktop that is still running has not exited since it started.
-        if state["Running"] != true || state["Restarting"] == true {
-            if let Some(code) = state["ExitCode"].as_i64() {
-                text.push_str(&format!("; it last exited with code {code}"));
-            }
-            if let Some(error) = state["Error"].as_str().filter(|e| !e.is_empty()) {
-                text.push_str(&format!(" ({error})"));
-            }
-        }
+        text.push_str(exited);
         text.push('.');
         let lines = self.last_lines(id).await;
         if !lines.is_empty() {
@@ -164,6 +166,22 @@ impl App {
             _ => String::new(),
         }
     }
+}
+
+/// How a desktop Docker reports as `state` last exited, with the code and Docker's error, when
+/// it has exited: a desktop that runs has not exited since it started, whatever code Docker kept.
+fn exit_of(state: &Value) -> Option<String> {
+    if state["Running"] == true && state["Restarting"] != true {
+        return None;
+    }
+    let mut text = String::new();
+    if let Some(code) = state["ExitCode"].as_i64() {
+        text.push_str(&format!("; it last exited with code {code}"));
+    }
+    if let Some(error) = state["Error"].as_str().filter(|e| !e.is_empty()) {
+        text.push_str(&format!(" ({error})"));
+    }
+    Some(text)
 }
 
 #[cfg(test)]

@@ -6,9 +6,10 @@ use super::*;
 use crate::model::{CONTAINERS, Job};
 
 /// A manager whose Docker CLI is a shell script in a new directory. The container `e` answers
-/// `inspect` with `state.json`, where `LOOK` becomes how many times it was looked at, and reports
-/// ready from the look in the file `ready-from` on, never without the file. Its log has a line on
-/// each stream. The job `start` exists for the log lines.
+/// `inspect` with `state.json`, or `state-<n>.json` at the look `n` when that file exists, where
+/// `LOOK` becomes how many times it was looked at, and reports ready from the look in the file
+/// `ready-from` on, never without the file. Its log has a line on each stream. The job `start`
+/// exists for the log lines.
 #[cfg(unix)]
 fn desktop(state: &str) -> (std::sync::Arc<App>, std::path::PathBuf) {
     let dir = std::env::temp_dir().join(format!("thoric-ready-{}", uuid::Uuid::new_v4().simple()));
@@ -24,7 +25,8 @@ echo "$*" >> calls
 case "$*" in
   'container inspect thoric-e')
     look=$(( $(cat looks 2>/dev/null || echo 0) + 1 )); echo $look > looks
-    sed "s/LOOK/$look/" state.json ;;
+    file=state.json; [ -e "state-$look.json" ] && file="state-$look.json"
+    sed "s/LOOK/$look/" "$file" ;;
   'exec --user 1001:1001 c0ffee test -e /run/desktop/ready')
     [ -e ready-from ] && [ "$(cat looks)" -ge "$(cat ready-from)" ] ;;
   'logs --tail 20 c0ffee') echo 'Desktop starting'; echo 'GPU requested, but OpenGL initialization failed.' >&2 ;;
@@ -168,6 +170,34 @@ async fn a_desktop_docker_keeps_restarting_fails_after_a_few_restarts() {
     assert_eq!(looks(&dir), 4);
     let calls = std::fs::read_to_string(dir.join("calls")).unwrap();
     assert!(!calls.contains("exec"), "{calls}");
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_restarting_desktop_caught_running_keeps_the_code_it_last_exited_with() {
+    // Between two attempts Docker reports the code the desktop exited with, and clears it once
+    // it starts the desktop again, which is where the look that counts the last restart sees it.
+    let (app, dir) = desktop(&state(
+        r#"{"Running":true,"Restarting":true,"ExitCode":3,"Error":""}"#,
+        "LOOK",
+    ));
+    std::fs::write(
+        dir.join("state-4.json"),
+        state(
+            r#"{"Running":true,"Restarting":false,"ExitCode":0,"Error":""}"#,
+            "4",
+        ),
+    )
+    .unwrap();
+    let error = wait(&app, &PATIENT).await.unwrap_err().to_string();
+    assert!(
+        error.starts_with(
+            "The desktop restarted 3 times without becoming ready; it last exited with code 3. Its last log lines:\n"
+        ),
+        "{error}"
+    );
+    assert_eq!(looks(&dir), 4);
     std::fs::remove_dir_all(&dir).unwrap();
 }
 

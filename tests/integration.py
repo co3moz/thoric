@@ -895,7 +895,7 @@ try:
     # The suite runs with GPU_DEFAULT=false, so a request that leaves gpu out gets none, as before
     # the defaults; the others keep what the create form chose before them.
     settings = api("settings")
-    assert settings["defaults"] == {"gpu": False, "internet": True, "sudo": True, "audio": False, "microphone": False, "gamepad": False, "vpn": False}, settings
+    assert settings["defaults"] == {"gpu": False, "internet": True, "sudo": True, "audio": False, "microphone": False, "gamepad": False, "vpn": False, "idle_stop_minutes": 0}, settings
     assert settings["root_mcp_enabled"] and settings["internet_enabled"] and settings["sudo_enabled"] and settings["gamepad_enabled"] and settings["vpn_enabled"], settings
     # The suite's installation has no proxy, so a container follows none unless it has its own.
     assert settings["proxy"] is None, settings
@@ -2656,6 +2656,11 @@ try:
     assert "nothing used its desktop for 1 minutes" in api(f"jobs/{idle_stops[0]['id']}")["log"]
     assert api(f"containers/{worked_id}")["state"] == "running" and not lifecycle_jobs("idle-stop", worked_id)
     assert api(f"containers/{idle_id}")["spec"]["lifecycle"]["idle_stop_minutes"] == 1
+    # Every desktop takes two networks from Docker's default address pools, which the containers
+    # earlier phases keep already fill, so these two go before the next two are made.
+    for eid in (idle_id, worked_id):
+        job(api(f"containers/{eid}", method="DELETE"))
+        container_ids.remove(eid)
     throwaway_id = job(api("containers", {**lifecycle_base, "name": "Throwaway", "lifecycle": {"expires_in_minutes": 1, "on_expiry": "delete"}}))["container_id"]
     container_ids.append(throwaway_id)
     extended_policy = {"idle_stop_minutes": 0, "expires_in_minutes": 5, "on_expiry": "delete"}
@@ -2667,6 +2672,7 @@ try:
     assert tool("update_container", {**moved, "dry_run": True})["structuredContent"]["live"] == ["lifecycle"]
     mcp_job(tool("update_container", moved))
     wait_for(lambda: refused(f"containers/{throwaway_id}") == 404, 180)
+    container_ids.remove(throwaway_id)
     deletes = lifecycle_jobs("expiry-delete", throwaway_id)
     assert len(deletes) == 1 and deletes[0]["status"] == "completed", deletes
     assert api(f"jobs/{deletes[0]['id']}")["result"]["deleted"] == throwaway_id
@@ -2675,8 +2681,8 @@ try:
     assert extended_item["state"] == "running" and extended_item["spec"]["lifecycle"]["expires_at"] > time.time() + 50 * 60, extended_item
     assert extended_item["spec"]["lifecycle"]["on_expiry"] == "delete"
     assert json.loads(docker("inspect", f"thoric-{extended_id}"))[0]["State"]["StartedAt"] == extended_start
-    for eid in (idle_id, worked_id, extended_id):
-        job(api(f"containers/{eid}", method="DELETE"))
+    job(api(f"containers/{extended_id}", method="DELETE"))
+    container_ids.remove(extended_id)
     print("PASS an unused desktop stops after its idle minutes, an agent at work keeps its own, and an expired container deletes itself", flush=True)
     # Container groups: members reach each other on the group's own network by hostname, name and
     # alias, but not each other's VNC server; the network comes and goes with its members.
