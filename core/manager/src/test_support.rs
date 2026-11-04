@@ -60,6 +60,9 @@ impl config::Config {
             architecture: "amd64".into(),
             user_namespaces: true,
             pids_limit: desktop_limits::DEFAULT_PIDS_LIMIT,
+            // Docker's own pools, as the Docker CLI stand-ins answer for them; the subnets of a
+            // range are pinned down in `docker/address_pool_tests.rs`.
+            address_pool: None,
             allowed_hosts: vec![],
             desktop_host: None,
             upload_limit: 1024 * 1024,

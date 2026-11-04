@@ -58,6 +58,9 @@ pub struct Config {
     /// How many processes and threads a desktop may have, `0` for no limit; see
     /// [`crate::desktop_limits`].
     pub pids_limit: u64,
+    /// The range the networks Thoric makes take their subnets from, or `None` for Docker's own
+    /// address pools; see `docker::address_pool`.
+    pub address_pool: Option<crate::docker::Subnet>,
     /// The names `ALLOWED_HOSTS` adds to the hosts the manager answers.
     pub allowed_hosts: Vec<String>,
     /// The name of the optional HTTPS service, which the manager answers as well. Compose passes
@@ -137,6 +140,7 @@ pub(crate) const EDITABLE: &[&str] = &[
     "DESKTOP_IMAGE",
     "DESKTOP_USER_NAMESPACES",
     "DESKTOP_PIDS_LIMIT",
+    "DESKTOP_ADDRESS_POOL",
     "WSL_GPU",
     "NVIDIA_COMPUTE",
     "GPU_ADAPTER",
@@ -435,6 +439,7 @@ impl Config {
             architecture: crate::pulls::image_architecture(None),
             user_namespaces: flag("DESKTOP_USER_NAMESPACES", true)?,
             pids_limit: crate::desktop_limits::pids_limit(var("DESKTOP_PIDS_LIMIT").as_deref())?,
+            address_pool: crate::docker::address_pool(var("DESKTOP_ADDRESS_POOL").as_deref())?,
             allowed_hosts: host_names(var("ALLOWED_HOSTS").as_deref()),
             desktop_host: host_names(var("DESKTOP_HOST").as_deref())
                 .into_iter()
@@ -522,6 +527,13 @@ impl Config {
             value("DESKTOP_IMAGE", json!(self.base_image)),
             value("DESKTOP_USER_NAMESPACES", json!(self.user_namespaces)),
             value("DESKTOP_PIDS_LIMIT", json!(self.pids_limit)),
+            value(
+                "DESKTOP_ADDRESS_POOL",
+                json!(
+                    self.address_pool
+                        .map_or_else(|| "docker".to_owned(), |pool| pool.to_string())
+                ),
+            ),
             value("WSL_GPU", json!(self.wsl_gpu)),
             value("NVIDIA_COMPUTE", json!(self.cuda)),
             value("DRI_GPU", json!(self.dri_gpu)),

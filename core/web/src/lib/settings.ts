@@ -32,6 +32,7 @@ export const SECTION_OF: Record<string, Section> = {
   DESKTOP_IMAGE: "desktops",
   DESKTOP_USER_NAMESPACES: "desktops",
   DESKTOP_PIDS_LIMIT: "desktops",
+  DESKTOP_ADDRESS_POOL: "desktops",
   AUDIO_ENABLED: "features",
   MICROPHONE_ENABLED: "features",
   INTERNET_ENABLED: "features",
@@ -155,6 +156,14 @@ export const FIELDS: Record<string, Field> = {
   DESKTOP_USER_NAMESPACES: { kind: "switch" },
   // 0 is no limit; the manager refuses one below 1024, which leaves desktops that cannot start.
   DESKTOP_PIDS_LIMIT: { kind: "number", min: 0, max: 4194304 },
+  DESKTOP_ADDRESS_POOL: {
+    kind: "choice",
+    choices: [
+      { value: "", label: "settings.choice.thoricRange" },
+      { value: "docker", label: "settings.choice.dockerPools" },
+    ],
+    placeholder: "10.213.0.0/16",
+  },
   WSL_GPU: { kind: "switch" },
   NVIDIA_COMPUTE: { kind: "switch" },
   GPU_ADAPTER: {

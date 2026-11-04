@@ -1130,6 +1130,8 @@ export const en = {
   "settings.choice.ownLabel": "Thoric's own label",
   "settings.choice.everyVolume": "Every volume",
   "settings.choice.custom": "Other",
+  "settings.choice.thoricRange": "Thoric's own range",
+  "settings.choice.dockerPools": "Docker's address pools",
   "settings.about.AUTH_MODE":
     "password asks for the administrator's password; none turns sign-in off.",
   "settings.about.ADMIN_USERNAME": "The administrator's user name.",
@@ -1152,6 +1154,8 @@ export const en = {
     "Lets browsers and Electron apps in desktops start their sandbox.",
   "settings.about.DESKTOP_PIDS_LIMIT":
     "The most processes and threads one desktop may run, at least 1024; 0 for no limit.",
+  "settings.about.DESKTOP_ADDRESS_POOL":
+    "The range desktops' networks take small subnets of, one your LAN and VPNs do not use; docker leaves it to Docker's own pools, which run out at about 14 desktops.",
   "settings.about.AUDIO_ENABLED": "Desktop sound in the browser.",
   "settings.about.MICROPHONE_ENABLED": "The browser's microphone in desktops; needs sound.",
   "settings.about.INTERNET_ENABLED": "Whether containers may have internet access.",

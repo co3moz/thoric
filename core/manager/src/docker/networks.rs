@@ -1,7 +1,7 @@
 //! A container's two networks, the internal private one it shares with the manager alone and the
 //! one that reaches the internet, and its addresses there. `isolation` keeps the private one off
 //! the Docker host.
-use super::isolation::{Reach, create_args};
+use super::{address_pool::DESKTOP_PREFIX, isolation::Reach};
 use crate::{App, model::*};
 use anyhow::{Context, Result, bail};
 use serde_json::Value;
@@ -29,7 +29,8 @@ impl App {
         }
         self.create_network(env, name, reach, None).await
     }
-    /// Create one of a container's networks, labeled as its own.
+    /// Create one of a container's networks, labeled as its own, in `subnet` or in a subnet of
+    /// `DESKTOP_ADDRESS_POOL` of its own.
     pub(super) async fn create_network(
         &self,
         env: &Container,
@@ -41,10 +42,7 @@ impl App {
             format!("{LABEL}=true"),
             format!("thoric.environment={}", env.id),
         ];
-        let id = self
-            .docker_args(&create_args(name, &labels, reach, subnet))
-            .await?;
-        self.inspect("network", String::from_utf8_lossy(&id).trim())
+        self.make_network(name, &labels, reach, subnet, DESKTOP_PREFIX)
             .await
     }
     pub async fn set_internet(&self, env: &mut Container, enabled: bool) -> Result<()> {
