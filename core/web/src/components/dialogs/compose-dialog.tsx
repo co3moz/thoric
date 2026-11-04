@@ -24,9 +24,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
-import { CodeEditor } from "@/components/code-editor"
 import { api } from "@/lib/api"
-import { rowsHeight } from "@/lib/code-editor"
 import { closeDialog, useDraft } from "@/lib/dialogs"
 import { refreshLists, useImages } from "@/lib/queries"
 import {
@@ -46,6 +44,7 @@ import type { DialogProps } from "./side-drawer"
 import { formatList, plural, t } from "@/lib/i18n"
 import { NumberedStep, NumberedSteps } from "./numbered-steps"
 import { ParameterEditor } from "./parameter-editor"
+import { ScriptField } from "./script-field"
 import { Footer } from "./simple-dialogs"
 
 /**
@@ -150,17 +149,19 @@ function StepFields({
       </FieldSet>
       <Field>
         <FieldLabel htmlFor={`${id}-script`}>{t("compose.script")}</FieldLabel>
-        <CodeEditor
+        <ScriptField
           id={`${id}-script`}
-          language="bash"
-          label={t("compose.script")}
-          minHeight={rowsHeight(9)}
-          maxHeight={500}
-          required
+          label={
+            draft.name || draft.id
+              ? `${t("compose.script")} · ${stepTitle(draft)}`
+              : t("compose.script")
+          }
           value={draft.script}
           onChange={(script) => set({ script })}
+          required
+          hint={t("compose.scriptHint")}
         />
-        <FieldDescription>{t("compose.scriptHint")}</FieldDescription>
+        <FieldDescription className="text-xs">{t("compose.scriptHint")}</FieldDescription>
       </Field>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field orientation="horizontal">

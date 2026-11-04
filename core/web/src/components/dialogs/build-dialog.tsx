@@ -34,7 +34,6 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { runJob } from "@/lib/actions"
 import { parseBuildConfig, type ImportedBuild } from "@/lib/build-config"
-import { rowsHeight } from "@/lib/code-editor"
 import {
   composeBody,
   composeDraft,
@@ -60,6 +59,7 @@ import { BuildServers } from "./build-servers"
 import { ComposeFields } from "./compose-dialog"
 import { useSubmit } from "./container-dialogs"
 import { FormSections, sectionedDialog, useShowSection, type FormSection } from "./form-sections"
+import { ScriptField } from "./script-field"
 import type { DialogProps } from "./side-drawer"
 import { Footer } from "./simple-dialogs"
 import { SwitchTile } from "./spec-fields"
@@ -327,9 +327,14 @@ export function BuildImageDialog({
           {parts ? (
             <BuildParts
               parts={parts}
+              // The editor hands back several parts at once, so each change builds on the last.
               onChange={(index, next) =>
                 setParts(
-                  parts.map((part, other) => (other === index ? { ...part, script: next } : part))
+                  (current) =>
+                    current &&
+                    current.map((part, other) =>
+                      other === index ? { ...part, script: next } : part
+                    )
                 )
               }
               onMove={(index, by) => {
@@ -341,16 +346,17 @@ export function BuildImageDialog({
             />
           ) : (
             <Field>
-              <FieldLabel htmlFor={`${field}-script`}>{t("compose.script")}</FieldLabel>
-              <CodeEditor
+              {/* The section's heading names it; the label still leads the browser to it. */}
+              <FieldLabel htmlFor={`${field}-script`} className="sr-only">
+                {t("build.script")}
+              </FieldLabel>
+              <ScriptField
                 id={`${field}-script`}
-                language="bash"
-                label={t("compose.script")}
-                minHeight={rowsHeight(12)}
-                maxHeight={500}
-                required
+                label={t("build.script")}
                 value={script}
                 onChange={setScript}
+                required
+                hint={t("build.scriptHint")}
               />
               <FieldDescription className="text-xs">{t("build.scriptHint")}</FieldDescription>
             </Field>
@@ -511,15 +517,16 @@ function ImportConfiguration({
         <DialogTitle>{t("build.importConfig")}</DialogTitle>
         <DialogDescription>{t("build.importConfigHint")}</DialogDescription>
       </DialogHeader>
-      <FieldGroup className="-mx-4 min-h-0 w-auto flex-1 overflow-y-auto px-4 py-1">
-        <Field data-invalid={!!error}>
+      {/* The editor fills what the dialog leaves it, so the text scrolls in one place only. */}
+      <FieldGroup className="min-h-0 flex-1">
+        <Field data-invalid={!!error} className="min-h-0 flex-1">
           <FieldLabel htmlFor={`${field}-config`}>{t("build.config")}</FieldLabel>
           <CodeEditor
             id={`${field}-config`}
             language="json"
             label={t("build.config")}
-            minHeight={rowsHeight(12)}
-            maxHeight={500}
+            fill
+            className="min-h-0 flex-1"
             required
             placeholder={'{\n  "name": "Unity tools",\n  "base_image": "…",\n  "script": "…"\n}'}
             value={text}

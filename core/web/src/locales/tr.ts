@@ -2046,4 +2046,13 @@ export const tr: Messages = {
   "build.inheritNoteOff": "Yeni konteynerler {name} imajının kurduklarını atlar. {change}",
   "build.changeUnderCompose": "Compose bölümünden değiştirin",
   "build.partRemoveOf": "{name} şablonunu çıkar",
+  "script.edit": "Düzenle",
+  "script.editOf": "{name} düzenle",
+  "script.empty": "Boş",
+  "script.lines.one": "{count} satır",
+  "script.lines.other": "{count} satır",
+  "script.scripts": "Betikler",
+  "script.done": "Tamam",
+  "script.saveKeys": "Ctrl+S değişiklikleri korur",
+  "script.discardHint": "Editörde değiştirdikleriniz kapanınca kaybolur.",
 }

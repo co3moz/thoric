@@ -2085,4 +2085,13 @@ export const de: Messages = {
   "build.inheritNoteOff": "Neue Container lassen weg, was {name} einrichtet. {change}",
   "build.changeUnderCompose": "Unter Compose ändern",
   "build.partRemoveOf": "{name} weglassen",
+  "script.edit": "Bearbeiten",
+  "script.editOf": "{name} bearbeiten",
+  "script.empty": "Leer",
+  "script.lines.one": "{count} Zeile",
+  "script.lines.other": "{count} Zeilen",
+  "script.scripts": "Skripte",
+  "script.done": "Fertig",
+  "script.saveKeys": "Strg+S übernimmt die Änderungen",
+  "script.discardHint": "Was Sie im Editor geändert haben, geht beim Schließen verloren.",
 }

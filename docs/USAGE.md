@@ -54,7 +54,7 @@ GPU-enabled startup checks the renderer and rejects software rendering. If a GPU
 
 ## Make an image with a script
 
-Under **Images**, select **Build image**, choose a desktop base and enter a shell script. The script runs as root during the build, which lets you install packages and applications. Enable build internet access if your script needs to download them. The job log shows the script's output and the resulting image.
+Under **Images**, select **Build image**, choose a desktop base and write a shell script under **Build script**: select the script to open it in a large editor over the form, and **Done** keeps what you wrote. The script runs as root during the build, which lets you install packages and applications. Enable build internet access if your script needs to download them. The job log shows the script's output and the resulting image.
 
 For example, this installs a couple of tools on either catalog image:
 

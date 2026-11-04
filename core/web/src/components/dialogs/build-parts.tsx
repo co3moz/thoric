@@ -2,17 +2,17 @@ import * as React from "react"
 import { RiArrowDownLine, RiArrowUpLine, RiDeleteBinLine } from "@remixicon/react"
 
 import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
+import { FieldDescription } from "@/components/ui/field"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { CodeEditor } from "@/components/code-editor"
-import { rowsHeight } from "@/lib/code-editor"
 import { t } from "@/lib/i18n"
 import type { BuildPart } from "@/lib/types"
 import { NumberedStep, NumberedSteps } from "./numbered-steps"
+import { ScriptCard, ScriptEditor } from "./script-field"
 
 /**
- * The scripts of templates merged into one build, numbered in the order they run, each open to be
- * read and changed, moved or left out before anything is built.
+ * The scripts of templates merged into one build, numbered in the order they run, each a card to
+ * be read and changed in the editor, which moves between them, and moved or left out before
+ * anything is built.
  */
 export function BuildParts({
   parts,
@@ -26,6 +26,8 @@ export function BuildParts({
   onRemove: (index: number) => void
 }) {
   const id = React.useId()
+  // The part whose script the editor opened at.
+  const [editing, setEditing] = React.useState<string | null>(null)
   return (
     <div className="flex flex-col gap-4">
       <FieldDescription className="text-xs">{t("build.partsHint")}</FieldDescription>
@@ -65,24 +67,30 @@ export function BuildParts({
               </>
             }
           >
-            <Field>
-              <FieldLabel htmlFor={`${id}-${part.id}`} className="sr-only">
-                {t("build.partScript", { name: part.name })}
-              </FieldLabel>
-              <CodeEditor
-                id={`${id}-${part.id}`}
-                language="bash"
-                label={t("build.partScript", { name: part.name })}
-                minHeight={rowsHeight(8)}
-                maxHeight={400}
-                required
-                value={part.script}
-                onChange={(script) => onChange(index, script)}
-              />
-            </Field>
+            <ScriptCard
+              id={`${id}-${part.id}`}
+              label={t("build.partScript", { name: part.name })}
+              language="bash"
+              value={part.script}
+              required
+              onOpen={() => setEditing(part.id)}
+            />
           </NumberedStep>
         ))}
       </NumberedSteps>
+      <ScriptEditor
+        open={editing !== null}
+        onOpenChange={(open) => !open && setEditing(null)}
+        scripts={parts.map((part) => ({ key: part.id, title: part.name, value: part.script }))}
+        start={editing ?? parts[0]?.id ?? ""}
+        language="bash"
+        hint={t("build.partsHint")}
+        onDone={(values) =>
+          parts.forEach((part, index) => {
+            if (values[part.id] !== part.script) onChange(index, values[part.id])
+          })
+        }
+      />
     </div>
   )
 }

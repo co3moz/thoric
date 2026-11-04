@@ -2080,4 +2080,13 @@ export const fr: Messages = {
     "Les nouveaux conteneurs laissent de côté ce que {name} configure. {change}",
   "build.changeUnderCompose": "Modifier dans Compose",
   "build.partRemoveOf": "Retirer {name}",
+  "script.edit": "Modifier",
+  "script.editOf": "Modifier {name}",
+  "script.empty": "Vide",
+  "script.lines.one": "{count} ligne",
+  "script.lines.other": "{count} lignes",
+  "script.scripts": "Scripts",
+  "script.done": "Terminé",
+  "script.saveKeys": "Ctrl+S conserve les modifications",
+  "script.discardHint": "Ce que vous avez modifié dans l'éditeur est perdu à sa fermeture.",
 }

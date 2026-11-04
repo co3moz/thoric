@@ -2071,6 +2071,15 @@ export const en = {
   "build.inheritNoteOff": "New containers leave out what {name} sets up. {change}",
   "build.changeUnderCompose": "Change it under Compose",
   "build.partRemoveOf": "Leave out {name}",
+  "script.edit": "Edit",
+  "script.editOf": "Edit {name}",
+  "script.empty": "Empty",
+  "script.lines.one": "{count} line",
+  "script.lines.other": "{count} lines",
+  "script.scripts": "Scripts",
+  "script.done": "Done",
+  "script.saveKeys": "Ctrl+S keeps the changes",
+  "script.discardHint": "What you changed in the editor is lost when it closes.",
 } as const
 
 export type MessageKey = keyof typeof en
