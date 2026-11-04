@@ -4,7 +4,8 @@
 //! shows before the record exists. Also that one container's route answers as the list does,
 //! that a settings change is checked before any job, and that a start or restart ends once the
 //! desktop is ready while a stop does not wait. A container whose creation failed once its record
-//! was saved still gets its own MCP endpoint.
+//! was saved still gets its own MCP endpoint, and an unhealthy one says why with the first line of
+//! its newest health check.
 use super::*;
 use crate::api::build;
 use crate::test_support::{app, spec};
@@ -15,6 +16,35 @@ use axum::{
 };
 use std::sync::Arc;
 use tower::ServiceExt;
+
+#[test]
+fn an_unhealthy_desktop_says_why_with_the_first_line_of_its_newest_check() {
+    let line = |name: &str, health: Value| format!("/{name}\t{health}\n");
+    let text = [
+        line(
+            "thoric-held",
+            json!({"Status": "unhealthy", "FailingStreak": 28, "Log": [
+                {"ExitCode": -1, "Output": "Health check exceeded timeout (4s)"},
+                {"ExitCode": 1, "Output": "display-held: The X display did not answer within 3 seconds\nmore\n"},
+            ]}),
+        ),
+        line(
+            "thoric-long",
+            json!({"Log": [{"ExitCode": 1, "Output": format!("\n  {}", "ç".repeat(200))}]}),
+        ),
+        line("thoric-none", json!({"Log": []})),
+        "thoric-broken\tnot json\n".into(),
+    ]
+    .concat();
+    let details = read_health_details(&text);
+    assert_eq!(
+        details["thoric-held"],
+        "display-held: The X display did not answer within 3 seconds"
+    );
+    // Cut at the limit without splitting a character.
+    assert_eq!(details["thoric-long"], "ç".repeat(150));
+    assert_eq!(details.len(), 2);
+}
 
 #[test]
 fn a_create_request_carries_compose_values_beside_the_settings() {

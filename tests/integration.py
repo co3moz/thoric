@@ -1385,6 +1385,33 @@ try:
     missing_program = tool("launch_application", {"container_id":env_id,"command":"/nonexistent/program"})["structuredContent"]
     assert missing_program["state"] == "failed", missing_program
     print("PASS application lifecycle, window management, sized screenshots, held keys and relative pointer", flush=True)
+    # ImageMagick's import given a window that does not exist waits for a click with the whole
+    # display grabbed, as it did when an agent pictured an installer's dialog that had closed. A
+    # window tool and a screenshot then answer a conflict naming it within seconds instead of
+    # Docker's two-minute timeout, and the health check says the display is held.
+    grab = tool("launch_application", {"container_id":env_id,"command":"import","args":["-window","0x7ffffff0","/tmp/thoric-held.png"],"name":"display grab test"})["structuredContent"]["application_id"]
+    def held_answer():
+        began = time.monotonic()
+        answer = tool("list_windows", {"container_id":env_id}, allow_error=True)
+        return (answer["content"][0]["text"], time.monotonic() - began) if answer.get("isError") else None
+    held_text, took = wait_for(held_answer, 60)
+    assert took < 15 and "display is not answering" in held_text, (took, held_text)
+    assert "import (pid " in held_text and f"application {grab}, " in held_text, held_text
+    try:
+        api(f"containers/{env_id}/screenshot?max_width=320", raw=True)
+        raise AssertionError("a screenshot of a held display succeeded")
+    except urllib.error.HTTPError as error:
+        assert error.code == 409 and "import (pid " in json.loads(error.read())["error"], error
+    check = subprocess.run(["docker","exec",container,"/usr/local/bin/desktop-healthcheck"], capture_output=True, timeout=30)
+    assert check.returncode == 1 and check.stdout.startswith(b"display-held: "), check
+    unhealthy = wait_for(lambda: (c if (c := api(f"containers/{env_id}"))["health"] == "unhealthy" else None), 90)
+    assert (unhealthy["health_detail"] or "").startswith("display-held: "), unhealthy
+    released = tool("stop_application", {"container_id":env_id,"application_id":grab,"grace_seconds":2})["structuredContent"]
+    assert released["state"] == "exited", released
+    assert tool("list_windows", {"container_id":env_id})["structuredContent"]["items"]
+    healthy = wait_for(lambda: (c if (c := api(f"containers/{env_id}"))["health"] == "healthy" else None), 60)
+    assert healthy["health_detail"] is None, healthy
+    print("PASS a display a program holds is named in window tools, screenshots and the health check", flush=True)
     second = tool("launch_application", {"container_id":env_id,"command":"bash","args":["-c","echo READY_MARKER; exec xlogo -title 'Thoric wait test'"]})["structuredContent"]["application_id"]
     waited = tool("wait_for_condition", {"container_id":env_id,"window_title":"Thoric wait test","application_id":second,"application_state":"running","log_contains":"READY_MARKER","timeout_ms":15000})["structuredContent"]
     assert waited["satisfied"] and waited["window"]["title"] == "Thoric wait test" and waited["log_found"], waited

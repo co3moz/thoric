@@ -9,6 +9,7 @@ import {
   containerStatus,
   desktopTitle,
   duration,
+  healthReason,
   imageChoices,
   imageHolders,
   imageSource,
@@ -501,6 +502,42 @@ test("a running container shows its compose setup until the setup completes", ()
   assert.equal(needsAttention(item("completed")), false)
   // Until the desktop answers its health check, it is starting, whatever the setup says.
   assert.equal(containerStatus({ ...item("pending"), health: "starting" }).key, "created")
+})
+
+test("an unhealthy desktop says why in words, and a reason it does not know as the check said it", () => {
+  const unhealthy = (health_detail?: string | null) => ({
+    health: "unhealthy" as const,
+    health_detail,
+  })
+  assert.match(
+    healthReason(unhealthy("display-held: no answer in 3 s")) ?? "",
+    /a program holds it/
+  )
+  assert.match(
+    healthReason(unhealthy("Health check exceeded timeout (4s)")) ?? "",
+    /did not finish in time/
+  )
+  assert.equal(healthReason(unhealthy("Xvfb crashed")), "Xvfb crashed")
+  assert.equal(healthReason(unhealthy(null)), null)
+  assert.equal(healthReason({ health: "healthy", health_detail: "display-held: old" }), null)
+})
+
+test("every failure the desktop's health check names has words in the dashboard", () => {
+  const script = readFileSync(
+    new URL("../../../images/desktop/desktop-healthcheck.sh", import.meta.url),
+    "utf8"
+  )
+  const words = [...script.matchAll(/echo '([a-z-]+): /g)].map((match) => match[1])
+  assert.deepEqual([...new Set(words)].sort(), [
+    "desktop-starting",
+    "display-gone",
+    "display-held",
+    "session-failed",
+  ])
+  for (const word of words) {
+    const reason = healthReason({ health: "unhealthy", health_detail: `${word}: detail` })
+    assert.notEqual(reason, `${word}: detail`, word)
+  }
 })
 
 test("an image offers Delete only with something to delete, and names who holds it", () => {

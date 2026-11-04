@@ -29,6 +29,13 @@ export function ContainerPreview({ item, className }: { item: ContainerItem; cla
   const stamp = useStamp(REFRESH)
   const [failed, setFailed] = React.useState<number | null>(null)
   const shown = running && failed !== stamp
+  // A desktop whose screen did not answer says so until the next picture loads, instead of
+  // seeming to load one; a picture that loaded before stays hidden behind it.
+  const text = !running
+    ? t("containers.stopped")
+    : failed === stamp
+      ? t("containers.previewUnavailable")
+      : t("containers.loadingPreview")
 
   return (
     <div
@@ -39,7 +46,7 @@ export function ContainerPreview({ item, className }: { item: ContainerItem; cla
     >
       <div className="flex flex-col items-center gap-2 text-xs text-muted-foreground">
         <RiComputerLine className="size-6 opacity-60" />
-        {running ? t("containers.loadingPreview") : t("containers.stopped")}
+        {text}
       </div>
       {shown && (
         <img

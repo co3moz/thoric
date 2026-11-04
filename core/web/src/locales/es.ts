@@ -46,6 +46,14 @@ export const es: Messages = {
   "state.setup_failed": "Error de configuración",
   "state.creating": "Creando",
   "state.downloading": "Descargando",
+
+  "health.displayHeld":
+    "La pantalla no responde: un programa la retiene. Cierra ese programa o haz clic una vez en el escritorio si espera que se elija una ventana.",
+  "health.displayGone": "La pantalla no está en marcha. Reinicia el contenedor.",
+  "health.starting": "La sesión del escritorio aún no ha terminado de iniciarse.",
+  "health.sessionFailed": "La sesión del escritorio no pudo iniciarse.",
+  "health.timedOut":
+    "La comprobación de estado no terminó a tiempo, así que puede que la pantalla no responda.",
   "job.create": "Crear contenedor",
   "job.retry": "Reintentar configuración",
   "job.start": "Iniciar",
@@ -222,6 +230,7 @@ export const es: Messages = {
   "containers.diagnosticsOf": "Diagnóstico de {name}",
   "containers.internetOf": "Acceso a Internet de {name}",
   "containers.loadingPreview": "Cargando vista previa",
+  "containers.previewUnavailable": "Vista previa no disponible",
   "containers.creating": "Creando el contenedor…",
   "containers.creatingHint": "Sus controles aparecen cuando esté en marcha.",
   "containers.previewAlt": "Vista previa del escritorio de {name}",

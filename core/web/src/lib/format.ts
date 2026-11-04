@@ -1,4 +1,13 @@
-import { formatDate, formatList, formatNumber, getLocale, has, plural, t } from "./i18n"
+import {
+  formatDate,
+  formatList,
+  formatNumber,
+  getLocale,
+  has,
+  type MessageKey,
+  plural,
+  t,
+} from "./i18n"
 import { iconUrl } from "./icons"
 import { fileSize } from "./uploads"
 import type {
@@ -78,6 +87,24 @@ export function containerStatus(item: ContainerItem): { key: string; tone: Tone 
   if (["created", "restarting", "paused"].includes(item.state))
     return { key: item.state, tone: "warning" }
   return { key: item.state, tone: "muted" }
+}
+
+// What a desktop's health check begins a failure with, and Docker's words for one that did not
+// finish, as images before the words had it.
+const healthReasons: [string, MessageKey][] = [
+  ["display-held:", "health.displayHeld"],
+  ["display-gone:", "health.displayGone"],
+  ["desktop-starting:", "health.starting"],
+  ["session-failed:", "health.sessionFailed"],
+  ["Health check exceeded timeout", "health.timedOut"],
+]
+
+/** Why an unhealthy desktop is, in words; a reason this release does not know as the check said it. */
+export function healthReason(item: Pick<ContainerItem, "health" | "health_detail">) {
+  const detail = item.health === "unhealthy" ? item.health_detail?.trim() : null
+  if (!detail) return null
+  const known = healthReasons.find(([start]) => detail.startsWith(start))
+  return known ? t(known[1]) : detail
 }
 
 /** A stopped container whose setup did not finish offers a retry instead of a start. */

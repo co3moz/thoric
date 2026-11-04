@@ -41,6 +41,16 @@ pub async fn containers(State(app): State<Arc<App>>) -> Result<Json<Value>> {
             }
         }
     }
+    let unhealthy = states
+        .iter()
+        .filter(|(_, docker)| {
+            docker["Status"]
+                .as_str()
+                .is_some_and(|status| status.contains("(unhealthy)"))
+        })
+        .map(|(name, _)| name.as_str())
+        .collect::<Vec<_>>();
+    let details = health_details(&app, &unhealthy).await;
     // Each record with Docker's view of it beside its own fields.
     let items = containers
         .into_iter()
@@ -73,6 +83,7 @@ pub async fn containers(State(app): State<Arc<App>>) -> Result<Json<Value>> {
             item["in_use"] = json!(in_use);
             item["idle_stop_at"] = json!(idle_stop_at);
             item["health"] = json!(health);
+            item["health_detail"] = json!(details.get(&record.container));
             item["status"] = json!(docker.map(|d| &d["Status"]));
             // Whether the members of its groups are kept from its screen.
             item["vnc_private"] = json!(docker.map(crate::groups::vnc_private));
@@ -80,6 +91,52 @@ pub async fn containers(State(app): State<Arc<App>>) -> Result<Json<Value>> {
         })
         .collect::<Vec<_>>();
     Ok(Json(json!(items)))
+}
+
+/// How much of a health check's output the list carries.
+const DETAIL_LIMIT: usize = 300;
+
+/// Why each of the named containers is unhealthy, by name: the first line of its newest health
+/// check's output, which a Thoric desktop's check begins with a word that says what failed, such
+/// as `display-held:`, and Docker gives as `Health check exceeded timeout (4s)` for one that did
+/// not finish. Docker's list leaves the output out, so it is read only while one is unhealthy, and
+/// a failure to read it leaves the list without it.
+async fn health_details(app: &App, names: &[&str]) -> std::collections::HashMap<String, String> {
+    if names.is_empty() {
+        return Default::default();
+    }
+    let mut args = vec!["inspect", "--format", "{{.Name}}\t{{json .State.Health}}"];
+    args.extend(names);
+    match app.docker(&args).await {
+        Ok(output) => read_health_details(&String::from_utf8_lossy(&output)),
+        Err(error) => {
+            tracing::debug!("Could not read the health checks of {names:?}: {error:#}");
+            Default::default()
+        }
+    }
+}
+
+/// [`health_details`] from what `docker inspect` printed, a name and the health state a line.
+fn read_health_details(text: &str) -> std::collections::HashMap<String, String> {
+    text.lines()
+        .filter_map(|line| {
+            let (name, health) = line.split_once('\t')?;
+            let health = serde_json::from_str::<Value>(health).ok()?;
+            let output = health["Log"].as_array()?.last()?["Output"].as_str()?;
+            let first = output
+                .lines()
+                .map(str::trim)
+                .find(|line| !line.is_empty())?;
+            let mut end = first.len().min(DETAIL_LIMIT);
+            while !first.is_char_boundary(end) {
+                end -= 1;
+            }
+            Some((
+                name.trim_start_matches('/').to_owned(),
+                first[..end].to_owned(),
+            ))
+        })
+        .collect()
 }
 
 pub async fn container(State(app): State<Arc<App>>, Path(id): Path<String>) -> Result<Json<Value>> {

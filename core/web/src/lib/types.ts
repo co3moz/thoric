@@ -165,6 +165,8 @@ export type ContainerItem = Container & {
   /** Docker's container state, `missing` without a container or `unavailable` without Docker. */
   state: string
   health: Health
+  /** Why an unhealthy desktop is: the first line of its newest health check, such as `display-held: ...`. */
+  health_detail?: string | null
   status: string | null
   /** Whether its VNC server stays in its private network, away from its groups; `null` without a container. */
   vnc_private?: boolean | null

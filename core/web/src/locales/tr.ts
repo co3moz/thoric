@@ -46,6 +46,13 @@ export const tr: Messages = {
   "state.setup_failed": "Kurulum başarısız",
   "state.creating": "Oluşturuluyor",
   "state.downloading": "İndiriliyor",
+
+  "health.displayHeld":
+    "Ekran yanıt vermiyor: bir program onu tutuyor. O programı sonlandırın ya da bir pencerenin seçilmesini bekliyorsa masaüstüne bir kez tıklayın.",
+  "health.displayGone": "Ekran çalışmıyor. Konteyneri yeniden başlatın.",
+  "health.starting": "Masaüstü oturumu henüz başlamadı.",
+  "health.sessionFailed": "Masaüstü oturumu başlatılamadı.",
+  "health.timedOut": "Sağlık denetimi zamanında bitmedi, ekran yanıt vermiyor olabilir.",
   "job.create": "Konteyner oluşturma",
   "job.retry": "Kurulumu yeniden deneme",
   "job.start": "Başlatma",
@@ -221,6 +228,7 @@ export const tr: Messages = {
   "containers.diagnosticsOf": "{name} tanılaması",
   "containers.internetOf": "{name} internet erişimi",
   "containers.loadingPreview": "Önizleme yükleniyor",
+  "containers.previewUnavailable": "Önizleme alınamadı",
   "containers.creating": "Konteyner oluşturuluyor…",
   "containers.creatingHint": "Kontrolleri, çalışmaya başlayınca görünür.",
   "containers.previewAlt": "{name} masaüstü önizlemesi",

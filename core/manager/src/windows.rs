@@ -67,16 +67,18 @@ async fn x11(app: &App, id: &str, command: &[&str]) -> Result<Vec<u8>> {
             "Start the container before using its windows".into(),
         ));
     }
+    let container = info["Id"].as_str().context("Missing container ID")?;
     let mut args = vec![
         "exec",
         "--user",
         "desktop",
         "--env",
         "DISPLAY=:0",
-        info["Id"].as_str().context("Missing container ID")?,
+        container,
     ];
     args.extend(command);
-    app.docker(&args).await.map_err(|e| {
+    let output = crate::display::watched(app, container, app.docker(&args)).await;
+    output.map_err(|e| {
         if format!("{e:#}").contains("executable file not found") {
             anyhow::anyhow!(
                 "Window tools need xdotool and wmctrl in the desktop image; update its catalog image or the installation"
