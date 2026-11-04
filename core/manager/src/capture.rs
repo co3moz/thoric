@@ -109,12 +109,46 @@ pub struct Placement {
 /// A rectangle as xwininfo reports it: its absolute left and top, its width and its height.
 type Rect = [i64; 4];
 
-/// Runs the image's desktop-screenshot and, once it has succeeded, prints on stderr what xwininfo
-/// tells of the desktop and of the window it captured, so the result can say where its pixels
-/// are. Without xwininfo the screenshot is taken all the same.
+/// The screenshot reader, the desktop image's own desktop-screenshot, which the manager runs from
+/// this copy in every desktop. A desktop made from an image older than the reader then reads its
+/// screen right too: that image's desktop-screenshot ran xwd, which read Wine's windows as black.
+pub(crate) const READER: &str = include_str!("../../../images/desktop/desktop-screenshot.py");
+
+/// Runs the reader, its source the fourth argument, with the three arguments desktop-screenshot
+/// takes, and, once it has succeeded, prints on stderr what xwininfo tells of the desktop and of the
+/// window it captured, so the result can say where its pixels are. Without xwininfo the screenshot
+/// is taken all the same. A desktop without python3, or whose python3 cannot load libX11, which the
+/// reader says with exit status 3, gets the screenshot from the image's own command.
 const SHOT: &str = r#"geometry=$({ xwininfo -root; [[ -z $3 ]] || xwininfo -id "$3"; } 2>/dev/null)
-/usr/local/bin/desktop-screenshot "$@" || exit
+reader=$4
+set -- "$1" "$2" "$3"
+status=3
+if command -v python3 >/dev/null; then python3 -I -c "$reader" "$@"; status=$?; fi
+if [[ $status == 3 ]]; then /usr/local/bin/desktop-screenshot "$@"; status=$?; fi
+[[ $status == 0 ]] || exit "$status"
 printf '%s\n' "$geometry" >&2"#;
+
+/// The `docker exec` arguments of one screenshot of the Docker container.
+fn shot_args(container: &str, options: &Capture, region: &str) -> Vec<String> {
+    [
+        "exec",
+        "--user",
+        "desktop",
+        "--env",
+        "DISPLAY=:0",
+        container,
+        "bash",
+        "-c",
+        SHOT,
+        "desktop-screenshot",
+        &options.max_width.unwrap_or(0).to_string(),
+        region,
+        options.window_id.as_deref().unwrap_or(""),
+        READER,
+    ]
+    .map(str::to_owned)
+    .into()
+}
 
 /// The rectangles in xwininfo's output, the desktop's first and then the captured window's.
 fn rectangles(text: &str) -> Vec<Rect> {
@@ -244,22 +278,7 @@ pub async fn capture(app: &App, id: &str, options: &Capture) -> Result<Screensho
         .map(|[x, y, width, height]| format!("{x},{y},{width},{height}"))
         .unwrap_or_default();
     let container = info["Id"].as_str().context("Missing container ID")?;
-    let args = [
-        "exec",
-        "--user",
-        "desktop",
-        "--env",
-        "DISPLAY=:0",
-        container,
-        "bash",
-        "-c",
-        SHOT,
-        "desktop-screenshot",
-        &options.max_width.unwrap_or(0).to_string(),
-        &region,
-        options.window_id.as_deref().unwrap_or(""),
-    ]
-    .map(str::to_owned);
+    let args = shot_args(container, options, &region);
     let shot = process::capture(
         app.command(&args),
         CAPTURE_LIMIT,

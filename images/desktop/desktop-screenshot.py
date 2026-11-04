@@ -3,7 +3,9 @@
 
 stdout carries the JPEG alone and errors go to stderr. The region crops the capture, the window's
 when a window is named, and MAX_WIDTH then scales it down when it is wider; 0 or an empty
-argument leaves either out.
+argument leaves either out. Exits 1 when the capture cannot be taken, 2 for invalid arguments and
+3 when libX11 cannot be loaded at all: the manager, which runs its own copy of this script in
+every desktop, then uses the desktop image's desktop-screenshot instead.
 
 The pixels come from one GetImage of the root window, which is the screen as VNC shows it, or of
 the window, clipped to the screen as xwd clipped it. xwd, which this replaces, splits an area by
@@ -25,6 +27,8 @@ IS_VIEWABLE = 2
 LSB_FIRST = 0
 BAD_WINDOW = 3
 BAD_MATCH = 8
+# The exit status that sends the manager to the image's own desktop-screenshot.
+CANNOT_RUN = 3
 
 
 class CaptureError(Exception):
@@ -234,7 +238,15 @@ def main(argv, open_display=Display, run=subprocess.run):
         print(f"desktop-screenshot: {error}\n{USAGE}", file=sys.stderr)
         return 2
     try:
-        ppm = capture(open_display(), window)
+        display = open_display()
+    except OSError as error:
+        print(f"desktop-screenshot: libX11 cannot be loaded: {error}", file=sys.stderr)
+        return CANNOT_RUN
+    except CaptureError as error:
+        print(f"desktop-screenshot: {error}", file=sys.stderr)
+        return 1
+    try:
+        ppm = capture(display, window)
     except CaptureError as error:
         print(f"desktop-screenshot: {error}", file=sys.stderr)
         return 1

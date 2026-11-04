@@ -100,6 +100,20 @@ class CaptureTest(unittest.TestCase):
             self.assertIn(said, err)
             self.assertEqual(display.reads, [])
 
+    def test_a_desktop_whose_libx11_cannot_be_loaded_says_so_with_status_3(self):
+        # The manager runs its own copy of this script in every desktop and takes the image's
+        # desktop-screenshot on 3 alone, so a capture error must never be 3.
+        def missing():
+            raise OSError("libX11.so.6: cannot open shared object file")
+
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = screenshot.main(["desktop-screenshot"], open_display=missing, run=None)
+        self.assertEqual((code, out.getvalue()), (screenshot.CANNOT_RUN, ""))
+        self.assertEqual(screenshot.CANNOT_RUN, 3)
+        self.assertIn("libX11 cannot be loaded", err.getvalue())
+        self.assertEqual(run("", "", "0x3400016")[0], 1)
+
     def test_the_region_crops_before_max_width_scales_down(self):
         code, converted, *_ = run("320", "40,30,200,100", "")
         self.assertEqual(code, 0)
