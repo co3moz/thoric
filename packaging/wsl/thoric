@@ -39,8 +39,9 @@ SHIPPED_BEFORE_RECORD=(
     "296812c144988e34ce4200e893ae2771e9a3547380bc75eb5ca641197ca6cfa8 /usr/lib/wsl/keepalive.sh"
     "32a0b0f5e4c5eaf41e8e771aa6669baed0e23b184906f4300655deab10ec0366 /usr/share/bash-completion/completions/thoric"
 )
-# Docker's socket, which compose.yml mounts into the manager. Upgrading Docker Engine makes it again,
-# and a container keeps the socket it was created with, so the manager is then created again.
+# Docker's socket, which compose.yml mounts into the manager. A container keeps the socket it was
+# created with, so the manager is created again when an update makes the socket again, as Docker's
+# package scripts do where nothing keeps them from restarting services (see update_system).
 DOCKER_SOCKET=/var/run/docker.sock
 # The units that run an update or a settings change the dashboard asks for. Every manager image
 # bundles them under /app/install/systemd, and the package installs them as well; see update_units.
@@ -420,38 +421,47 @@ install_units() {
 # files as the release of this command has them, and the distribution's packages, Docker Engine and
 # the NVIDIA Container Toolkit among them, which nothing else updates, since the image has no
 # unattended upgrades. Neither fails the update: what could not be done is said, and the next update,
-# or 'thoric system', tries again. Docker restarts when its packages or its daemon.json change; it
-# runs with live-restore, so containers keep running. Needs $tmp.
+# or 'thoric system', tries again. The image's /usr/sbin/policy-rc.d keeps package scripts from
+# restarting services, so containerd and Docker are restarted here when their packages change, and
+# Docker when its daemon.json does, unless something restarted it already; Docker runs with
+# live-restore, so containers keep running. Needs $tmp.
 update_system() {
-    local image=$1 pid
+    local image=$1 pid restart=()
     pid=$(docker_pid)
     system_changed=()
+    upgraded=()
     update_system_files "$image"
     upgrade_packages
-    if changed_system /etc/docker/daemon.json; then
-        if [[ $(docker_pid) == "$pid" ]]; then
-            echo "Restarting Docker with the new daemon.json; containers keep running."
-            sudo systemctl restart docker
-        fi
-        if ! docker_ready && [[ -e $tmp/system-previous/etc/docker/daemon.json ]]; then
-            echo "Docker does not start with the new daemon.json, so the previous one is back." >&2
-            put_file "$SYSTEM_ROOT/etc/docker/daemon.json" "$tmp/system-previous/etc/docker/daemon.json"
-            sudo systemctl restart docker
-        fi
+    if listed containerd.io "${upgraded[@]}"; then restart+=(containerd); fi
+    if ((${#restart[@]})) || listed docker-ce "${upgraded[@]}" || listed /etc/docker/daemon.json "${system_changed[@]}"; then
+        restart+=(docker)
+    fi
+    if ((${#restart[@]})) && [[ $(docker_pid) == "$pid" ]]; then
+        echo "Restarting ${restart[*]} to run the new versions and configuration; containers keep running."
+        sudo systemctl restart "${restart[@]}"
+    fi
+    if listed /etc/docker/daemon.json "${system_changed[@]}" && ! docker_ready &&
+        [[ -e $tmp/system-previous/etc/docker/daemon.json ]]; then
+        echo "Docker does not start with the new daemon.json, so the previous one is back." >&2
+        put_file "$SYSTEM_ROOT/etc/docker/daemon.json" "$tmp/system-previous/etc/docker/daemon.json"
+        sudo systemctl restart docker
     fi
     ensure_docker
 }
 docker_pid() {
     systemctl show --property MainPID --value docker 2>/dev/null || true
 }
-# Docker's socket as a file, which changes when Docker Engine makes it again.
+# Docker's socket as a file, which changes when Docker Engine makes it again, as Docker's package
+# scripts do where they may restart services.
 socket_id() {
     stat -c %i "$DOCKER_SOCKET" 2>/dev/null || true
 }
-changed_system() {
-    local path
-    for path in "${system_changed[@]}"; do
-        if [[ $path == "$1" ]]; then return 0; fi
+# Whether the first argument is one of the others.
+listed() {
+    local item needle=$1
+    shift
+    for item; do
+        if [[ $item == "$needle" ]]; then return 0; fi
     done
     return 1
 }
@@ -529,10 +539,11 @@ update_system_files() {
         printf '%s\n' "$SYSTEM_LEVEL" >"$tmp/package-level"
         put_file "$PACKAGE_LEVEL" "$tmp/package-level" 0644
     fi
-    if changed_system /etc/systemd/system/thoric-firewall.service; then
+    if listed /etc/systemd/system/thoric-firewall.service "${system_changed[@]}"; then
         sudo systemctl daemon-reload
     fi
-    if changed_system /etc/systemd/system/thoric-firewall.service || changed_system /usr/lib/wsl/firewall-watch.sh; then
+    if listed /etc/systemd/system/thoric-firewall.service "${system_changed[@]}" ||
+        listed /usr/lib/wsl/firewall-watch.sh "${system_changed[@]}"; then
         sudo systemctl try-restart thoric-firewall.service
     fi
 }
@@ -544,9 +555,9 @@ package_versions() {
 # Every package of the distribution as its repository has it now, Ubuntu's, Docker's and NVIDIA's,
 # with the new packages an upgrade needs. Docker Engine stays within the major release that
 # /etc/apt/preferences.d/thoric-docker.pref names, which a Thoric release moves, and configuration
-# files edited by hand stay as they are.
+# files edited by hand stay as they are. Those of SYSTEM_PACKAGES that changed go into upgraded.
 upgrade_packages() {
-    local before after apt=(sudo env DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=300)
+    local before after line apt=(sudo env DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=300)
     before=$(package_versions)
     echo "Updating the distribution's packages."
     if ! "${apt[@]}" -qq update ||
@@ -555,9 +566,12 @@ upgrade_packages() {
         return 0
     fi
     after=$(package_versions)
-    awk 'NR == FNR { was[$1] = $2; next }
-        was[$1] != $2 { print "  " $1 ": " (was[$1] == "" ? "installed" : was[$1] " to") " " $2 }' \
-        <(printf '%s\n' "$before") <(printf '%s\n' "$after")
+    while IFS= read -r line; do
+        upgraded+=("${line%%:*}")
+        echo "  $line"
+    done < <(awk 'NR == FNR { was[$1] = $2; next }
+        $1 != "" && was[$1] != $2 { print $1 ": " (was[$1] == "" ? "installed" : was[$1] " to") " " $2 }' \
+        <(printf '%s\n' "$before") <(printf '%s\n' "$after"))
 }
 # Whether a value can stand as KEY=value in .env and come back unchanged: one line of printable
 # ASCII, without the quotes, $, #, backslashes and backquotes that Compose's quoting and

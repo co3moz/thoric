@@ -816,6 +816,10 @@ class UpdateTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("  docker-ce: 5:29.9.2-1 to 5:29.9.3-1\n", result.stdout)
         self.assertNotIn("containerd.io:", result.stdout)
+        # Package scripts restart no service in the distribution, so the update restarts Docker to run
+        # its new version, before the manager is created again.
+        self.assertIn("systemctl restart docker", calls)
+        self.assertLess(calls.index("systemctl restart docker"), calls.index("docker compose up -d"))
         apt = [call for call in calls if call.startswith(("apt-get ", "sudo env "))]
         self.assertEqual(len(apt), 4, apt)
         self.assertTrue(apt[0].startswith("sudo env DEBIAN_FRONTEND=noninteractive apt-get "))
@@ -846,6 +850,22 @@ class UpdateTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("docker compose up -d", calls)
         self.assertNotIn("docker compose up -d --force-recreate", calls)
+
+    def test_containerd_and_docker_restart_for_their_new_versions(self):
+        (self.dir / "packages").write_text("containerd.io 2.4.2-1\ndocker-ce 5:29.9.2-1\nnvidia-container-toolkit 1.20.1-1\n")
+        before = f"MANAGER_IMAGE={REPOSITORY}:0.3.0\n"
+        result, _, calls = self.update(before, PACKAGES_AFTER="containerd.io 2.4.3-1\ndocker-ce 5:29.9.2-1\nnvidia-container-toolkit 1.20.1-1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("systemctl restart containerd docker", calls)
+        # The NVIDIA Container Toolkit runs with each container, so its new version needs no restart,
+        # and packages that stay the same restart nothing.
+        for after in ("containerd.io 2.4.2-1\ndocker-ce 5:29.9.2-1\nnvidia-container-toolkit 1.20.2-1", ""):
+            with self.subTest(after=after):
+                self.calls.unlink()
+                (self.dir / "packages").write_text("containerd.io 2.4.2-1\ndocker-ce 5:29.9.2-1\nnvidia-container-toolkit 1.20.1-1\n")
+                result, _, calls = self.update(before, PACKAGES_AFTER=after)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertFalse(any(call.startswith("systemctl restart ") for call in calls), calls)
 
     def test_docker_restarts_once_for_a_new_daemon_json(self):
         # Upgrading Docker Engine restarts it after the new daemon.json is in place, which is enough.
