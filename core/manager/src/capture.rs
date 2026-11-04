@@ -243,13 +243,14 @@ pub async fn capture(app: &App, id: &str, options: &Capture) -> Result<Screensho
         .region()?
         .map(|[x, y, width, height]| format!("{x},{y},{width},{height}"))
         .unwrap_or_default();
+    let container = info["Id"].as_str().context("Missing container ID")?;
     let args = [
         "exec",
         "--user",
         "desktop",
         "--env",
         "DISPLAY=:0",
-        info["Id"].as_str().context("Missing container ID")?,
+        container,
         "bash",
         "-c",
         SHOT,
@@ -259,13 +260,13 @@ pub async fn capture(app: &App, id: &str, options: &Capture) -> Result<Screensho
         options.window_id.as_deref().unwrap_or(""),
     ]
     .map(str::to_owned);
-    let output = process::capture(
+    let shot = process::capture(
         app.command(&args),
         CAPTURE_LIMIT,
         4 * 1024 * 1024,
         process::Overflow::Reject,
-    )
-    .await?;
+    );
+    let output = crate::display::watched(app, container, shot).await?;
     if !output.status.success() {
         return Err(error::docker_failure(&output.stderr, output.status.code()).into());
     }

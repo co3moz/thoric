@@ -37,7 +37,7 @@ import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { attempt, containerAction, retrySetup, showLog } from "@/lib/actions"
 import { openDialog } from "@/lib/dialogs"
-import { containerStatus, date, desktopTitle } from "@/lib/format"
+import { containerStatus, date, desktopTitle, healthReason } from "@/lib/format"
 import { groupNames, groupPeers } from "@/lib/groups"
 import { formatList, formatNumber, rich, t } from "@/lib/i18n"
 import { useContainers, useImages } from "@/lib/queries"
@@ -85,6 +85,7 @@ export function ContainerDrawer({ id, ...props }: DialogProps & { id: string }) 
   const { spec, setup } = item
   const running = item.state === "running"
   const status = containerStatus(item)
+  const unhealthy = healthReason(item)
   // A setup still waiting after an error did not get to run, which reads as a failure.
   const setupStatus = setup?.status === "pending" && item.last_error ? "failed" : setup?.status
 
@@ -107,6 +108,12 @@ export function ContainerDrawer({ id, ...props }: DialogProps & { id: string }) 
           <Alert variant="destructive">
             <AlertTitle>{t("containers.setupUnfinished")}</AlertTitle>
             <AlertDescription>{item.last_error}</AlertDescription>
+          </Alert>
+        )}
+        {unhealthy && (
+          <Alert variant="destructive">
+            <AlertTitle>{t("state.unhealthy")}</AlertTitle>
+            <AlertDescription>{unhealthy}</AlertDescription>
           </Alert>
         )}
         <div className="grid grid-cols-2 gap-2">

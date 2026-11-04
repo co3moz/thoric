@@ -182,6 +182,23 @@ async fn mcp_negotiates_and_lists_tools_with_useful_results() {
     ] {
         assert!(text.contains("templates_url") && text.contains("template_id"));
     }
+    // An agent took a picture of an installer's dialog with ImageMagick's import after the dialog
+    // had closed, and import held the whole display while it waited for a click. The instructions
+    // and the tools that start programs must steer agents to screenshot's window_id.
+    for text in
+        [instructions.as_str()]
+            .into_iter()
+            .chain(["exec_container", "launch_application"].map(|name| {
+                tools.iter().find(|t| t["name"] == name).unwrap()["description"]
+                    .as_str()
+                    .unwrap()
+            }))
+    {
+        assert!(
+            text.contains("import") && text.contains("window_id"),
+            "{text}"
+        );
+    }
     let guide = include_str!("../../../docs/MCP.md");
     for tool in tools {
         let name = tool["name"].as_str().unwrap();

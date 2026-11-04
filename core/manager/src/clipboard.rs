@@ -179,14 +179,14 @@ async fn run(app: &App, id: &str, arguments: &[&str], input: Option<Vec<u8>>) ->
     ]);
     args.extend(arguments);
     let args = args.iter().map(|s| s.to_string()).collect::<Vec<_>>();
-    let output = process::capture_input(
+    let helper = process::capture_input(
         app.command(&args),
         TIMEOUT,
         OUTPUT_LIMIT,
         process::Overflow::Reject,
         input,
-    )
-    .await?;
+    );
+    let output = crate::display::watched(app, &container, helper).await?;
     if !output.status.success() {
         return Err(failure(&output));
     }

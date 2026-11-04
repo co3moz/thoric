@@ -67,13 +67,13 @@ pub(super) async fn move_pointer(
     .into();
     args.extend(command(motion));
     let pauses = Duration::from_millis(motion.pause * u64::from(motion.steps));
-    let output = crate::process::capture(
+    let moving = crate::process::capture(
         app.command(&args),
         pauses + ALLOWANCE,
         64 * 1024,
         Overflow::Reject,
-    )
-    .await?;
+    );
+    let output = crate::display::watched(app, container, moving).await?;
     if !output.status.success() {
         bail!(
             "xdotool could not move the pointer: {}",

@@ -41,7 +41,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useFileDrop } from "@/hooks/use-file-drop"
 import { attempt, containerAction, retrySetup, setInternet } from "@/lib/actions"
 import { openDialog } from "@/lib/dialogs"
-import { containerStatus, desktopTitle, jobProgress, jobTone, needsRetry } from "@/lib/format"
+import {
+  containerStatus,
+  desktopTitle,
+  healthReason,
+  jobProgress,
+  jobTone,
+  needsRetry,
+} from "@/lib/format"
 import { formatNumber, t } from "@/lib/i18n"
 import { lifecycleBadges } from "@/lib/lifecycle"
 import { pendingState, type Pending } from "@/lib/pending"
@@ -240,6 +247,7 @@ export function ContainerCard({
   const { id, spec } = item
   const running = item.state === "running"
   const status = containerStatus(item)
+  const unhealthy = healthReason(item)
   const drop = useFileDrop((files) => openDialog({ kind: "upload", id, files }))
   const switchId = React.useId()
 
@@ -288,6 +296,11 @@ export function ContainerCard({
         {item.last_error && (
           <Alert variant="destructive">
             <AlertDescription className="line-clamp-3">{item.last_error}</AlertDescription>
+          </Alert>
+        )}
+        {unhealthy && (
+          <Alert variant="destructive">
+            <AlertDescription className="line-clamp-3">{unhealthy}</AlertDescription>
           </Alert>
         )}
       </CardContent>

@@ -47,6 +47,14 @@ export const fr: Messages = {
   "state.setup_failed": "Échec de la configuration",
   "state.creating": "Création",
   "state.downloading": "Téléchargement",
+
+  "health.displayHeld":
+    "L'écran ne répond pas : un programme le bloque. Arrêtez ce programme, ou cliquez une fois sur le bureau s'il attend qu'on choisisse une fenêtre.",
+  "health.displayGone": "L'écran ne fonctionne pas. Redémarrez le conteneur.",
+  "health.starting": "La session du bureau n'a pas fini de démarrer.",
+  "health.sessionFailed": "La session du bureau n'a pas pu démarrer.",
+  "health.timedOut":
+    "Le contrôle d'état ne s'est pas terminé à temps, l'écran ne répond donc peut-être pas.",
   "job.create": "Création du conteneur",
   "job.retry": "Nouvelle tentative de configuration",
   "job.start": "Démarrage",
@@ -224,6 +232,7 @@ export const fr: Messages = {
   "containers.diagnosticsOf": "Diagnostic de {name}",
   "containers.internetOf": "Accès à Internet de {name}",
   "containers.loadingPreview": "Chargement de l'aperçu",
+  "containers.previewUnavailable": "Aperçu indisponible",
   "containers.creating": "Création du conteneur…",
   "containers.creatingHint": "Ses commandes apparaissent dès qu'il tourne.",
   "containers.previewAlt": "Aperçu du bureau de {name}",

@@ -17,6 +17,7 @@ mod desktop_input;
 mod desktop_limits;
 mod desktop_mcp;
 mod desktop_ready;
+mod display;
 mod docker;
 mod duplicate;
 mod error;

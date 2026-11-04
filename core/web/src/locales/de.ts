@@ -47,6 +47,14 @@ export const de: Messages = {
   "state.setup_failed": "Einrichtung fehlgeschlagen",
   "state.creating": "Wird erstellt",
   "state.downloading": "Wird heruntergeladen",
+
+  "health.displayHeld":
+    "Der Bildschirm antwortet nicht: Ein Programm hält ihn fest. Beenden Sie dieses Programm oder klicken Sie einmal in den Desktop, wenn es auf die Auswahl eines Fensters wartet.",
+  "health.displayGone": "Der Bildschirm läuft nicht. Starten Sie den Container neu.",
+  "health.starting": "Die Desktop-Sitzung ist noch nicht fertig gestartet.",
+  "health.sessionFailed": "Die Desktop-Sitzung konnte nicht starten.",
+  "health.timedOut":
+    "Die Integritätsprüfung wurde nicht rechtzeitig fertig, der Bildschirm antwortet also womöglich nicht.",
   "job.create": "Container erstellen",
   "job.retry": "Einrichtung wiederholen",
   "job.start": "Starten",
@@ -225,6 +233,7 @@ export const de: Messages = {
   "containers.diagnosticsOf": "Diagnose von {name}",
   "containers.internetOf": "Internetzugang von {name}",
   "containers.loadingPreview": "Vorschau wird geladen",
+  "containers.previewUnavailable": "Vorschau nicht verfügbar",
   "containers.creating": "Container wird erstellt…",
   "containers.creatingHint": "Die Steuerung erscheint, sobald er läuft.",
   "containers.previewAlt": "Desktop-Vorschau von {name}",

@@ -50,6 +50,13 @@ export const en = {
   "state.creating": "Creating",
   "state.downloading": "Downloading",
 
+  "health.displayHeld":
+    "The screen is not answering: a program holds it. End that program, or click once in the desktop if it waits for a window to be picked.",
+  "health.displayGone": "The screen is not running. Restart the container.",
+  "health.starting": "The desktop session has not finished starting.",
+  "health.sessionFailed": "The desktop session could not start.",
+  "health.timedOut": "The health check did not finish in time, so the screen may not be answering.",
+
   "job.create": "Create container",
   "job.retry": "Retry setup",
   "job.start": "Start",
@@ -227,6 +234,7 @@ export const en = {
   "containers.diagnosticsOf": "{name} diagnostics",
   "containers.internetOf": "{name} internet access",
   "containers.loadingPreview": "Loading preview",
+  "containers.previewUnavailable": "Preview unavailable",
   "containers.creating": "Creating the container…",
   "containers.creatingHint": "Its controls appear once it runs.",
   "containers.previewAlt": "Desktop preview of {name}",
