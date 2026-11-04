@@ -1,0 +1,66 @@
+{
+  "commands": [
+    {
+      "name": "gpu-run",
+      "places": ["build", "setup", "desktop"],
+      "usage": ["gpu-run glxinfo -B", "gpu-run /path/to/MyGame -force-glcore"]
+    },
+    {
+      "name": "desktop-screenshot",
+      "places": ["setup", "desktop"],
+      "usage": ["desktop-screenshot [MAX_WIDTH] [X,Y,WIDTH,HEIGHT] [WINDOW_ID] > screen.jpg"]
+    },
+    {
+      "name": "desktop-diagnostics",
+      "places": ["setup", "desktop"],
+      "usage": ["desktop-diagnostics"]
+    },
+    {
+      "name": "thoric-mcp",
+      "places": ["setup", "desktop"],
+      "usage": [
+        "thoric-mcp add NAME [--description TEXT] [--env KEY=VALUE]... [--cwd DIR] -- COMMAND [ARG]...",
+        "thoric-mcp add NAME --url http://127.0.0.1:PORT/mcp [--header 'Name: value']...",
+        "thoric-mcp remove NAME",
+        "thoric-mcp list [--json]",
+        "thoric-mcp show NAME"
+      ],
+      "subcommands": [
+        { "name": "add", "key": "add", "insert": "add ${1:NAME} -- ${2:COMMAND}" },
+        {
+          "name": "add --url",
+          "key": "addUrl",
+          "insert": "add ${1:NAME} --url http://127.0.0.1:${2:PORT}/mcp"
+        },
+        { "name": "remove", "key": "remove", "insert": "remove ${1:NAME}" },
+        { "name": "list", "key": "list", "insert": "list" },
+        { "name": "show", "key": "show", "insert": "show ${1:NAME}" }
+      ]
+    }
+  ],
+  "variables": [
+    { "name": "DESKTOP_SESSION", "places": ["build", "setup", "desktop"] },
+    { "name": "DISPLAY", "places": ["setup", "desktop"] },
+    { "name": "DESKTOP_RESOLUTION", "places": ["setup", "desktop"] },
+    { "name": "DESKTOP_GPU", "places": ["setup", "desktop"] },
+    { "name": "GPU_ADAPTER", "places": ["setup", "desktop"] },
+    { "name": "DESKTOP_AUDIO", "places": ["setup", "desktop"] },
+    { "name": "DESKTOP_MICROPHONE", "places": ["setup", "desktop"] },
+    { "name": "DESKTOP_SUDO", "places": ["setup", "desktop"] },
+    { "name": "PULSE_SERVER", "places": ["setup", "desktop"] },
+    { "name": "HTTP_PROXY", "places": ["setup", "desktop"] },
+    { "name": "HTTPS_PROXY", "places": ["setup", "desktop"] },
+    { "name": "NO_PROXY", "places": ["setup", "desktop"] }
+  ],
+  "unlisted": {
+    "commands": [
+      "desktop-entrypoint",
+      "desktop-session",
+      "desktop-gnome",
+      "desktop-healthcheck",
+      "desktop-private-address",
+      "thoric-mcp-tray"
+    ],
+    "variables": ["LANG", "DESKTOP_PRIVATE_SUBNET", "http_proxy", "https_proxy", "no_proxy"]
+  }
+}

@@ -15,6 +15,7 @@ import {
 import type { CodeLanguage } from "@/lib/highlight"
 import { t } from "@/lib/i18n"
 import type { JsonSchema } from "@/lib/schema-form"
+import type { ScriptContext } from "@/lib/script-completions"
 
 type Setup = typeof import("./monaco-setup")
 type Editor = ReturnType<Setup["monaco"]["editor"]["create"]>
@@ -55,6 +56,8 @@ type Common = {
   path?: string
   /** The schema JSON is checked against, with completion and hovers from it. */
   schema?: JsonSchema
+  /** Where a shell script runs, which completes the commands and values it has there. */
+  completions?: ScriptContext
   /** The least and the most the field grows to, in pixels; it scrolls past the most. */
   minHeight?: number
   maxHeight?: number
@@ -139,6 +142,7 @@ function Monaco({
   language,
   path,
   schema,
+  completions,
   minHeight = 36,
   maxHeight = 384,
   readOnly = false,
@@ -313,6 +317,13 @@ function Monaco({
     setup.setSchema(uri, schemaText ? JSON.parse(schemaText) : undefined)
     return () => setup.setSchema(uri, undefined)
   }, [setup, uri, schemaText])
+
+  // Compared as text too, since a caller makes its variables anew on every render.
+  const completionsText = completions ? JSON.stringify(completions) : ""
+  React.useEffect(() => {
+    setup.setScriptContext(uri, completionsText ? JSON.parse(completionsText) : undefined)
+    return () => setup.setScriptContext(uri, undefined)
+  }, [setup, uri, completionsText])
 
   return (
     <div

@@ -43,6 +43,11 @@ import {
   tokenRules,
 } from "@/lib/code-editor"
 import type { JsonSchema } from "@/lib/schema-form"
+import {
+  scriptCompletions,
+  type CompletionKind,
+  type ScriptContext,
+} from "@/lib/script-completions"
 
 // Monaco asks for its workers here before any other way, which would need blob or remote URLs.
 // Registering a language Monaco has again adds these names to the ones it already goes by.
@@ -101,11 +106,40 @@ function applyTheme() {
       "editorWidget.background": color("--popover"),
       "editorWidget.foreground": color("--popover-foreground"),
       "editorWidget.border": color("--border"),
-      "editorSuggestWidget.background": color("--popover"),
-      "editorSuggestWidget.border": color("--border"),
-      "editorSuggestWidget.selectedBackground": color("--accent"),
+      // Suggestions and menus mark a row as the interface's menus do and keep its text the
+      // popover's: the light base theme would write the chosen row white, for a blue of its own.
+      "editorSuggestWidget.foreground": color("--popover-foreground"),
+      "editorSuggestWidget.selectedBackground": mixed("--foreground", 10),
+      "editorSuggestWidget.selectedForeground": color("--popover-foreground"),
+      "editorSuggestWidget.selectedIconForeground": color("--popover-foreground"),
+      "editorSuggestWidget.highlightForeground": color("--code-command"),
+      "editorSuggestWidget.focusHighlightForeground": color("--code-command"),
+      "editorSuggestWidgetStatus.foreground": color("--muted-foreground"),
+      "list.activeSelectionBackground": mixed("--foreground", 10),
+      "list.activeSelectionForeground": color("--popover-foreground"),
+      "list.activeSelectionIconForeground": color("--popover-foreground"),
+      "list.inactiveSelectionBackground": mixed("--foreground", 10),
+      "list.inactiveSelectionForeground": color("--popover-foreground"),
+      "list.hoverBackground": mixed("--foreground", 5),
+      "list.hoverForeground": color("--popover-foreground"),
+      "list.highlightForeground": color("--code-command"),
+      "list.focusHighlightForeground": color("--code-command"),
+      "list.focusOutline": "#00000000",
+      "menu.background": color("--popover"),
+      "menu.foreground": color("--popover-foreground"),
+      "menu.selectionBackground": mixed("--foreground", 10),
+      "menu.selectionForeground": color("--popover-foreground"),
+      "menu.border": color("--border"),
+      "menu.separatorBackground": color("--border"),
       "editorHoverWidget.background": color("--popover"),
+      "editorHoverWidget.foreground": color("--popover-foreground"),
       "editorHoverWidget.border": color("--border"),
+      // A completion's documentation: its links and code.
+      "textLink.foreground": color("--code-command"),
+      "textLink.activeForeground": color("--code-command"),
+      "textPreformat.foreground": color("--foreground"),
+      "textPreformat.background": mixed("--foreground", 8),
+      "textCodeBlock.background": mixed("--foreground", 5),
       focusBorder: "#00000000",
       "scrollbar.shadow": "#00000000",
     },
@@ -129,5 +163,65 @@ export function setSchema(model: string, schema: JsonSchema | undefined) {
   else schemas.delete(model)
   jsonDefaults.setDiagnosticsOptions(diagnosticsOptions(schemas))
 }
+
+/** Each script editor's context, by its model's address as Monaco writes it. */
+const scripts = new Map<string, ScriptContext>()
+
+/** Complete the shell script at `model` with what Thoric gives a script of `context`. */
+export function setScriptContext(model: string, context: ScriptContext | undefined) {
+  const key = monaco.Uri.parse(model).toString()
+  if (context) scripts.set(key, context)
+  else scripts.delete(key)
+}
+
+const { CompletionItemKind: Kind } = monaco.languages
+const KINDS: Record<CompletionKind, monaco.languages.CompletionItemKind> = {
+  parameter: Kind.Variable,
+  variable: Kind.Constant,
+  command: Kind.Function,
+  subcommand: Kind.Method,
+  snippet: Kind.Snippet,
+  word: Kind.Text,
+}
+
+// Monaco asks the providers of a language before its word completion and stops at the first
+// that answers, so a script with a context gets its own words from here too. One without, such
+// as a shell file of a volume, keeps Monaco's words alone.
+monaco.languages.registerCompletionItemProvider("shell", {
+  triggerCharacters: ["$", "{"],
+  provideCompletionItems(model, position, context) {
+    const script = scripts.get(model.uri.toString())
+    if (!script) return undefined
+    const line = model.getLineContent(position.lineNumber)
+    const cursor = position.column - 1
+    const items = scriptCompletions({
+      before: line.slice(0, cursor),
+      after: line.slice(cursor),
+      text: model.getValue(),
+      context: script,
+      triggered: context.triggerKind === monaco.languages.CompletionTriggerKind.TriggerCharacter,
+    })
+    return {
+      suggestions: items.map((item) => ({
+        label: item.label,
+        kind: KINDS[item.kind],
+        insertText: item.insert,
+        insertTextRules: item.snippet
+          ? monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet
+          : undefined,
+        detail: item.detail,
+        documentation: item.documentation ? { value: item.documentation } : undefined,
+        filterText: item.filter,
+        sortText: item.sort,
+        range: {
+          startLineNumber: position.lineNumber,
+          endLineNumber: position.lineNumber,
+          startColumn: item.start + 1,
+          endColumn: item.end + 1,
+        },
+      })),
+    }
+  },
+})
 
 export { monaco }

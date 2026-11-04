@@ -2086,6 +2086,42 @@ export const en = {
   "script.done": "Done",
   "script.saveKeys": "Ctrl+S keeps the changes",
   "script.discardHint": "What you changed in the editor is lost when it closes.",
+  "script.suggestKeys": "Ctrl+Space suggests",
+  "completion.command.gpu-run": "Run a program on the GPU",
+  "completion.command.gpu-run.doc":
+    "Runs a program on the container's GPU through VirtualGL, such as a game or Unity. A build has no GPU, so a build script writes it into the launchers the desktop starts.",
+  "completion.command.desktop-screenshot": "Screenshot as JPEG",
+  "completion.command.desktop-screenshot.doc":
+    "Writes a JPEG of the screen, a region of it or a window to its output, at most MAX_WIDTH pixels wide.",
+  "completion.command.desktop-diagnostics": "Display and GPU report",
+  "completion.command.desktop-diagnostics.doc":
+    "Reports the desktop's OpenGL, GPU devices, Vulkan and CUDA, to find out why something does not render.",
+  "completion.command.thoric-mcp": "This desktop's MCP servers",
+  "completion.command.thoric-mcp.doc":
+    "Adds, lists, shows and removes the MCP servers Thoric starts in this desktop, as the desktop user, when an agent needs their tools.",
+  "completion.subcommand.add": "Add a server that speaks MCP on stdio",
+  "completion.subcommand.addUrl": "Add an HTTP server listening in the desktop",
+  "completion.subcommand.remove": "Remove a server",
+  "completion.subcommand.list": "List the servers and their states",
+  "completion.subcommand.show": "Show a server's declaration",
+  "completion.variable.DESKTOP_SESSION": "The desktop's session, xfce or gnome",
+  "completion.variable.DISPLAY": "The desktop's screen, :0",
+  "completion.variable.DESKTOP_RESOLUTION": "The container's resolution, such as 1920x1080",
+  "completion.variable.DESKTOP_GPU": "true when the container has the GPU",
+  "completion.variable.GPU_ADAPTER": "The GPU gpu-run picks, from the installation's settings",
+  "completion.variable.DESKTOP_AUDIO": "true when the container plays sound",
+  "completion.variable.DESKTOP_MICROPHONE": "true when the container has a microphone",
+  "completion.variable.DESKTOP_SUDO": "true when the desktop user may use sudo",
+  "completion.variable.PULSE_SERVER": "The desktop's PulseAudio server",
+  "completion.variable.HTTP_PROXY": "The desktop's proxy, empty without one",
+  "completion.variable.HTTPS_PROXY": "The desktop's proxy for HTTPS, empty without one",
+  "completion.variable.NO_PROXY": "The hosts reached without the proxy",
+  "completion.stage": "Names a step of the script in the job panel",
+  "completion.skip": "Marks a step the script leaves out",
+  "completion.stepName": "Step name",
+  "completion.parameter": "Compose value · {type}",
+  "completion.parameterSecret": "Secret: the job log masks it.",
+  "completion.volumeName": "The name of the volume at ${name}, empty without one",
 } as const
 
 export type MessageKey = keyof typeof en

@@ -44,6 +44,7 @@ import { shortDate } from "@/lib/format"
 import { codeLanguage, type CodeLanguage } from "@/lib/highlight"
 import { formatNumber, rich, t } from "@/lib/i18n"
 import { queryClient, useSettings } from "@/lib/queries"
+import type { ScriptContext } from "@/lib/script-completions"
 import { FileUploads, fileSize, uploadStatus } from "@/lib/uploads"
 import {
   EDIT_LIMIT,
@@ -133,6 +134,8 @@ export type ExplorerProps = {
   paneClassName?: string
   /** Whether the explorer is shown; a closed dialog stops its uploads and its listing. */
   active?: boolean
+  /** What a shell script among the files completes, such as a desktop's commands. */
+  scripts?: ScriptContext
 }
 
 /**
@@ -153,6 +156,7 @@ export function FileExplorer({
   emptyRoot,
   paneClassName = "h-[min(26rem,50vh)]",
   active = true,
+  scripts,
 }: ExplorerProps) {
   const limit = useSettings().data?.upload_limit_bytes ?? 0
   const [path, setPath] = React.useState(reveal?.folder ?? start)
@@ -323,6 +327,7 @@ export function FileExplorer({
           label={t("files.contentsOf", { path: editing.path })}
           language={editing.language ?? undefined}
           path={editing.path}
+          completions={scripts}
           value={editing.text}
           onChange={(text) => setEditing((current) => current && { ...current, text })}
           onSave={() => changed && !busy && void save()}
