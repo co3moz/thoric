@@ -17,8 +17,32 @@ CLI_VERSION=
 # shellcheck disable=SC2034 # read from this file by the command an update replaces
 NEEDS_PACKAGE=1
 # The package records the level of its own files here, such as the firewall watcher and its unit. A
-# package without the file is level 1.
+# package without the file is level 1. The file also marks the distribution as Thoric's package,
+# whose system an update keeps current: see update_system.
 PACKAGE_LEVEL=/usr/lib/wsl/package-level
+# The package's own files outside the installation folder, which every manager image bundles under
+# /app/install/system at the same paths and an update installs from the release of this command,
+# raising the package level to SYSTEM_LEVEL. SYSTEM_RECORD holds the checksum each had when the
+# package or an update installed it, which tells an update a file edited by hand from one it may
+# replace; SYSTEM_ROOT is the root they are under, / in the distribution.
+SYSTEM_FILES=(/etc/apt/preferences.d/thoric-docker.pref /etc/docker/daemon.json /etc/systemd/system/thoric-firewall.service /usr/lib/wsl/firewall-watch.sh /usr/lib/wsl/keepalive.sh /usr/share/bash-completion/completions/thoric)
+SYSTEM_RECORD=/usr/lib/wsl/system.sha256
+SYSTEM_ROOT=
+SYSTEM_LEVEL=2
+# The versions of those files the packages before the record shipped, 0.8.0 to 0.9.3, so an update
+# tells them from files edited by hand there too.
+SHIPPED_BEFORE_RECORD=(
+    "5fdaaad4da5553df7a81ad9d7972703e2baae2ccc0e62d1be525a167100d613b /etc/docker/daemon.json"
+    "419d1253ce23c2911cc05303b1b6cf657b16a57dc5543617ccb6c716bd36ce4a /etc/docker/daemon.json"
+    "db5324e1cafbd7d735e1ab9fe7e9607441385a3a1b1a5559294e7bc27b1fc664 /etc/systemd/system/thoric-firewall.service"
+    "4279f9bc73e05585d84368c80926960ae49d504dbe6f3a85d472a9d8d9cd2eb1 /usr/lib/wsl/firewall-watch.sh"
+    "296812c144988e34ce4200e893ae2771e9a3547380bc75eb5ca641197ca6cfa8 /usr/lib/wsl/keepalive.sh"
+    "32a0b0f5e4c5eaf41e8e771aa6669baed0e23b184906f4300655deab10ec0366 /usr/share/bash-completion/completions/thoric"
+)
+# Docker's socket, which compose.yml mounts into the manager. A container keeps the socket it was
+# created with, so the manager is created again when an update makes the socket again, as Docker's
+# package scripts do where nothing keeps them from restarting services (see update_system).
+DOCKER_SOCKET=/var/run/docker.sock
 # The units that run an update or a settings change the dashboard asks for. Every manager image
 # bundles them under /app/install/systemd, and the package installs them as well; see update_units.
 UNIT_DIR=/etc/systemd/system
@@ -46,7 +70,8 @@ Usage: thoric <command>
   restart   Recreate the manager with the current settings
   status    Show the manager state and the dashboard address
   logs      Show the manager's recent log output
-  update    Move the manager, its compose.yml and this command to the newest release, recreate the manager (or go back when it does not answer), then pull downloaded desktop images
+  update    Move the manager, its compose.yml and this command to the newest release, bring the distribution's packages and system files up to date, recreate the manager (or go back when it does not answer), then pull downloaded desktop images
+  system    Bring the distribution's packages, Docker Engine and the NVIDIA toolkit among them, and its system files up to date without moving the manager
   doctor    Check Docker, its firewall, memory, disk, GPU access, settings and whether Docker reaches the registry
   open      Open the dashboard in the Windows browser
   mcp       Show the agent (MCP) endpoint, its token and client configuration
@@ -67,12 +92,18 @@ ensure_docker() {
     if ! systemctl is-active --quiet docker; then
         sudo systemctl start docker
     fi
+    if docker_ready; then return 0; fi
+    echo "Docker did not become ready. Run 'thoric doctor'." >&2
+    exit 1
+}
+# Whether Docker answers within 30 seconds.
+docker_ready() {
+    local _
     for _ in $(seq 1 30); do
         if docker info >/dev/null 2>&1; then return 0; fi
         sleep 1
     done
-    echo "Docker did not become ready. Run 'thoric doctor'." >&2
-    exit 1
+    return 1
 }
 # The port the dashboard answers on is a setting, so the command follows .env, not the shell.
 port() {
@@ -386,6 +417,162 @@ install_units() {
         echo "$done"
     fi
 }
+# The distribution is Thoric's package, so an update keeps its system current: the package's own
+# files as the release of this command has them, and the distribution's packages, Docker Engine and
+# the NVIDIA Container Toolkit among them, which nothing else updates, since the image has no
+# unattended upgrades. Neither fails the update: what could not be done is said, and the next update,
+# or 'thoric system', tries again. The image's /usr/sbin/policy-rc.d keeps package scripts from
+# restarting services, so containerd and Docker are restarted here when their packages change, and
+# Docker when its daemon.json does, unless something restarted it already; Docker runs with
+# live-restore, so containers keep running. Needs $tmp.
+update_system() {
+    local image=$1 pid restart=()
+    pid=$(docker_pid)
+    system_changed=()
+    upgraded=()
+    update_system_files "$image"
+    upgrade_packages
+    if listed containerd.io "${upgraded[@]}"; then restart+=(containerd); fi
+    if ((${#restart[@]})) || listed docker-ce "${upgraded[@]}" || listed /etc/docker/daemon.json "${system_changed[@]}"; then
+        restart+=(docker)
+    fi
+    if ((${#restart[@]})) && [[ $(docker_pid) == "$pid" ]]; then
+        echo "Restarting ${restart[*]} to run the new versions and configuration; containers keep running."
+        sudo systemctl restart "${restart[@]}"
+    fi
+    if listed /etc/docker/daemon.json "${system_changed[@]}" && ! docker_ready &&
+        [[ -e $tmp/system-previous/etc/docker/daemon.json ]]; then
+        echo "Docker does not start with the new daemon.json, so the previous one is back." >&2
+        put_file "$SYSTEM_ROOT/etc/docker/daemon.json" "$tmp/system-previous/etc/docker/daemon.json"
+        sudo systemctl restart docker
+    fi
+    ensure_docker
+}
+docker_pid() {
+    systemctl show --property MainPID --value docker 2>/dev/null || true
+}
+# Docker's socket as a file, which changes when Docker Engine makes it again, as Docker's package
+# scripts do where they may restart services.
+socket_id() {
+    stat -c %i "$DOCKER_SOCKET" 2>/dev/null || true
+}
+# Whether the first argument is one of the others.
+listed() {
+    local item needle=$1
+    shift
+    for item; do
+        if [[ $item == "$needle" ]]; then return 0; fi
+    done
+    return 1
+}
+# The checksum a system file had when the package or an update installed it, given the one it has
+# now, or nothing when that is unknown.
+shipped_system() {
+    local path=$1 current=$2 line
+    if [[ -f $SYSTEM_RECORD ]]; then
+        awk -v path="$path" '$2 == path { print $1 }' "$SYSTEM_RECORD"
+        return 0
+    fi
+    for line in "${SHIPPED_BEFORE_RECORD[@]}"; do
+        if [[ -n $current && $line == "$current $path" ]]; then
+            echo "$current"
+            return 0
+        fi
+    done
+}
+# The package's own files as the release of this command has them, from its manager image. A file
+# still as the package or an update installed it, or a missing one, is replaced. One edited by hand
+# stays as it is, and when the release brings a new version of it, the update shows how the two
+# differ. Like the command and the units, they run as root and stay after a manager is gone, so
+# they come only from a release, and only from the one this command came with: an older one would
+# bring older files, and a newer one runs its own command first (see update_cli).
+update_system_files() {
+    local image=$1 release=${1#"$MANAGER_REPOSITORY":} path new current shipped recorded mode level
+    if [[ -z $CLI_VERSION || $release == "$image" || $release != "$CLI_VERSION" ]]; then
+        echo "The system files stay as they are, since they come only from the release this thoric command came with${CLI_VERSION:+, $CLI_VERSION}."
+        return 0
+    fi
+    for path in "${SYSTEM_FILES[@]}"; do
+        mkdir -p "$tmp/system$(dirname "$path")"
+        if ! docker run --rm --network none --entrypoint cat "$image" "/app/install/system$path" >"$tmp/system$path" 2>/dev/null ||
+            [[ ! -s $tmp/system$path ]]; then
+            echo "$image has no /app/install/system$path, so the system files stay as they are."
+            return 0
+        fi
+    done
+    : >"$tmp/system.sha256"
+    for path in "${SYSTEM_FILES[@]}"; do
+        new=$(checksum "$tmp/system$path")
+        current=""
+        if [[ -e $SYSTEM_ROOT$path ]]; then current=$(checksum "$SYSTEM_ROOT$path"); fi
+        shipped=$(shipped_system "$path" "$current")
+        recorded=$new
+        if [[ $current == "$new" ]]; then
+            :
+        elif [[ -n $current && $current != "$shipped" ]]; then
+            if [[ $new != "$shipped" ]]; then
+                echo "$path has changes of your own, so it stays as it is. The release has it as below; carry over what you need."
+                diff -u --label "$path (yours)" --label "$path ($CLI_VERSION)" "$SYSTEM_ROOT$path" "$tmp/system$path" |
+                    head -n 80 || true
+            fi
+        elif [[ $path == /etc/docker/daemon.json ]] &&
+            ! sudo dockerd --validate --config-file "$tmp/system$path" >/dev/null 2>&1; then
+            # The packages below may bring a Docker Engine that takes it; the next update tries again.
+            echo "This Docker Engine refuses the release's daemon.json, so $path stays as it is for now."
+            recorded=$current
+        else
+            if [[ -e $SYSTEM_ROOT$path ]]; then
+                mkdir -p "$tmp/system-previous$(dirname "$path")"
+                cp -p "$SYSTEM_ROOT$path" "$tmp/system-previous$path"
+            fi
+            mode=0644
+            if [[ $path == *.sh ]]; then mode=0755; fi
+            put_file "$SYSTEM_ROOT$path" "$tmp/system$path" "$mode"
+            system_changed+=("$path")
+            echo "Updated $path."
+        fi
+        printf '%s  %s\n' "$recorded" "$path" >>"$tmp/system.sha256"
+    done
+    put_file "$SYSTEM_RECORD" "$tmp/system.sha256" 0644
+    level=$(cat "$PACKAGE_LEVEL" 2>/dev/null || true)
+    if ! [[ $level =~ ^[0-9]+$ ]] || ((10#$level < SYSTEM_LEVEL)); then
+        printf '%s\n' "$SYSTEM_LEVEL" >"$tmp/package-level"
+        put_file "$PACKAGE_LEVEL" "$tmp/package-level" 0644
+    fi
+    if listed /etc/systemd/system/thoric-firewall.service "${system_changed[@]}"; then
+        sudo systemctl daemon-reload
+    fi
+    if listed /etc/systemd/system/thoric-firewall.service "${system_changed[@]}" ||
+        listed /usr/lib/wsl/firewall-watch.sh "${system_changed[@]}"; then
+        sudo systemctl try-restart thoric-firewall.service
+    fi
+}
+# The packages Thoric relies on, whose versions an update names when they change.
+SYSTEM_PACKAGES=(docker-ce docker-ce-cli containerd.io docker-compose-plugin nvidia-container-toolkit)
+package_versions() {
+    dpkg-query -W -f '${Package} ${Version}\n' "${SYSTEM_PACKAGES[@]}" 2>/dev/null || true
+}
+# Every package of the distribution as its repository has it now, Ubuntu's, Docker's and NVIDIA's,
+# with the new packages an upgrade needs. Docker Engine stays within the major release that
+# /etc/apt/preferences.d/thoric-docker.pref names, which a Thoric release moves, and configuration
+# files edited by hand stay as they are. Those of SYSTEM_PACKAGES that changed go into upgraded.
+upgrade_packages() {
+    local before after line apt=(sudo env DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=300)
+    before=$(package_versions)
+    echo "Updating the distribution's packages."
+    if ! "${apt[@]}" -qq update ||
+        ! "${apt[@]}" -q -y --with-new-pkgs -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold upgrade; then
+        echo "The distribution's packages were not updated; apt-get says why above. The next update tries again, and 'thoric system' does now." >&2
+        return 0
+    fi
+    after=$(package_versions)
+    while IFS= read -r line; do
+        upgraded+=("${line%%:*}")
+        echo "  $line"
+    done < <(awk 'NR == FNR { was[$1] = $2; next }
+        $1 != "" && was[$1] != $2 { print $1 ": " (was[$1] == "" ? "installed" : was[$1] " to") " " $2 }' \
+        <(printf '%s\n' "$before") <(printf '%s\n' "$after"))
+}
 # Whether a value can stand as KEY=value in .env and come back unchanged: one line of printable
 # ASCII, without the quotes, $, #, backslashes and backquotes that Compose's quoting and
 # interpolation would read otherwise, and without the spaces at either end that it trims. The
@@ -597,10 +784,17 @@ case ${1:-help} in
             echo "The manager moves from ${pinned:-latest} to $version."
         fi
         update_units "$image"
+        socket=$(socket_id)
+        update_system "$image"
         rename_settings
         compose pull
         echo "Recreating the manager $image."
-        compose up -d
+        if [[ $(socket_id) != "$socket" ]]; then
+            echo "Docker made its socket again, so the containers of compose.yml are created again with it."
+            compose up -d --force-recreate
+        else
+            compose up -d
+        fi
         # A manager that refuses its database or its settings exits again and again, while
         # compose up has already succeeded, so the update waits for its health check.
         if ! manager_answers "$UPDATE_WAIT"; then
@@ -611,6 +805,28 @@ case ${1:-help} in
         previous=""
         echo "The manager answers."
         update_profiles
+        ;;
+    system)
+        require_settings
+        ensure_docker
+        if systemctl is-active --quiet thoric-update.service; then
+            echo "An update is running, which brings the system up to date as well." >&2
+            exit 1
+        fi
+        tmp=$(mktemp -d)
+        trap 'rm -rf "$tmp"' EXIT
+        socket=$(socket_id)
+        update_system "$(setting MANAGER_IMAGE)"
+        # A container keeps the socket it was started with, so a running manager needs the new one.
+        if [[ $(socket_id) != "$socket" && -n $(compose ps -q manager 2>/dev/null) ]]; then
+            echo "Docker made its socket again, so the containers of compose.yml are created again with it."
+            compose up -d --force-recreate
+            if ! manager_answers "$UPDATE_WAIT"; then
+                echo "The manager did not answer within $UPDATE_WAIT seconds. Run 'thoric logs' and 'thoric doctor'." >&2
+                exit 1
+            fi
+            echo "The manager answers."
+        fi
         ;;
     doctor)
         echo "systemd:   $(systemctl is-system-running 2>/dev/null || true)"

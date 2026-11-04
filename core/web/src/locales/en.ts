@@ -1080,6 +1080,15 @@ export const en = {
     "Sign-in is off, /mcp takes no token and the manager is published on {addresses}. Every device that reaches it, and every desktop with internet access, controls every container.",
   "settings.exposure.fix":
     "Set a password and an MCP token, or publish the manager on this computer only with BIND_ADDRESS=127.0.0.1.",
+  "settings.docker.title": "Docker Engine {version} lacks some of what Thoric uses",
+  "settings.docker.isolation":
+    "Desktops' private networks keep an address on the Docker host, from where every program there reaches their screens. Docker Engine 28.0 makes them without one.",
+  "settings.docker.mac_address":
+    "A desktop's MAC address on its internet network does not stay when it starts or is created again. Docker Engine 29 keeps it.",
+  "settings.docker.package":
+    "Run 'thoric system' in the Thoric distribution to update Docker Engine.",
+  "settings.docker.host":
+    "Update Docker Engine on the host, then create the manager again (docker compose up -d --force-recreate manager).",
   "settings.secretSet": "Set, hidden",
   "settings.notSet": "Not set",
   "settings.idle": "No effect while {name} is off.",

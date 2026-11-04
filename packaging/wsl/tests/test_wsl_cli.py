@@ -1,12 +1,15 @@
 """The WSL package's `thoric update`: which manager release it moves an installation to, which
 desktop images it refreshes for that manager, how it brings the installation files of that release
 without losing edits made by hand, how it takes everything back when the new manager does not
-answer, and when it replaces the command itself with the one that release bundles.
+answer, when it replaces the command itself with the one that release bundles, and how it keeps
+the distribution's system current: its packages and the package's own system files.
 
 The script runs against a temporary installation directory with stand-ins for docker, curl,
-sudo, systemctl and sleep on PATH, each recording its arguments. `docker run` serves the manager
-image's files from a directory standing for its root filesystem, and the manager answers its
-health check unless .env holds the line in BROKEN.
+sudo, systemctl, sleep, apt-get, dpkg-query and dockerd on PATH, each recording its arguments.
+`docker run` serves the manager image's files from a directory standing for its root filesystem,
+and the manager answers its health check unless .env holds the line in BROKEN. The package's
+system files are under a temporary root too, and upgrading the packages makes Docker's socket
+again when SOCKET_MOVES is set, as upgrading Docker Engine does.
 """
 
 import hashlib
@@ -52,6 +55,16 @@ case "$(basename "$0") $*" in
     "docker image inspect "*":24.04") [[ -n ${DOWNLOADED:-} ]] || exit 1 ;;
     "docker image inspect "*) [[ -n ${RELEASE_TAG_HERE:-} ]] || exit 1 ;;
     "sudo "*) exec "$@" ;;
+    "systemctl is-active --quiet thoric-update.service") [[ -n ${UPDATING:-} ]]; exit $? ;;
+    "apt-get "*" update") exit "${APT_STATUS:-0}" ;;
+    "systemctl show --property MainPID --value docker") if [[ -f $DOCKER_PID ]]; then cat "$DOCKER_PID"; fi ;;
+    "apt-get "*" upgrade")
+        if [[ -n ${SOCKET_MOVES:-} ]]; then
+            touch "$SOCKET.new"; mv -f "$SOCKET.new" "$SOCKET"; echo upgraded > "$DOCKER_PID"
+        fi
+        if [[ -n ${PACKAGES_AFTER:-} ]]; then printf '%s\\n' "$PACKAGES_AFTER" > "$PACKAGES"; fi ;;
+    "dpkg-query "*) if [[ -f $PACKAGES ]]; then cat "$PACKAGES"; fi ;;
+    "dockerd --validate "*) exit "${VALIDATE_STATUS:-0}" ;;
 esac
 exit 0
 """
@@ -60,6 +73,33 @@ exit 0
 def shipped(files):
     """The checksum file the package writes with sha256sum."""
     return "".join(f"{hashlib.sha256(content.encode()).hexdigest()}  {name}\n" for name, content in files.items())
+
+
+SCRIPT = CLI.read_text()
+# The package's own system files, which an update keeps as the release of its command has them.
+SYSTEM_FILES = tuple(re.search(r"^SYSTEM_FILES=\((.*)\)$", SCRIPT, re.M).group(1).split())
+# What the packages before the record of their checksums shipped, as "checksum path".
+SHIPPED_BEFORE_RECORD = re.findall(r'^    "([0-9a-f]{64} /\S+)"$', SCRIPT, re.M)
+SYSTEM_LEVEL = int(re.search(r"^SYSTEM_LEVEL=(\d+)$", SCRIPT, re.M).group(1))
+DAEMON = "/etc/docker/daemon.json"
+PIN = "/etc/apt/preferences.d/thoric-docker.pref"
+WATCHER = "/usr/lib/wsl/firewall-watch.sh"
+WATCHER_UNIT = "/etc/systemd/system/thoric-firewall.service"
+# daemon.json as the packages of 0.8.0 to 0.8.4 shipped it, before it rotated container logs.
+OLD_DAEMON = """{
+    "live-restore": true,
+    "runtimes": {
+        "nvidia": {
+            "args": [],
+            "path": "nvidia-container-runtime"
+        }
+    }
+}
+"""
+
+
+def sha256(content):
+    return hashlib.sha256(content.encode()).hexdigest()
 
 
 def copy_source(dockerfile, target):
@@ -85,6 +125,12 @@ class UpdateTest(unittest.TestCase):
         self.level = self.dir / "package-level"
         self.units = self.dir / "systemd"
         self.units.mkdir()
+        # The distribution's root, which holds the package's system files, and Docker's socket.
+        self.root = self.dir / "root"
+        self.root.mkdir()
+        self.record = self.dir / "system.sha256"
+        self.socket = self.dir / "docker.sock"
+        self.socket.touch()
         self.script = CLI.read_text()
         for line, replacement in (
             ("INSTALL=/opt/thoric", f"INSTALL={self.install}"),
@@ -92,6 +138,9 @@ class UpdateTest(unittest.TestCase):
             ("PACKAGE_LEVEL=/usr/lib/wsl/package-level", f"PACKAGE_LEVEL={self.level}"),
             ("UNIT_DIR=/etc/systemd/system", f"UNIT_DIR={self.units}"),
             ("UPDATE_WAIT=180", "UPDATE_WAIT=2"),
+            ("SYSTEM_RECORD=/usr/lib/wsl/system.sha256", f"SYSTEM_RECORD={self.record}"),
+            ("SYSTEM_ROOT=", f"SYSTEM_ROOT={self.root}"),
+            ("DOCKER_SOCKET=/var/run/docker.sock", f"DOCKER_SOCKET={self.socket}"),
         ):
             self.assertEqual(self.script.count(f"\n{line}\n"), 1, line)
             self.script = self.script.replace(f"\n{line}\n", f"\n{replacement}\n")
@@ -101,7 +150,7 @@ class UpdateTest(unittest.TestCase):
         self.level.write_text(f"{package_level()[0]}\n")
         bin_dir = self.dir / "bin"
         bin_dir.mkdir()
-        for name in ("docker", "curl", "sudo", "systemctl", "sleep"):
+        for name in ("docker", "curl", "sudo", "systemctl", "sleep", "apt-get", "dpkg-query", "dockerd"):
             (bin_dir / name).write_text(STUB)
             (bin_dir / name).chmod(0o755)
         self.calls = self.dir / "calls"
@@ -117,6 +166,11 @@ class UpdateTest(unittest.TestCase):
             "ENV_FILE": str(self.install / ".env"),
             # Exists once a pull or a tag moved the desktop's catalog reference to a new image.
             "MOVED": str(self.dir / "moved"),
+            "SOCKET": str(self.socket),
+            # Docker's process, which upgrading Docker Engine restarts along with its socket.
+            "DOCKER_PID": str(self.dir / "docker-pid"),
+            # The versions dpkg-query reports, which an upgrade replaces with PACKAGES_AFTER.
+            "PACKAGES": str(self.dir / "packages"),
         }
         # The installation as the 0.2.0 package left it, and the files the newer manager bundles.
         self.old = {
@@ -628,6 +682,250 @@ class UpdateTest(unittest.TestCase):
                 self.assertEqual(env_file, f"MANAGER_IMAGE={REPOSITORY}:0.3.0\n")
                 self.assertIn("docker compose up -d", calls)
 
+    @staticmethod
+    def repository_system():
+        """The package's system files as this repository has them, by path."""
+        manager = (ROOT / "core/manager/Dockerfile").read_text()
+        return {path: (ROOT / copy_source(manager, f"/app/install/system{path}")).read_text() for path in SYSTEM_FILES}
+
+    def bundle_system(self, files):
+        """Puts system files into the manager image."""
+        self.write_files(self.image / "app/install/system", {path.lstrip("/"): content for path, content in files.items()})
+
+    def put_system(self, files, level, record=None):
+        """The distribution's system files, its package level and the checksums its package or an update
+        recorded, if any."""
+        self.write_files(self.root, {path.lstrip("/"): content for path, content in files.items()})
+        self.level.write_text(f"{level}\n")
+        if record is not None:
+            self.record.write_text("".join(f"{sha256(record[path])}  {path}\n" for path in SYSTEM_FILES))
+
+    def old_package(self):
+        """The system files as the packages of 0.8.0 to 0.8.4 left them: no Docker pin, a daemon.json that
+        does not rotate logs, no record of their checksums and package level 1."""
+        files = {path: content for path, content in self.repository_system().items() if path != PIN}
+        self.put_system({**files, DAEMON: OLD_DAEMON}, 1)
+
+    def system(self, path):
+        return (self.root / path.lstrip("/")).read_text()
+
+    def update_by_release(self, **stubs):
+        """An update to 0.3.0 by the command of 0.3.0, which brings the system files of its release."""
+        self.cli.write_text(self.command("0.3.0"))
+        return self.update(f"MANAGER_IMAGE={REPOSITORY}:0.2.0\n", **stubs)
+
+    def test_a_release_brings_the_system_files_of_an_older_package(self):
+        release = self.repository_system()
+        self.bundle_system(release)
+        self.old_package()
+        keepalive = self.root / "usr/lib/wsl/keepalive.sh"
+        keepalive.unlink()
+        result, env_file, calls = self.update_by_release()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(env_file, f"MANAGER_IMAGE={REPOSITORY}:0.3.0\n")
+        # The old package's daemon.json was as it shipped, so it is replaced, and the missing files,
+        # the pin among them, are installed, a script runnable.
+        for path in SYSTEM_FILES:
+            self.assertEqual(self.system(path), release[path], path)
+        self.assertIn(f"{sha256(OLD_DAEMON)} {DAEMON}", SHIPPED_BEFORE_RECORD)
+        self.assertEqual(stat.S_IMODE(keepalive.stat().st_mode), 0o755)
+        self.assertEqual(stat.S_IMODE((self.root / PIN.lstrip("/")).stat().st_mode), 0o644)
+        self.assertIn(f"Updated {DAEMON}.", result.stdout)
+        self.assertIn(f"Updated {PIN}.", result.stdout)
+        self.assertNotIn(f"Updated {WATCHER}.", result.stdout)
+        # The update records what it installed and raises the package level.
+        self.assertEqual(self.record.read_text(), "".join(f"{sha256(release[path])}  {path}\n" for path in SYSTEM_FILES))
+        self.assertEqual(self.level.read_text(), f"{SYSTEM_LEVEL}\n")
+        # Docker checks the new daemon.json first and restarts with it before the manager is created
+        # again; apt upgrades the packages once the pin is in place. The firewall watcher, whose files
+        # stay the same, keeps running.
+        upgrade = next(i for i, call in enumerate(calls) if call.startswith("apt-get ") and call.endswith(" upgrade"))
+        pin = next(i for i, call in enumerate(calls) if call.startswith("sudo install ") and call.endswith(f"{PIN}.new"))
+        self.assertLess(pin, upgrade)
+        self.assertTrue(any(call.startswith("dockerd --validate --config-file ") for call in calls))
+        self.assertLess(upgrade, calls.index("systemctl restart docker"))
+        self.assertLess(calls.index("systemctl restart docker"), calls.index("docker compose up -d"))
+        self.assertNotIn("systemctl daemon-reload", calls)
+        self.assertNotIn("systemctl try-restart thoric-firewall.service", calls)
+
+    def test_a_system_file_edited_by_hand_stays_and_the_update_shows_the_release_version(self):
+        repository = self.repository_system()
+        release = {**repository, WATCHER: repository[WATCHER] + "# newer\n"}
+        self.bundle_system(release)
+        edited = repository[WATCHER] + "# mine\n"
+        self.put_system({**repository, WATCHER: edited}, 2, record=repository)
+        result, _, calls = self.update_by_release()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.system(WATCHER), edited)
+        self.assertIn(f"{WATCHER} has changes of your own", result.stdout)
+        self.assertIn("\n-# mine\n+# newer\n", result.stdout)
+        self.assertNotIn("systemctl try-restart thoric-firewall.service", calls)
+        # An edit in a package before the record is told from what that package shipped as well.
+        self.calls.unlink()
+        self.record.unlink()
+        self.put_system({**repository, WATCHER: edited}, 1)
+        result, _, _ = self.update(f"MANAGER_IMAGE={REPOSITORY}:0.3.0\n")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.system(WATCHER), edited)
+        self.assertIn(f"{WATCHER} has changes of your own", result.stdout)
+        # Once the update has shown the release's version, the same release leaves the file alone quietly.
+        self.calls.unlink()
+        result, _, _ = self.update(f"MANAGER_IMAGE={REPOSITORY}:0.3.0\n")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.system(WATCHER), edited)
+        self.assertNotIn("changes of your own", result.stdout)
+
+    def test_a_new_firewall_unit_reloads_systemd_and_restarts_the_watcher(self):
+        repository = self.repository_system()
+        release = {**repository, WATCHER_UNIT: repository[WATCHER_UNIT].replace("RestartSec=10", "RestartSec=20")}
+        self.assertNotEqual(release[WATCHER_UNIT], repository[WATCHER_UNIT])
+        self.bundle_system(release)
+        self.put_system(repository, 2, record=repository)
+        result, _, calls = self.update_by_release()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.system(WATCHER_UNIT), release[WATCHER_UNIT])
+        self.assertLess(calls.index("systemctl daemon-reload"), calls.index("systemctl try-restart thoric-firewall.service"))
+        # Docker's configuration stayed, so Docker is not restarted.
+        self.assertNotIn("systemctl restart docker", calls)
+
+    def test_the_system_files_come_only_from_the_release_of_the_command(self):
+        self.bundle_system({path: "from the image\n" for path in SYSTEM_FILES})
+        for case, env_file, command in (
+            ("an edge build of master", f"MANAGER_IMAGE={REPOSITORY}:edge\n", self.command("0.3.0")),
+            # The image bundles no command, so the command stays older than the release it moves to.
+            ("a release newer than the command", f"MANAGER_IMAGE={REPOSITORY}:0.2.0\n", self.command("0.2.0")),
+            ("a command that records no release", f"MANAGER_IMAGE={REPOSITORY}:0.2.0\n", self.command()),
+        ):
+            with self.subTest(case):
+                self.calls.unlink(missing_ok=True)
+                self.cli.write_text(command)
+                result, _, calls = self.update(env_file)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertFalse(any("/app/install/system/" in call for call in calls))
+                self.assertEqual(list(self.root.iterdir()), [])
+                self.assertFalse(self.record.exists())
+                self.assertIn("system files stay as they are", result.stdout)
+                # The packages are the command's own work, so they are upgraded all the same.
+                self.assertTrue(any(call.startswith("apt-get ") and call.endswith(" upgrade") for call in calls))
+                self.assertIn("docker compose up -d", calls)
+
+    def test_the_packages_are_upgraded_and_a_failure_leaves_the_update_going(self):
+        (self.dir / "packages").write_text("docker-ce 5:29.9.2-1\ncontainerd.io 2.4.2-1\n")
+        before = f"MANAGER_IMAGE={REPOSITORY}:0.3.0\n"
+        result, _, calls = self.update(before, PACKAGES_AFTER="docker-ce 5:29.9.3-1\ncontainerd.io 2.4.2-1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("  docker-ce: 5:29.9.2-1 to 5:29.9.3-1\n", result.stdout)
+        self.assertNotIn("containerd.io:", result.stdout)
+        # Package scripts restart no service in the distribution, so the update restarts Docker to run
+        # its new version, before the manager is created again.
+        self.assertIn("systemctl restart docker", calls)
+        self.assertLess(calls.index("systemctl restart docker"), calls.index("docker compose up -d"))
+        apt = [call for call in calls if call.startswith(("apt-get ", "sudo env "))]
+        self.assertEqual(len(apt), 4, apt)
+        self.assertTrue(apt[0].startswith("sudo env DEBIAN_FRONTEND=noninteractive apt-get "))
+        self.assertTrue(apt[1].endswith(" update"))
+        # New packages an upgrade needs come along, and configuration edited by hand stays.
+        for option in ("-y", "--with-new-pkgs", "Dpkg::Options::=--force-confold"):
+            self.assertIn(f" {option} ", apt[3])
+        self.assertTrue(apt[3].endswith(" upgrade"))
+        # A failing apt-get is said, and the update goes on to recreate the manager.
+        self.calls.unlink()
+        result, env_file, calls = self.update(before, APT_STATUS="100")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(env_file, before)
+        self.assertIn("packages were not updated", result.stderr)
+        self.assertFalse(any(call.startswith("apt-get ") and call.endswith(" upgrade") for call in calls))
+        self.assertIn("docker compose up -d", calls)
+
+    def test_a_new_docker_socket_creates_the_manager_again(self):
+        # Upgrading Docker Engine makes its socket again, which a running manager does not see.
+        before = f"MANAGER_IMAGE={REPOSITORY}:0.3.0\n"
+        result, _, calls = self.update(before, SOCKET_MOVES="1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("docker compose up -d --force-recreate", calls)
+        self.assertNotIn("docker compose up -d", calls)
+        # With the same socket, Compose creates again only what changed.
+        self.calls.unlink()
+        result, _, calls = self.update(before)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("docker compose up -d", calls)
+        self.assertNotIn("docker compose up -d --force-recreate", calls)
+
+    def test_containerd_and_docker_restart_for_their_new_versions(self):
+        (self.dir / "packages").write_text("containerd.io 2.4.2-1\ndocker-ce 5:29.9.2-1\nnvidia-container-toolkit 1.20.1-1\n")
+        before = f"MANAGER_IMAGE={REPOSITORY}:0.3.0\n"
+        result, _, calls = self.update(before, PACKAGES_AFTER="containerd.io 2.4.3-1\ndocker-ce 5:29.9.2-1\nnvidia-container-toolkit 1.20.1-1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("systemctl restart containerd docker", calls)
+        # The NVIDIA Container Toolkit runs with each container, so its new version needs no restart,
+        # and packages that stay the same restart nothing.
+        for after in ("containerd.io 2.4.2-1\ndocker-ce 5:29.9.2-1\nnvidia-container-toolkit 1.20.2-1", ""):
+            with self.subTest(after=after):
+                self.calls.unlink()
+                (self.dir / "packages").write_text("containerd.io 2.4.2-1\ndocker-ce 5:29.9.2-1\nnvidia-container-toolkit 1.20.1-1\n")
+                result, _, calls = self.update(before, PACKAGES_AFTER=after)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertFalse(any(call.startswith("systemctl restart ") for call in calls), calls)
+
+    def test_docker_restarts_once_for_a_new_daemon_json(self):
+        # Upgrading Docker Engine restarts it after the new daemon.json is in place, which is enough.
+        self.bundle_system(self.repository_system())
+        self.old_package()
+        result, _, calls = self.update_by_release(SOCKET_MOVES="1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.system(DAEMON), self.repository_system()[DAEMON])
+        self.assertNotIn("systemctl restart docker", calls)
+
+    def test_a_daemon_json_docker_refuses_waits_for_a_later_update(self):
+        release = self.repository_system()
+        self.bundle_system(release)
+        self.old_package()
+        result, _, calls = self.update_by_release(VALIDATE_STATUS="1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.system(DAEMON), OLD_DAEMON)
+        self.assertIn("refuses the release's daemon.json", result.stdout)
+        self.assertNotIn("systemctl restart docker", calls)
+        # The other files come all the same, and the next update, with a Docker Engine that takes it,
+        # replaces the file it recorded as shipped.
+        self.assertEqual(self.system(PIN), release[PIN])
+        self.calls.unlink()
+        result, _, calls = self.update(f"MANAGER_IMAGE={REPOSITORY}:0.3.0\n")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.system(DAEMON), release[DAEMON])
+        self.assertIn("systemctl restart docker", calls)
+
+    def system_command(self, env_file, **stubs):
+        (self.install / ".env").write_text(env_file)
+        result = subprocess.run(["bash", str(self.cli), "system"], env={**self.env, **stubs}, capture_output=True, text=True)
+        calls = self.calls.read_text().splitlines() if self.calls.exists() else []
+        return result, calls
+
+    def test_the_system_command_brings_the_system_current_without_moving_the_manager(self):
+        release = self.repository_system()
+        self.bundle_system(release)
+        self.old_package()
+        self.cli.write_text(self.command("0.3.0"))
+        env_file = f"MANAGER_IMAGE={REPOSITORY}:0.3.0\n"
+        result, calls = self.system_command(env_file)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.system(DAEMON), release[DAEMON])
+        self.assertTrue(any(call.startswith("apt-get ") and call.endswith(" upgrade") for call in calls))
+        self.assertEqual(self.installed(".env"), env_file)
+        self.assertFalse(any(call.startswith(("curl ", "docker pull ", "docker compose up")) for call in calls))
+        # A new socket creates the running manager again, and the command waits for it to answer.
+        self.calls.unlink()
+        result, calls = self.system_command(env_file, SOCKET_MOVES="1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        recreate = calls.index("docker compose up -d --force-recreate")
+        self.assertTrue(any(call.startswith("docker compose exec -T manager curl ") for call in calls[recreate:]))
+        self.assertIn("The manager answers.", result.stdout)
+        # While an update runs, which does the same, it changes nothing.
+        self.calls.unlink()
+        result, calls = self.system_command(env_file, UPDATING="1")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("An update is running", result.stderr)
+        self.assertFalse(any(call.startswith(("apt-get ", "sudo ")) for call in calls))
+
 
 # sudoedit as root: the editor works on a copy, which is written back over the original. Like sudo,
 # it falls back to a default of its own, vi here, when none of the editor variables is set.
@@ -946,6 +1244,36 @@ class PackageTest(unittest.TestCase):
         self.assertIsNotNone(level)
         self.assertEqual(f"PACKAGE_LEVEL={level[1]}", re.search(r"^PACKAGE_LEVEL=.*$", script, re.M).group(0))
         self.assertLessEqual(int(needs[0]), level[0])
+
+    def test_the_package_and_the_manager_bundle_the_system_files_an_update_keeps(self):
+        # The package installs each system file and records its checksum; the manager image bundles the
+        # same file under /app/install/system, from where an update brings it to older packages.
+        manager = (ROOT / "core/manager/Dockerfile").read_text()
+        package = (ROOT / "packaging/wsl/Dockerfile").read_text()
+        record = re.search(r"^SYSTEM_RECORD=(\S+)$", SCRIPT, re.M).group(1)
+        self.assertIn(f"sha256sum {' '.join(SYSTEM_FILES)} > {record}", package)
+        for path in SYSTEM_FILES:
+            source = copy_source(package, path)
+            self.assertIsNotNone(source, path)
+            self.assertEqual(copy_source(manager, f"/app/install/system{path}"), source, path)
+        # An update raises the package level to what a package built now records.
+        self.assertEqual(SYSTEM_LEVEL, package_level()[0])
+        # The versions of older packages name only these files, and the record stays a separate file.
+        self.assertGreater(len(SHIPPED_BEFORE_RECORD), len(SYSTEM_FILES) - 2)
+        self.assertTrue({line.split()[1] for line in SHIPPED_BEFORE_RECORD} <= set(SYSTEM_FILES))
+        self.assertNotIn(record, SYSTEM_FILES)
+
+    def test_the_package_pins_docker_engine_before_it_installs_it(self):
+        # apt takes the pin into account only once it is there, in the package's build as in an update.
+        package = (ROOT / "packaging/wsl/Dockerfile").read_text()
+        pin = package.index(f" {PIN}\n")
+        self.assertLess(pin, package.index("docker-ce docker-ce-cli containerd.io"))
+        preferences = (ROOT / copy_source(package, PIN)).read_text()
+        self.assertRegex(preferences, r"(?m)^Package: docker-ce docker-ce-cli$")
+        self.assertRegex(preferences, r"(?m)^Pin: version 5:\d+\.\*$")
+        # Below 1000, so a newer Docker Engine installed by hand is never taken back.
+        priority = int(re.search(r"(?m)^Pin-Priority: (\d+)$", preferences).group(1))
+        self.assertTrue(990 <= priority < 1000, priority)
 
 
 COMPLETION = ROOT / "packaging/wsl/thoric-completion.bash"

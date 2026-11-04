@@ -10,6 +10,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl gnupg sudo systemd systemd-sysv dbus iproute2 iptables \
     openssl less nano locales tzdata dbus-user-session libpam-systemd bash-completion \
     && locale-gen en_US.UTF-8 && rm -rf /var/lib/apt/lists/*
+# Docker Engine stays within one major release, here and in every 'thoric update' after; the
+# directory exists in the base image.
+COPY --chmod=0644 packaging/wsl/thoric-docker.pref /etc/apt/preferences.d/thoric-docker.pref
 RUN install -m 0755 -d /etc/apt/keyrings \
     && curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc \
     && chmod a+r /etc/apt/keyrings/docker.asc \
@@ -24,9 +27,8 @@ RUN install -m 0755 -d /etc/apt/keyrings \
 # Docker starts with systemd; daemon.json, copied below, registers the NVIDIA runtime now, so the
 # first boot needs no network, turns on live-restore, so containers keep running when Docker
 # restarts, and has every container log through json-file in at most three files of 10 MB. An
-# update leaves the file as an older package installed it, where the manager and compose.yml give
-# Thoric's own containers the same rotation; the thoric command does not rely on it, so the package
-# level stays. WSL 2 runs every distribution in one network namespace. nftables.service flushes the
+# update brings it, like the package's other system files, unless it was edited by hand. WSL 2
+# runs every distribution in one network namespace. nftables.service flushes the
 # whole ruleset when it starts (the default /etc/nftables.conf) and when it stops, which clears
 # the firewall rules of every Docker Engine on the machine, so it is masked.
 RUN systemctl enable docker containerd \
@@ -69,14 +71,17 @@ RUN test -n "$THORIC_VERSION" \
     && sed -i "s|^CLI_VERSION=.*|CLI_VERSION=$THORIC_VERSION|" /usr/local/bin/thoric \
     && grep -qFx "CLI_VERSION=$THORIC_VERSION" /usr/local/bin/thoric \
     && cd /opt/thoric && sha256sum compose.yml deploy/Caddyfile .env.example > .shipped.sha256
-# The package level counts changes to the package's own files that the thoric command relies on.
-# An update installs the command of a newer release only when its NEEDS_PACKAGE is at most this level,
-# so a change here that the command starts to rely on raises both. The update and settings units
-# rely on the command, not the other way round, and an update installs them where they are
-# missing. 'watched' and 'settings-watched' tell the manager that the path units take its update
-# requests and its settings changes.
+# The package level counts changes to the package's own files, and marks the distribution as
+# Thoric's package, whose system an update keeps current. An update brings the system files listed
+# in system.sha256 (SYSTEM_FILES in the command) and raises the level to the command's SYSTEM_LEVEL,
+# which equals this one; the checksums tell it a file edited by hand. An update installs the
+# command of a newer release only when its NEEDS_PACKAGE is at most the level, for what only a new
+# package brings. The update and settings units rely on the command, not the other way round, and
+# an update installs them where they are missing. 'watched' and 'settings-watched' tell the
+# manager that the path units take its update requests and its settings changes.
 RUN dockerd --validate --config-file /etc/docker/daemon.json \
     && systemctl enable thoric-firewall.service thoric-update.path thoric-settings.path \
     && touch /opt/thoric/update/watched /opt/thoric/update/settings-watched \
-    && printf '1\n' > /usr/lib/wsl/package-level \
+    && printf '2\n' > /usr/lib/wsl/package-level \
+    && sha256sum /etc/apt/preferences.d/thoric-docker.pref /etc/docker/daemon.json /etc/systemd/system/thoric-firewall.service /usr/lib/wsl/firewall-watch.sh /usr/lib/wsl/keepalive.sh /usr/share/bash-completion/completions/thoric > /usr/lib/wsl/system.sha256 \
     && rm -f /etc/machine-id /var/lib/dbus/machine-id

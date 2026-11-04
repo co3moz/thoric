@@ -1063,6 +1063,15 @@ export const es: Messages = {
     "El inicio de sesión está desactivado, /mcp no pide token y el gestor se publica en {addresses}. Cualquier dispositivo que llegue a él, y cualquier escritorio con acceso a internet, controla todos los contenedores.",
   "settings.exposure.fix":
     "Define una contraseña y un token MCP, o publica el gestor solo en este equipo con BIND_ADDRESS=127.0.0.1.",
+  "settings.docker.title": "Docker Engine {version} no ofrece todo lo que usa Thoric",
+  "settings.docker.isolation":
+    "Las redes privadas de los escritorios conservan una dirección en el host de Docker, desde donde cualquier programa llega a sus pantallas. Docker Engine 28.0 las crea sin ella.",
+  "settings.docker.mac_address":
+    "La dirección MAC de un escritorio en su red de internet no se conserva cuando vuelve a arrancar o se vuelve a crear. Docker Engine 29 la conserva.",
+  "settings.docker.package":
+    "Ejecuta 'thoric system' en la distribución de Thoric para actualizar Docker Engine.",
+  "settings.docker.host":
+    "Actualiza Docker Engine en el host y luego vuelve a crear el gestor (docker compose up -d --force-recreate manager).",
   "settings.secretSet": "Definido, oculto",
   "settings.notSet": "Sin definir",
   "settings.idle": "Sin efecto mientras {name} esté desactivado.",

@@ -25,7 +25,7 @@ pub(super) fn all() -> Vec<Route> {
         get(
             "/api/configuration",
             INSTALLATION,
-            "The settings the manager runs with; secrets only say whether they are set. exposure names what answers without a credential while the manager is published beyond loopback.",
+            "The settings the manager runs with; secrets only say whether they are set. exposure names what answers without a credential while the manager is published beyond loopback, and docker what the Docker Engine lacks of what Thoric uses.",
         ),
         post(
             "/api/configuration",

@@ -1,0 +1,7 @@
+# Thoric's WSL package keeps Docker Engine within the major release its manager was made for:
+# 'thoric update' brings the newest version of that release, and the Thoric release that moves to
+# the next one brings this file with a new version. A Docker Engine newer than every version here,
+# installed by hand, is not taken back; apt then upgrades it as it would without this file.
+Package: docker-ce docker-ce-cli
+Pin: version 5:29.*
+Pin-Priority: 990

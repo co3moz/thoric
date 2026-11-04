@@ -54,19 +54,22 @@ pub(crate) fn editable(dir: &Path) -> bool {
 }
 
 /// `GET /api/configuration`: the installation's settings for the Settings page, without secrets,
-/// whether the page can change them, the change that is running, if any, and what answers without
-/// a credential beyond this computer (`auth::exposure`).
+/// whether the page can change them, the change that is running, if any, what answers without a
+/// credential beyond this computer (`auth::exposure`) and what the Docker Engine lacks
+/// (`App::engine_gaps`).
 pub async fn configuration(State(app): State<Arc<App>>) -> Result<Json<Value>> {
     let running = app
         .db
         .active_jobs()?
         .into_iter()
         .find(|job| job.kind == JOB);
+    let (exposure, docker) = tokio::join!(crate::auth::exposure(&app), app.engine_gaps());
     Ok(Json(json!({
         "variables": app.config.shown(),
         "editable": editable(&app.config.update_dir),
         "job_id": running.map(|job| job.id),
-        "exposure": crate::auth::exposure(&app).await,
+        "exposure": exposure,
+        "docker": docker,
     })))
 }
 

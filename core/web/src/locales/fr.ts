@@ -1077,6 +1077,15 @@ export const fr: Messages = {
     "La connexion est désactivée, /mcp ne demande pas de jeton et le gestionnaire est publié sur {addresses}. Tout appareil qui l'atteint, et tout bureau ayant accès à Internet, contrôle chaque conteneur.",
   "settings.exposure.fix":
     "Définissez un mot de passe et un jeton MCP, ou publiez le gestionnaire sur cet ordinateur seulement avec BIND_ADDRESS=127.0.0.1.",
+  "settings.docker.title": "Docker Engine {version} ne fournit pas tout ce que Thoric utilise",
+  "settings.docker.isolation":
+    "Les réseaux privés des bureaux gardent une adresse sur l'hôte Docker, d'où tout programme atteint leurs écrans. Docker Engine 28.0 les crée sans adresse.",
+  "settings.docker.mac_address":
+    "L'adresse MAC d'un bureau sur son réseau Internet ne reste pas quand il redémarre ou est recréé. Docker Engine 29 la conserve.",
+  "settings.docker.package":
+    "Exécutez 'thoric system' dans la distribution Thoric pour mettre Docker Engine à jour.",
+  "settings.docker.host":
+    "Mettez Docker Engine à jour sur l'hôte, puis recréez le gestionnaire (docker compose up -d --force-recreate manager).",
   "settings.secretSet": "Défini, masqué",
   "settings.notSet": "Non défini",
   "settings.idle": "Sans effet tant que {name} est désactivé.",

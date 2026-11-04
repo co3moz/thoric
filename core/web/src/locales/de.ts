@@ -1077,6 +1077,15 @@ export const de: Messages = {
     "Die Anmeldung ist aus, /mcp verlangt kein Token und der Manager ist unter {addresses} veröffentlicht. Jedes Gerät, das ihn erreicht, und jeder Desktop mit Internetzugang steuert jeden Container.",
   "settings.exposure.fix":
     "Legen Sie ein Passwort und ein MCP-Token fest, oder veröffentlichen Sie den Manager mit BIND_ADDRESS=127.0.0.1 nur auf diesem Computer.",
+  "settings.docker.title": "Docker Engine {version} kann nicht alles, was Thoric nutzt",
+  "settings.docker.isolation":
+    "Die privaten Netzwerke der Desktops behalten eine Adresse auf dem Docker-Host, von wo jedes Programm dort ihre Bildschirme erreicht. Docker Engine 28.0 legt sie ohne an.",
+  "settings.docker.mac_address":
+    "Die MAC-Adresse eines Desktops in seinem Internetnetzwerk bleibt nicht erhalten, wenn er neu startet oder neu erstellt wird. Docker Engine 29 behält sie bei.",
+  "settings.docker.package":
+    "Führen Sie in der Thoric-Distribution 'thoric system' aus, um Docker Engine zu aktualisieren.",
+  "settings.docker.host":
+    "Aktualisieren Sie Docker Engine auf dem Host und erstellen Sie den Manager danach neu (docker compose up -d --force-recreate manager).",
   "settings.secretSet": "Gesetzt, verborgen",
   "settings.notSet": "Nicht gesetzt",
   "settings.idle": "Ohne Wirkung, solange {name} aus ist.",

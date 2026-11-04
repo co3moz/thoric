@@ -3,10 +3,11 @@
 //! deletes a container, `create_args` holds every setting Docker fixes when it creates one,
 //! `networks` a container's private and internet networks, `address_pool` gives every network
 //! Thoric makes a small subnet of `DESKTOP_ADDRESS_POOL`, `isolation` keeps internal networks
-//! without an address on the Docker host, and `logged` runs a command whose output goes into a
-//! job's log.
+//! without an address on the Docker host, `engine` names what an older Docker Engine lacks of
+//! that, and `logged` runs a command whose output goes into a job's log.
 mod address_pool;
 mod create_args;
+mod engine;
 mod isolation;
 mod lifecycle;
 pub(crate) mod logged;
