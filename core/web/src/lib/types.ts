@@ -515,6 +515,16 @@ export type Configuration = {
   job_id?: string | null
   /** What answers without a credential while Docker publishes the manager beyond loopback. */
   exposure?: { open: ("dashboard" | "mcp")[]; published: string[] } | null
+  /**
+   * What the Docker Engine lacks of what Thoric uses, and whether the WSL package keeps Docker
+   * Engine current; `null` when it lacks nothing.
+   */
+  docker?: {
+    version: string
+    api: string
+    lacks: ("isolation" | "mac_address")[]
+    package: boolean
+  } | null
 }
 
 /** How an address of `NOTIFY_URL` is sent to. */

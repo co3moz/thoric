@@ -1059,6 +1059,16 @@ export const tr: Messages = {
     "Oturum açma kapalı, /mcp token istemiyor ve manager {addresses} üzerinde yayımlanıyor. Ona ulaşan her cihaz ve internet erişimi olan her masaüstü, her konteyneri yönetir.",
   "settings.exposure.fix":
     "Bir parola ve bir MCP token'ı belirleyin ya da manager'ı BIND_ADDRESS=127.0.0.1 ile yalnızca bu bilgisayarda yayımlayın.",
+  "settings.docker.title":
+    "Docker Engine {version}, Thoric'in kullandıklarının bir kısmını sağlamıyor",
+  "settings.docker.isolation":
+    "Masaüstülerinin özel ağları Docker host'unda bir adres alıyor; oradaki her program ekranlarına ulaşır. Docker Engine 28.0 bu ağları adressiz kurar.",
+  "settings.docker.mac_address":
+    "Bir masaüstünün internet ağındaki MAC adresi, yeniden başladığında ya da yeniden oluşturulduğunda korunmaz. Docker Engine 29 adresi korur.",
+  "settings.docker.package":
+    "Docker Engine'i güncellemek için Thoric dağıtımında 'thoric system' komutunu çalıştırın.",
+  "settings.docker.host":
+    "Docker Engine'i host üzerinde güncelleyin, ardından manager'ı yeniden oluşturun (docker compose up -d --force-recreate manager).",
   "settings.secretSet": "Ayarlı, gizli",
   "settings.notSet": "Ayarlanmamış",
   "settings.idle": "{name} kapalıyken etkisi yok.",

@@ -29,10 +29,10 @@ use serde_json::Value;
 const GATEWAY_MODE: &str = "com.docker.network.bridge.gateway_mode_ipv4";
 const ISOLATED: &str = "isolated";
 /// The first Engine API that knows gateway mode `isolated`: Docker Engine 28.0.
-const ISOLATING_API: (u32, u32) = (1, 48);
+pub(super) const ISOLATING_API: (u32, u32) = (1, 48);
 /// The first Engine API that gives a container connected to a network after its creation the MAC
 /// address asked for: Docker Engine 29 (see `identity`).
-const MAC_API: (u32, u32) = (1, 54);
+pub(super) const MAC_API: (u32, u32) = (1, 54);
 /// Where the manager's process finds its mounts.
 const MOUNTINFO: &str = "/proc/self/mountinfo";
 
@@ -81,7 +81,7 @@ pub(crate) fn isolated(network: &Value) -> bool {
 }
 
 /// Whether an Engine API version, such as `1.49`, is `least` or later.
-fn api_at_least(version: &str, least: (u32, u32)) -> bool {
+pub(super) fn api_at_least(version: &str, least: (u32, u32)) -> bool {
     let Some((major, minor)) = version.trim().split_once('.') else {
         return false;
     };

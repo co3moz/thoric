@@ -524,6 +524,31 @@ function ExposureAlert({ exposure }: { exposure: NonNullable<Configuration["expo
   )
 }
 
+/** What each gap of an older Docker Engine means for desktops. */
+const DOCKER_LACKS = {
+  isolation: "settings.docker.isolation",
+  mac_address: "settings.docker.mac_address",
+} as const
+
+/**
+ * What the Docker Engine lacks of what Thoric uses, and who updates it: the WSL package's
+ * `thoric system`, or whoever runs the Docker host.
+ */
+function DockerEngineAlert({ docker }: { docker: NonNullable<Configuration["docker"]> }) {
+  return (
+    <Alert>
+      <RiAlertLine />
+      <AlertTitle>{t("settings.docker.title", { version: docker.version })}</AlertTitle>
+      <AlertDescription>
+        {docker.lacks.map((gap) => (
+          <p key={gap}>{t(DOCKER_LACKS[gap])}</p>
+        ))}
+        <p>{t(docker.package ? "settings.docker.package" : "settings.docker.host")}</p>
+      </AlertDescription>
+    </Alert>
+  )
+}
+
 /**
  * The installation's settings by section. Where the WSL package takes changes, the editable ones
  * get a control, and **Apply and restart** has the package write them to `.env` and recreate
@@ -644,6 +669,7 @@ export function ConfigurationEditor() {
     <>
       <div className="flex flex-col gap-3 px-4 lg:px-6">
         {data.exposure && <ExposureAlert exposure={data.exposure} />}
+        {data.docker && <DockerEngineAlert docker={data.docker} />}
         {job ? (
           <Alert>
             <Spinner />
