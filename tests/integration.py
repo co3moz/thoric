@@ -103,6 +103,57 @@ class WebSocket:
         self.socket.close()
 
 
+def vnc_viewer(path, cookie):
+    """A shared RFB session over the dashboard's VNC socket, and the bytes of one of its pixels."""
+    viewer = WebSocket(port, path, cookie)
+    assert viewer.read(12).startswith(b"RFB 003.")
+    viewer.send(b"RFB 003.008\n")
+    assert 1 in viewer.read(viewer.read(1)[0])
+    viewer.send(b"\x01"); assert viewer.read(4) == b"\0\0\0\0"
+    viewer.send(b"\x01")
+    init = viewer.read(24)
+    viewer.read(struct.unpack("!I", init[20:24])[0])
+    return viewer, init[4] // 8
+
+
+def screen_layout(viewer, pixel, answer):
+    """Read the server's messages until an ExtendedDesktopSize rectangle, the answer to this
+    viewer's own request when `answer`, and return its first screen's ID and flags with its status."""
+    for _ in range(64):
+        kind = viewer.read(1)[0]
+        if kind == 0:
+            viewer.read(1)
+            found = None
+            for _ in range(struct.unpack("!H", viewer.read(2))[0]):
+                reason, status, width, height, encoding = struct.unpack("!HHHHi", viewer.read(12))
+                if encoding == 0:
+                    viewer.read(width * height * pixel)
+                    continue
+                assert encoding == -308, encoding
+                screens = [struct.unpack("!IHHHHI", viewer.read(16)) for _ in range(viewer.read(4)[0])]
+                if reason == 1 or not answer:
+                    found = (screens[0][0], screens[0][5], status)
+            if found:
+                return found
+        elif kind == 1:
+            viewer.read(3); viewer.read(struct.unpack("!H", viewer.read(2))[0] * 6)
+        elif kind == 3:
+            viewer.read(3); viewer.read(struct.unpack("!I", viewer.read(4))[0])
+        else:
+            assert kind == 2, kind
+    raise AssertionError("the VNC server reported no screen layout")
+
+
+def fit_screen(viewer, pixel, width, height):
+    """Do what noVNC does for Resize to window: say so to the manager, then ask for a size."""
+    viewer.send_text('{"fit":true}')
+    viewer.send(struct.pack("!BxHi", 2, 1, -308) + struct.pack("!BBHHHH", 3, 0, 0, 0, 1, 1))
+    screen_id, flags, _ = screen_layout(viewer, pixel, False)
+    viewer.send(struct.pack("!BxHHBxIHHHHI", 251, width, height, 1, screen_id, 0, 0, width, height, flags))
+    viewer.send(struct.pack("!BBHHHH", 3, 1, 0, 0, 1, 1))
+    assert screen_layout(viewer, pixel, True)[2] == 0, "the VNC server refused the size"
+
+
 tag = uuid.uuid4().hex[:12]
 manager = f"thoric-test-{tag}"
 volume = f"thoric-test-data-{tag}"
@@ -2676,6 +2727,25 @@ try:
     ready(edit_container)
     assert docker("inspect", "--format", "{{.Id}}", edit_container).decode().strip() == first_id
     print("PASS a new resolution reaches the running desktop and stays after the manager or Docker restarts it", flush=True)
+    # A viewer's window size lasts only while it fits the screen: turned off, the desktop gets its
+    # settings' resolution again, and a closed viewer leaves it a few seconds for a reload first.
+    cookie = "; ".join(f"{c.name}={c.value}" for c in cookies)
+    viewer, pixel = vnc_viewer(f"/api/containers/{edit}/vnc", cookie)
+    fit_screen(viewer, pixel, 1280, 800)
+    assert wait_for(lambda: screen() == "1280x800", 10), screen()
+    viewer.send_text('{"fit":false}')
+    assert wait_for(lambda: screen() == "1600x900", 30), screen()
+    fit_screen(viewer, pixel, 1024, 768)
+    assert wait_for(lambda: screen() == "1024x768", 10), screen()
+    viewer.close()
+    time.sleep(2)
+    assert screen() == "1024x768", screen()
+    assert wait_for(lambda: screen() == "1600x900", 30), screen()
+    # Text that is not the dashboard's message ends the connection.
+    viewer, pixel = vnc_viewer(f"/api/containers/{edit}/vnc", cookie)
+    viewer.send_text("hello")
+    viewer.assert_closed(); viewer.close()
+    print("PASS a viewer's window size lasts while it fits the screen, then the settings' resolution returns", flush=True)
     docker("exec", "--user", "desktop", edit_container, "sh", "-c", "printf kept > /home/desktop/settings-marker")
     preview = tool("update_container", {"container_id": edit, "audio": True, "cpus": None, "dry_run": True})["structuredContent"]
     assert preview["live"] == [] and preview["restart"] == ["cpus", "audio"], preview

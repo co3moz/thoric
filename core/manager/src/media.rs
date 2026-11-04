@@ -44,10 +44,14 @@ pub async fn vnc(
         .on_upgrade(move |socket| async move {
             // An open viewer uses the desktop, which its idle stop leaves running.
             let _using = app.lifecycle.open(&env.id);
-            tokio::select! { _=app.session_revoked(token)=>{}, _=bridge(socket,stream)=>{} }
+            let fit = crate::resolution::Fit::new(app.clone(), &env.id);
+            tokio::select! { _=app.session_revoked(token)=>{}, _=bridge(socket,stream,fit)=>{} }
         }))
 }
-async fn bridge(socket: WebSocket, stream: TcpStream) {
+/// Relay RFB between the viewer and the desktop's VNC server as binary frames. A text frame is
+/// the viewer's own message to the manager, whether it fits the screen to its window, which
+/// `fit` keeps until the socket ends.
+async fn bridge(socket: WebSocket, stream: TcpStream, mut fit: crate::resolution::Fit) {
     let (mut sender, mut receiver) = socket.split();
     let (mut read, mut write) = stream.into_split();
     let from_desktop = async {
@@ -68,7 +72,7 @@ async fn bridge(socket: WebSocket, stream: TcpStream) {
             match message? {
                 Message::Binary(bytes) => write.write_all(&bytes).await?,
                 Message::Close(_) => break,
-                Message::Text(_) => anyhow::bail!("Binary WebSocket frames are required"),
+                Message::Text(text) => fit.message(text.as_str())?,
                 _ => {}
             }
         }

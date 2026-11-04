@@ -1499,7 +1499,7 @@ export const es: Messages = {
   "desktop.reconnect": "Reconectar",
   "desktop.resize": "Ajustar a la ventana",
   "desktop.resizeHint":
-    "Desactivado, la vista escala el escritorio y su resolución no cambia. Activado, la resolución del escritorio se ajusta a esta ventana, también para los agentes y otros espectadores, y se mantiene hasta que el escritorio se reinicie.",
+    "Desactivado, la vista escala el escritorio con la resolución de su configuración. Activado, la resolución del escritorio sigue a esta ventana, también para los agentes y otros espectadores. Al desactivarlo o desconectarse, el escritorio vuelve a la resolución de su configuración.",
   "desktop.lost.failed":
     "Se perdió la conexión con el escritorio. Vuelve a conectarte para continuar.",
   "desktop.lost.disconnected": "El escritorio cerró la conexión.",

@@ -1508,7 +1508,7 @@ export const fr: Messages = {
   "desktop.reconnect": "Se reconnecter",
   "desktop.resize": "Adapter à la fenêtre",
   "desktop.resizeHint":
-    "Désactivé, la vue met le bureau à l'échelle et sa résolution reste la même. Activé, la résolution du bureau s'adapte à cette fenêtre, aussi pour les agents et les autres spectateurs, et reste ainsi jusqu'au redémarrage du bureau.",
+    "Désactivé, la vue met le bureau à l'échelle dans la résolution de ses paramètres. Activé, la résolution du bureau suit cette fenêtre, aussi pour les agents et les autres spectateurs. Une fois désactivé ou déconnecté, le bureau reprend la résolution de ses paramètres.",
   "desktop.lost.failed": "La connexion au bureau a été perdue. Reconnectez-vous pour continuer.",
   "desktop.lost.disconnected": "Le bureau a fermé la connexion.",
   "desktop.exitFullscreen": "Quitter le plein écran",

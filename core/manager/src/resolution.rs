@@ -6,7 +6,12 @@
 //! settings' size again: by the job that started it, through Docker's `start` event when Docker
 //! restarted it alone, and by a look at every running desktop whenever Docker's events begin to
 //! flow, for the starts no event told the manager of. A desktop whose screen no longer has the
-//! size it was created with, such as one a viewer resized to their window, is left as it is.
+//! size it was created with, such as one a viewer resized to their window, is left as it is
+//! there; that viewer's size lasts only while it fits the screen ([`fit`]).
+mod fit;
+
+pub(crate) use fit::{Fit, Fitters};
+
 use crate::{
     App,
     desktop_input::{Connection, handshake},
@@ -212,21 +217,23 @@ async fn settle(address: &str, created: (u16, u16), wanted: (u16, u16)) -> Resul
 }
 
 impl App {
-    /// Give the running desktop `resolution`, as a settings change of it does.
+    /// Give the running desktop `resolution`, as a settings change of it does, and say whether
+    /// its screen had another size.
     pub(crate) async fn change_resolution(
         &self,
         env: &Container,
         info: &Value,
         resolution: &str,
-    ) -> Result<()> {
+    ) -> Result<bool> {
         let wanted = size(resolution)?;
         let address = vnc_address(env, info)?;
         tokio::time::timeout(TIMEOUT, async {
             let screen = Screen::open(&address).await?;
-            if screen.size() != wanted {
-                screen.resize(wanted).await?;
+            if screen.size() == wanted {
+                return Ok(false);
             }
-            anyhow::Ok(())
+            screen.resize(wanted).await?;
+            anyhow::Ok(true)
         })
         .await
         .context("The desktop's VNC server did not answer in time")?

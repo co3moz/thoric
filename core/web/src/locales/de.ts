@@ -1514,7 +1514,7 @@ export const de: Messages = {
   "desktop.reconnect": "Neu verbinden",
   "desktop.resize": "An Fenster anpassen",
   "desktop.resizeHint":
-    "Aus: Die Ansicht skaliert den Desktop, seine Auflösung bleibt. An: Die Auflösung des Desktops passt sich diesem Fenster an, auch für Agenten und andere Betrachter, und bleibt so, bis der Desktop neu startet.",
+    "Aus: Die Ansicht skaliert den Desktop in der Auflösung seiner Einstellungen. An: Die Auflösung des Desktops folgt diesem Fenster, auch für Agenten und andere Betrachter. Ausgeschaltet oder getrennt kehrt der Desktop zur Auflösung seiner Einstellungen zurück.",
   "desktop.lost.failed":
     "Die Verbindung zum Desktop ist abgebrochen. Verbinden Sie sich neu, um fortzufahren.",
   "desktop.lost.disconnected": "Der Desktop hat die Verbindung beendet.",

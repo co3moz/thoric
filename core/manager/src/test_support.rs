@@ -4,7 +4,7 @@
 //! stand-in that answers as a manager with a data volume of its own, and a sample of the host GPU.
 use crate::{
     App, config, db, desktop_limits, desktop_mcp, events, human, layers, lifecycle, metrics, model,
-    notify, outbound, releases, router, transfers, usage,
+    notify, outbound, releases, resolution, router, transfers, usage,
 };
 use axum::{
     body::Body,
@@ -112,6 +112,7 @@ pub(crate) fn app(auth: bool) -> Arc<App> {
         human: human::Requests::default(),
         outbound: outbound::Outbound::default(),
         lifecycle: lifecycle::Activity::default(),
+        fitters: resolution::Fitters::default(),
         notifier: notify::Notifier::default(),
         metrics: metrics::Metrics::default(),
     })

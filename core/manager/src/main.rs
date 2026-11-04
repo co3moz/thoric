@@ -116,6 +116,8 @@ pub struct App {
     outbound: outbound::Outbound,
     /// When each container was last used, for its lifecycle's idle stop, in memory only.
     lifecycle: lifecycle::Activity,
+    /// The viewers that fit each desktop's screen to their window, in memory only.
+    fitters: resolution::Fitters,
     /// Notices on their way to `NOTIFY_URL`.
     notifier: notify::Notifier,
     /// What `/metrics` counts since the manager started.
@@ -559,6 +561,7 @@ async fn main() -> anyhow::Result<()> {
         human: human::Requests::default(),
         outbound: outbound::Outbound::default(),
         lifecycle: lifecycle::Activity::default(),
+        fitters: resolution::Fitters::default(),
         notifier: notify::Notifier::default(),
         metrics: metrics::Metrics::default(),
     });
