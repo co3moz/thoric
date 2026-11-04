@@ -44,7 +44,7 @@ RUN mkdir -p /out /tmp/chromium \
 FROM common AS scripts
 COPY desktop-entrypoint.sh /usr/local/bin/desktop-entrypoint
 COPY desktop-session.sh /usr/local/bin/desktop-session
-COPY desktop-screenshot.sh /usr/local/bin/desktop-screenshot
+COPY desktop-screenshot.py /usr/local/bin/desktop-screenshot
 COPY desktop-diagnostics.sh /usr/local/bin/desktop-diagnostics
 COPY gpu-run.sh /usr/local/bin/gpu-run
 COPY desktop-gnome.sh /usr/local/bin/desktop-gnome
