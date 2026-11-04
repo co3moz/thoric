@@ -128,17 +128,27 @@ function CodeView({
         className
       )}
     >
-      {tokens.map((token, index) =>
-        COLORS[token.kind] ? (
-          <span key={index} className={COLORS[token.kind]}>
-            {token.text}
-          </span>
-        ) : (
-          token.text
-        )
-      )}
+      <ColoredTokens tokens={tokens} />
     </pre>
   )
 }
 
-export { CodeTextarea, CodeView }
+function ColoredTokens({ tokens }: { tokens: ReturnType<typeof highlight> }) {
+  return tokens.map((token, index) =>
+    COLORS[token.kind] ? (
+      <span key={index} className={COLORS[token.kind]}>
+        {token.text}
+      </span>
+    ) : (
+      token.text
+    )
+  )
+}
+
+/** Code colored as its language, as text inside an element of the caller's, such as a preview. */
+function ColoredCode({ value, language }: { value: string; language: CodeLanguage }) {
+  const tokens = React.useMemo(() => highlight(value, language), [value, language])
+  return <ColoredTokens tokens={tokens} />
+}
+
+export { CodeTextarea, CodeView, ColoredCode }

@@ -103,6 +103,88 @@ export function parameterBody(
   )
 }
 
+/**
+ * Whether a required parameter still lacks its value, as the manager refuses it: a switch that is
+ * off, and an empty choice, volume, number or text. An empty volume is filled when the parameter
+ * makes a new one for the container.
+ */
+export function valueMissing(
+  parameter: Pick<ComposeParameter, "type" | "required" | "new_volume">,
+  value: string
+) {
+  if (!parameter.required) return false
+  if (parameter.type === "boolean") return value !== "true"
+  if (parameter.type === "volume")
+    return value === WITHOUT_VOLUME || volumeSelection(parameter, value, true) === ""
+  return value === ""
+}
+
+/** How many required values each step of a compose still lacks, in the order of its steps. */
+export function missingValues(
+  compose: StepFields | { steps: StepFields[] },
+  values: Record<string, string>
+) {
+  const steps = composeSteps(compose)
+  const missing = steps.map(() => 0)
+  for (const { step, parameter, key } of composeEntries(compose))
+    if (valueMissing(parameter, values[key] ?? parameter.default)) missing[steps.indexOf(step)] += 1
+  return missing
+}
+
+/** A volume a compose mounts: a named one, or `null` for the one the container gets of its own. */
+export type SetupVolume = { volume: string | null; target: string; step?: string }
+
+/**
+ * The volumes the values of a compose mount, where its volume parameters put them, with the step
+ * that asks when there are several. A parameter left without a volume mounts none.
+ */
+export function setupVolumes(
+  compose: StepFields | { steps: StepFields[] },
+  values: Record<string, string>
+): SetupVolume[] {
+  const several = composeSteps(compose).length > 1
+  return composeEntries(compose).flatMap(({ step, parameter, key }) => {
+    if (parameter.type !== "volume" || !parameter.path) return []
+    const value = values[key] ?? parameter.default
+    const selected = volumeSelection(parameter, value, parameter.required)
+    if (selected === NO_VOLUME || selected === "") return []
+    return [
+      {
+        volume: selected === NEW_VOLUME ? null : value,
+        target: parameter.path,
+        ...(several ? { step: stepTitle(step) } : {}),
+      },
+    ]
+  })
+}
+
+type Inheriting = Pick<ImageItem, "image_id" | "parent_image_id" | "compose" | "name"> &
+  Partial<Pick<ImageItem, "template_ids">>
+
+/**
+ * The steps an image's compose keeps from the saved image it was built on, by their ids, with
+ * that image's name, as the manager joins them: the base's steps come first, and the one step of
+ * a base compose that names none goes by the template the base was built from, or `base`. An
+ * image whose steps all came from its parent, such as a snapshot, names none.
+ */
+export function inheritedSteps(image: Inheriting | undefined, records: Inheriting[]) {
+  if (!image?.compose || !("steps" in image.compose) || !image.parent_image_id) return null
+  const parent = records.find(
+    (record) => record.compose && record.image_id === image.parent_image_id
+  )
+  if (!parent?.compose) return null
+  const templates = parent.template_ids ?? []
+  const base = composeSteps(parent.compose)
+  const ids = new Set(
+    base.map((step) =>
+      step.id ? step.id : base.length === 1 && templates.length === 1 ? templates[0] : "base"
+    )
+  )
+  const own = image.compose.steps.filter((step) => !ids.has(step.id ?? ""))
+  if (!own.length || own.length === image.compose.steps.length) return null
+  return { name: parent.name, ids }
+}
+
 /** The options picked in a `choices` value, which holds one per line. */
 export const pickedChoices = (value: string) => (value ? value.split("\n") : [])
 

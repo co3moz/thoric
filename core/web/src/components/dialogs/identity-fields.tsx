@@ -1,6 +1,6 @@
 import * as React from "react"
 
-import { Field, FieldDescription, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
+import { Field, FieldDescription, FieldLabel, FieldSet } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { t, type MessageKey } from "@/lib/i18n"
 import type { ContainerSpec } from "@/lib/types"
@@ -45,12 +45,12 @@ export function IdentityFields({
   spec: ContainerSpec
 }) {
   const id = React.useId()
+  // The section's heading names it, so the fields need no legend of their own.
   return (
-    <FieldSet>
-      <FieldLegend variant="label">{t("identity.title")}</FieldLegend>
+    <FieldSet aria-label={t("identity.title")}>
       <FieldDescription className="text-xs">{t("identity.description")}</FieldDescription>
       {/* One per row: a hostname and a machine ID are too long to read in half the width. */}
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4 sm:max-w-lg">
         {FIELDS.map((field) => (
           <Field key={field}>
             <FieldLabel htmlFor={`${id}-${field}`}>{t(LABELS[field])}</FieldLabel>

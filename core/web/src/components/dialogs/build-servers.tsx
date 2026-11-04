@@ -1,12 +1,14 @@
 import { RiDeleteBinLine } from "@remixicon/react"
+import { cn } from "cn"
 
 import { ConceptIcon } from "@/components/concept"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { FieldDescription, FieldLegend, FieldSet } from "@/components/ui/field"
+import { FieldDescription, FieldSet } from "@/components/ui/field"
 import { t } from "@/lib/i18n"
 import { serverCommand, serverDetails } from "@/lib/mcp"
 import type { ServerDeclaration } from "@/lib/types"
+import { tile } from "./form-sections"
 
 /**
  * The desktop MCP servers a build writes into its image, shown before anything is built like its
@@ -19,13 +21,11 @@ export function BuildServers({
   servers: ServerDeclaration[]
   onRemove: (name: string) => void
 }) {
+  // The section's heading names the list.
   return (
-    <FieldSet className="gap-2">
-      <FieldLegend variant="label" className="mb-0">
-        {t("build.mcp")}
-      </FieldLegend>
+    <FieldSet aria-label={t("build.mcp")} className="gap-3">
       <FieldDescription className="text-xs">{t("build.mcpHint")}</FieldDescription>
-      <ul className="flex flex-col divide-y rounded-2xl border">
+      <ul className="flex flex-col gap-2">
         {servers.map((server) => {
           const details = serverDetails(
             Object.keys(server.env ?? {}),
@@ -35,7 +35,10 @@ export function BuildServers({
           return (
             <li
               key={server.name}
-              className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 px-4 py-3"
+              className={cn(
+                "flex flex-wrap items-start justify-between gap-x-3 gap-y-2 px-4 py-3",
+                tile
+              )}
             >
               <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <div className="flex flex-wrap items-center gap-2">

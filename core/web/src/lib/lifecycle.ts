@@ -12,13 +12,27 @@ export const NEVER: Lifecycle = {
 /** The longest idle stop the manager takes, a week in minutes. */
 export const MAX_IDLE_MINUTES = 10080
 
-/** The lifecycle fields of the create and settings forms. `expires` is a `datetime-local` text. */
+/** The idle stops the forms offer before a length of one's own, in minutes. */
+export const IDLE_PRESETS = [15, 30, 60, 240]
+
+/** The expiries the forms offer before a time of one's own, in minutes from when it is sent. */
+export const EXPIRY_PRESETS = [60, 480, 1440, 10080]
+
+/**
+ * The lifecycle fields of the create and settings forms. `expires` is a `datetime-local` text, and
+ * `expiresIn` the minutes of an expiry chosen from `EXPIRY_PRESETS`, which the manager counts from
+ * when the request reaches it, so a form left open does not move it into the past.
+ */
 export type LifecycleDraft = {
   idle: string
   expires: string
+  expiresIn?: string
   onExpiry: OnExpiry
   deleteVolumes: boolean
 }
+
+/** What a request may send of a lifecycle: the policy's fields, or an expiry in minutes. */
+export type LifecycleRequest = Partial<Lifecycle> & { expires_in_minutes?: number }
 
 const pad = (value: number) => String(value).padStart(2, "0")
 
@@ -60,32 +74,60 @@ export function lifecycleDraft(spec: Partial<ContainerSpec>, settings?: Settings
 export function lifecycleBody(
   draft: LifecycleDraft,
   start?: LifecycleDraft
-): { lifecycle?: Partial<Lifecycle> } {
+): { lifecycle?: LifecycleRequest } {
   const deletes = (form: LifecycleDraft) => form.onExpiry === "delete" && form.deleteVolumes
-  const full: Lifecycle = {
+  const minutes = Number(draft.expiresIn) || 0
+  // The manager takes one of the two, never both.
+  const expiry: LifecycleRequest = minutes
+    ? { expires_in_minutes: minutes }
+    : { expires_at: unixTime(draft.expires) }
+  const full: LifecycleRequest = {
     idle_stop_minutes: Number(draft.idle) || 0,
-    expires_at: unixTime(draft.expires),
+    ...expiry,
     on_expiry: draft.onExpiry,
     delete_volumes: deletes(draft),
   }
   if (!start) return { lifecycle: full }
-  const changed: Partial<Lifecycle> = {}
+  const changed: LifecycleRequest = {}
   if ((Number(draft.idle) || 0) !== (Number(start.idle) || 0))
     changed.idle_stop_minutes = full.idle_stop_minutes
-  if (draft.expires !== start.expires) changed.expires_at = full.expires_at
+  if (minutes || draft.expires !== start.expires) Object.assign(changed, expiry)
   if (draft.onExpiry !== start.onExpiry) changed.on_expiry = full.on_expiry
   if (deletes(draft) !== deletes(start)) changed.delete_volumes = full.delete_volumes
   return Object.keys(changed).length ? { lifecycle: changed } : {}
 }
 
-/** Minutes as a short length of time, such as 30 min or 2 h. */
+/** Minutes as a short length of time in the largest whole unit, such as 30 min, 2 hr or 1 day. */
 export function minutesText(minutes: number) {
-  const hours = minutes % 60 === 0 && minutes >= 60
-  return formatNumber(hours ? minutes / 60 : minutes, {
-    style: "unit",
-    unit: hours ? "hour" : "minute",
-    unitDisplay: "short",
-  })
+  const units = [
+    { unit: "week", size: 10080 },
+    { unit: "day", size: 1440 },
+    { unit: "hour", size: 60 },
+  ]
+  const { unit, size } = units.find(({ size }) => minutes >= size && minutes % size === 0) ?? {
+    unit: "minute",
+    size: 1,
+  }
+  return formatNumber(minutes / size, { style: "unit", unit, unitDisplay: "short" })
+}
+
+/**
+ * The form's lifecycle in a few words for its footer, at `now` in Unix seconds: its idle stop and
+ * its expiry, or that Thoric leaves the container alone.
+ */
+export function lifecycleSummary(draft: LifecycleDraft, now: number) {
+  const parts: string[] = []
+  const idle = Number(draft.idle) || 0
+  if (idle) parts.push(t("lifecycle.badge.idle", { duration: minutesText(idle) }))
+  const minutes = Number(draft.expiresIn) || 0
+  const at = minutes ? now + minutes * 60 : unixTime(draft.expires)
+  if (at)
+    parts.push(
+      t(draft.onExpiry === "delete" ? "lifecycle.badge.deleted" : "lifecycle.badge.expires", {
+        time: aheadText(at, now),
+      })
+    )
+  return parts.length ? parts.join(" · ") : t("lifecycle.summary.never")
 }
 
 /** How far ahead `at` is from `now`, both in Unix seconds, such as "in 2 hr." */

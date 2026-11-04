@@ -1,14 +1,8 @@
 import * as React from "react"
-import { RiAddLine, RiAlertLine } from "@remixicon/react"
+import { RiAddLine, RiAlertLine, RiDeleteBinLine } from "@remixicon/react"
 import { useQuery } from "@tanstack/react-query"
 import { toast } from "sonner"
 
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
@@ -30,9 +24,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
-import { CodeEditor } from "@/components/code-editor"
 import { api } from "@/lib/api"
-import { rowsHeight } from "@/lib/code-editor"
 import { closeDialog, useDraft } from "@/lib/dialogs"
 import { refreshLists, useImages } from "@/lib/queries"
 import {
@@ -50,12 +42,14 @@ import type { Compose } from "@/lib/types"
 import { useSubmit } from "./container-dialogs"
 import type { DialogProps } from "./side-drawer"
 import { formatList, plural, t } from "@/lib/i18n"
+import { NumberedStep, NumberedSteps } from "./numbered-steps"
 import { ParameterEditor } from "./parameter-editor"
+import { ScriptField } from "./script-field"
 import { Footer } from "./simple-dialogs"
 
 /**
  * The compose editor shared by Build image and Edit compose. A compose of several steps, such as
- * one merged from templates, shows each step in a section of its own.
+ * one merged from templates, numbers its steps in the order they run, each open.
  */
 export function ComposeFields({
   draft,
@@ -71,37 +65,40 @@ export function ComposeFields({
     return <StepFields draft={step} onChange={(next) => setStep(step.key, next)} />
   }
   return (
-    <Accordion type="multiple" className="rounded-2xl border px-4">
-      {draft.steps.map((step) => (
-        <AccordionItem key={step.key} value={String(step.key)}>
-          <AccordionTrigger>
-            <span className="flex min-w-0 flex-wrap items-center gap-2">
-              <span className="truncate">{stepTitle(step)}</span>
-              <span className="text-xs font-normal text-muted-foreground">
+    <NumberedSteps>
+      {draft.steps.map((step, index) => (
+        <NumberedStep
+          key={step.key}
+          number={index + 1}
+          last={index === draft.steps.length - 1}
+          heading={
+            <>
+              <span className="min-w-0 truncate font-medium">{stepTitle(step)}</span>
+              <span className="text-xs text-muted-foreground">
                 {plural(step.parameters.length, {
                   one: "compose.parameterCount.one",
                   other: "compose.parameterCount.other",
                 })}
               </span>
-            </span>
-          </AccordionTrigger>
-          <AccordionContent className="flex flex-col gap-4 px-1">
-            <StepFields draft={step} onChange={(next) => setStep(step.key, next)} />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="self-start text-destructive"
-              onClick={() =>
-                onChange({ steps: draft.steps.filter((other) => other.key !== step.key) })
-              }
-            >
-              {t("compose.removeStep", { name: stepTitle(step) })}
-            </Button>
-          </AccordionContent>
-        </AccordionItem>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="ml-auto text-destructive"
+                onClick={() =>
+                  onChange({ steps: draft.steps.filter((other) => other.key !== step.key) })
+                }
+              >
+                <RiDeleteBinLine data-icon="inline-start" />
+                {t("compose.removeStep", { name: stepTitle(step) })}
+              </Button>
+            </>
+          }
+        >
+          <StepFields draft={step} onChange={(next) => setStep(step.key, next)} />
+        </NumberedStep>
       ))}
-    </Accordion>
+    </NumberedSteps>
   )
 }
 
@@ -152,17 +149,19 @@ function StepFields({
       </FieldSet>
       <Field>
         <FieldLabel htmlFor={`${id}-script`}>{t("compose.script")}</FieldLabel>
-        <CodeEditor
+        <ScriptField
           id={`${id}-script`}
-          language="bash"
-          label={t("compose.script")}
-          minHeight={rowsHeight(9)}
-          maxHeight={500}
-          required
+          label={
+            draft.name || draft.id
+              ? `${t("compose.script")} · ${stepTitle(draft)}`
+              : t("compose.script")
+          }
           value={draft.script}
           onChange={(script) => set({ script })}
+          required
+          hint={t("compose.scriptHint")}
         />
-        <FieldDescription>{t("compose.scriptHint")}</FieldDescription>
+        <FieldDescription className="text-xs">{t("compose.scriptHint")}</FieldDescription>
       </Field>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field orientation="horizontal">
