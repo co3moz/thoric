@@ -747,10 +747,9 @@ export const es: Messages = {
     "Se escriben en la imagen, así que cada contenedor creado a partir de ella tiene estos servidores. Sus comandos se ejecutan dentro del escritorio.",
   "build.mcpRemoveOf": "Dejar fuera {name}",
   "build.simple":
-    "Compila una imagen a partir de esta plantilla tal como está configurada. La edición avanzada muestra su script, que se ejecuta como root, y permite cambiarlo antes.",
+    "Compila una imagen a partir de esta plantilla tal como está configurada. Script de compilación muestra su script, que se ejecuta como root, y permite cambiarlo antes.",
   "build.simpleMerged":
-    "Compila una sola imagen a partir de {names}, cuyos scripts se ejecutan en este orden. La edición avanzada muestra cada script, que se ejecuta como root, y permite cambiarlo antes.",
-  "build.advanced": "Edición avanzada",
+    "Compila una sola imagen a partir de {names}, cuyos scripts se ejecutan en este orden. Script de compilación muestra cada script, que se ejecuta como root, y permite cambiarlo antes.",
   "build.options": "Opciones",
   "build.optionsHint":
     "Cada valor se escribe al principio del script de su plantilla cuando se crea la imagen, en una línea como {line}.",
@@ -791,7 +790,7 @@ export const es: Messages = {
 
   "templates.title": "Plantillas",
   "templates.description":
-    "Imágenes listas desde {source}. Al instalar una solo se pide un nombre; la edición avanzada muestra antes su script.",
+    "Imágenes listas desde {source}. Al instalar una solo se pide un nombre; la sección Script de compilación muestra antes su script.",
   "templates.refresh": "Actualizar",
   "templates.retry": "Reintentar",
   "templates.loading": "Cargando plantillas",
@@ -2064,4 +2063,10 @@ export const es: Messages = {
   "lifecycle.pickDate": "Elegir fecha",
   "lifecycle.expiresAround": "Caduca hacia {date}.",
   "lifecycle.summary.never": "Nunca se detiene solo",
+  "sections.image": "Imagen",
+  "sections.build": "Compilación",
+  "build.inheritNote": "Los contenedores nuevos también piden lo que configura {name}. {change}",
+  "build.inheritNoteOff": "Los contenedores nuevos omiten lo que configura {name}. {change}",
+  "build.changeUnderCompose": "Cámbialo en Compose",
+  "build.partRemoveOf": "Omitir {name}",
 }

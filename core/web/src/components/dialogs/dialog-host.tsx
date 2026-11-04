@@ -29,7 +29,6 @@ import { JobDrawer } from "./job-drawer"
 import { LogDialog } from "./log-dialog"
 import { ImportImageDialog } from "./import-dialog"
 import {
-  BuildImageDialog,
   DeleteDialog,
   ImageDeleteDialog,
   ResetDialog,
@@ -38,6 +37,7 @@ import {
   VolumeDeleteDialog,
   VolumeDialog,
 } from "./simple-dialogs"
+import { BuildImageDialog } from "./build-dialog"
 import { ComposeDialog } from "./compose-dialog"
 import { ConnectDialog } from "./connect-dialog"
 import { EndpointDialog } from "./endpoint-dialog"

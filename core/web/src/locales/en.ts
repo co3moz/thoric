@@ -759,10 +759,9 @@ export const en = {
     "Written into the image, so every container from it has these servers. Their commands run inside the desktop.",
   "build.mcpRemoveOf": "Leave out {name}",
   "build.simple":
-    "Builds an image from this template as it is configured. Advanced editing shows its script, which runs as root, and lets you change it first.",
+    "Builds an image from this template as it is configured. Build script shows its script, which runs as root, and lets you change it first.",
   "build.simpleMerged":
-    "Builds one image from {names}, their scripts running in this order. Advanced editing shows each script, which runs as root, and lets you change it first.",
-  "build.advanced": "Advanced editing",
+    "Builds one image from {names}, their scripts running in this order. Build script shows each script, which runs as root, and lets you change it first.",
   "build.options": "Options",
   "build.optionsHint":
     "Each value is written at the top of its template's script when the image builds, as a line such as {line}.",
@@ -803,7 +802,7 @@ export const en = {
 
   "templates.title": "Templates",
   "templates.description":
-    "Ready-made images from {source}. Installing one asks only for a name and builds it; advanced editing shows its script first.",
+    "Ready-made images from {source}. Installing one asks only for a name and builds it; its Build script section shows the script first.",
   "templates.refresh": "Refresh",
   "templates.retry": "Try again",
   "templates.loading": "Loading templates",
@@ -2066,6 +2065,12 @@ export const en = {
   "lifecycle.pickDate": "Pick a date",
   "lifecycle.expiresAround": "Expires around {date}.",
   "lifecycle.summary.never": "Never stops by itself",
+  "sections.image": "Image",
+  "sections.build": "Build",
+  "build.inheritNote": "New containers also ask for what {name} sets up. {change}",
+  "build.inheritNoteOff": "New containers leave out what {name} sets up. {change}",
+  "build.changeUnderCompose": "Change it under Compose",
+  "build.partRemoveOf": "Leave out {name}",
 } as const
 
 export type MessageKey = keyof typeof en

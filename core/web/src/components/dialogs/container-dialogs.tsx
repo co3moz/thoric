@@ -58,7 +58,7 @@ import { imageServers } from "@/lib/mcp"
 import { useContainers, useImages, useSettings, useVolumes } from "@/lib/queries"
 import type { Settings, SettingsPreview, Volume } from "@/lib/types"
 import { mountableVolumes } from "@/lib/volume-files"
-import { FormSections, type FormSection } from "./form-sections"
+import { FormSections, sectionedDialog, type FormSection } from "./form-sections"
 import { identityBody, identityDraft, IdentityFields, type IdentityDraft } from "./identity-fields"
 import { LifecycleFields } from "./lifecycle-fields"
 import { MountFields } from "./mount-fields"
@@ -93,12 +93,6 @@ export function useSubmit() {
   }
   return { busy, error, setError, submit }
 }
-
-/**
- * A container dialog as wide as its sections need and of one height, so moving between them does
- * not resize it; on a phone it fills the window.
- */
-const sectionedDialog = "flex h-[min(44rem,calc(100dvh-2rem))] flex-col gap-0 p-0 sm:max-w-4xl"
 
 /**
  * The sections the create and settings dialogs share, after their own first ones. `setup` are the

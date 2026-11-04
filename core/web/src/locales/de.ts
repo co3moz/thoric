@@ -757,10 +757,9 @@ export const de: Messages = {
     "Werden ins Image geschrieben, sodass jeder Container daraus diese Server hat. Ihre Befehle laufen im Desktop.",
   "build.mcpRemoveOf": "{name} weglassen",
   "build.simple":
-    "Erstellt ein Image aus dieser Vorlage, so wie sie eingerichtet ist. Die erweiterte Bearbeitung zeigt ihr Skript, das als root läuft, und lässt Sie es vorher ändern.",
+    "Erstellt ein Image aus dieser Vorlage, so wie sie eingerichtet ist. Build-Skript zeigt ihr Skript, das als root läuft, und lässt Sie es vorher ändern.",
   "build.simpleMerged":
-    "Erstellt ein Image aus {names}, deren Skripte in dieser Reihenfolge laufen. Die erweiterte Bearbeitung zeigt jedes Skript, das als root läuft, und lässt Sie es vorher ändern.",
-  "build.advanced": "Erweiterte Bearbeitung",
+    "Erstellt ein Image aus {names}, deren Skripte in dieser Reihenfolge laufen. Build-Skript zeigt jedes Skript, das als root läuft, und lässt Sie es vorher ändern.",
   "build.options": "Optionen",
   "build.optionsHint":
     "Jeder Wert wird beim Erstellen des Images oben in das Skript seiner Vorlage geschrieben, als Zeile wie {line}.",
@@ -802,7 +801,7 @@ export const de: Messages = {
 
   "templates.title": "Vorlagen",
   "templates.description":
-    "Fertige Images von {source}. Beim Installieren wird nur nach einem Namen gefragt; die erweiterte Bearbeitung zeigt vorher das Skript.",
+    "Fertige Images von {source}. Beim Installieren wird nur nach einem Namen gefragt; der Abschnitt Build-Skript zeigt vorher das Skript.",
   "templates.refresh": "Aktualisieren",
   "templates.retry": "Erneut versuchen",
   "templates.loading": "Vorlagen werden geladen",
@@ -2080,4 +2079,10 @@ export const de: Messages = {
   "lifecycle.pickDate": "Datum wählen",
   "lifecycle.expiresAround": "Läuft etwa am {date} ab.",
   "lifecycle.summary.never": "Stoppt nie von selbst",
+  "sections.image": "Image",
+  "sections.build": "Build",
+  "build.inheritNote": "Neue Container fragen auch ab, was {name} einrichtet. {change}",
+  "build.inheritNoteOff": "Neue Container lassen weg, was {name} einrichtet. {change}",
+  "build.changeUnderCompose": "Unter Compose ändern",
+  "build.partRemoveOf": "{name} weglassen",
 }

@@ -745,10 +745,9 @@ export const tr: Messages = {
     "İmaja yazılır; ondan oluşturulan her konteynerde bu sunucular bulunur. Komutları masaüstünün içinde çalışır.",
   "build.mcpRemoveOf": "Dışarıda bırak: {name}",
   "build.simple":
-    "Bu şablondan, ayarlandığı haliyle bir imaj oluşturur. Gelişmiş düzenleme, root olarak çalışan betiğini gösterir ve önce değiştirmenize izin verir.",
+    "Bu şablondan, ayarlandığı haliyle bir imaj oluşturur. Derleme betiği bölümü, root olarak çalışan betiğini gösterir ve önce değiştirmenize izin verir.",
   "build.simpleMerged":
-    "{names} şablonlarından tek bir imaj oluşturur; betikleri bu sırayla çalışır. Gelişmiş düzenleme, root olarak çalışan her betiği gösterir ve önce değiştirmenize izin verir.",
-  "build.advanced": "Gelişmiş düzenleme",
+    "{names} şablonlarından tek bir imaj oluşturur; betikleri bu sırayla çalışır. Derleme betiği bölümü, root olarak çalışan her betiği gösterir ve önce değiştirmenize izin verir.",
   "build.options": "Seçenekler",
   "build.optionsHint":
     "İmaj oluşturulurken her değer, şablonunun betiğinin en üstüne {line} gibi bir satır olarak yazılır.",
@@ -789,7 +788,7 @@ export const tr: Messages = {
 
   "templates.title": "Şablonlar",
   "templates.description":
-    "{source} üzerindeki hazır imajlar. Birini yüklemek yalnızca bir ad sorar ve onu oluşturur; gelişmiş düzenleme önce betiğini gösterir.",
+    "{source} üzerindeki hazır imajlar. Birini yüklemek yalnızca bir ad sorar ve onu oluşturur; Derleme betiği bölümü önce betiğini gösterir.",
   "templates.refresh": "Yenile",
   "templates.retry": "Tekrar dene",
   "templates.loading": "Şablonlar yükleniyor",
@@ -2041,4 +2040,10 @@ export const tr: Messages = {
   "lifecycle.pickDate": "Tarih seç",
   "lifecycle.expiresAround": "Yaklaşık {date} tarihinde sona erer.",
   "lifecycle.summary.never": "Kendiliğinden hiç durmaz",
+  "sections.image": "İmaj",
+  "sections.build": "Derleme",
+  "build.inheritNote": "Yeni konteynerler {name} imajının kurduklarını da sorar. {change}",
+  "build.inheritNoteOff": "Yeni konteynerler {name} imajının kurduklarını atlar. {change}",
+  "build.changeUnderCompose": "Compose bölümünden değiştirin",
+  "build.partRemoveOf": "{name} şablonunu çıkar",
 }

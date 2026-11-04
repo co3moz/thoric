@@ -755,10 +755,9 @@ export const fr: Messages = {
     "Écrits dans l'image : chaque conteneur créé à partir d'elle a ces serveurs. Leurs commandes s'exécutent dans le bureau.",
   "build.mcpRemoveOf": "Laisser de côté {name}",
   "build.simple":
-    "Construit une image à partir de ce modèle tel qu'il est configuré. L'édition avancée montre son script, qui s'exécute en root, et permet de le modifier avant.",
+    "Construit une image à partir de ce modèle tel qu'il est configuré. Script de construction montre son script, qui s'exécute en root, et permet de le modifier avant.",
   "build.simpleMerged":
-    "Construit une seule image à partir de {names}, dont les scripts s'exécutent dans cet ordre. L'édition avancée montre chaque script, qui s'exécute en root, et permet de le modifier avant.",
-  "build.advanced": "Édition avancée",
+    "Construit une seule image à partir de {names}, dont les scripts s'exécutent dans cet ordre. Script de construction montre chaque script, qui s'exécute en root, et permet de le modifier avant.",
   "build.options": "Options",
   "build.optionsHint":
     "Chaque valeur est écrite en tête du script de son modèle lors de la création de l'image, sur une ligne comme {line}.",
@@ -800,7 +799,7 @@ export const fr: Messages = {
 
   "templates.title": "Modèles",
   "templates.description":
-    "Images prêtes à l'emploi depuis {source}. En installer une ne demande qu'un nom ; l'édition avancée montre d'abord son script.",
+    "Images prêtes à l'emploi depuis {source}. En installer une ne demande qu'un nom ; la section Script de construction montre d'abord son script.",
   "templates.refresh": "Actualiser",
   "templates.retry": "Réessayer",
   "templates.loading": "Chargement des modèles",
@@ -2074,4 +2073,11 @@ export const fr: Messages = {
   "lifecycle.pickDate": "Choisir une date",
   "lifecycle.expiresAround": "Expire vers le {date}.",
   "lifecycle.summary.never": "Ne s'arrête jamais de lui-même",
+  "sections.image": "Image",
+  "sections.build": "Construction",
+  "build.inheritNote": "Les nouveaux conteneurs demandent aussi ce que {name} configure. {change}",
+  "build.inheritNoteOff":
+    "Les nouveaux conteneurs laissent de côté ce que {name} configure. {change}",
+  "build.changeUnderCompose": "Modifier dans Compose",
+  "build.partRemoveOf": "Retirer {name}",
 }

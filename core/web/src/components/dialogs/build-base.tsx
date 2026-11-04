@@ -1,10 +1,12 @@
 import * as React from "react"
+import { cn } from "cn"
 
 import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Switch } from "@/components/ui/switch"
 import { imageSteps } from "@/lib/compose"
 import { formatList, t } from "@/lib/i18n"
 import type { ImageItem } from "@/lib/types"
+import { tile } from "./form-sections"
 
 /**
  * The compose of the saved image a build starts from, which the new image keeps before its own
@@ -24,7 +26,7 @@ export function BuildBase({
   // One step goes by the image's name, which the label already says.
   const steps = imageSteps(base)
   return (
-    <Field orientation="horizontal" className="items-start gap-3 rounded-xl border px-3 py-2.5">
+    <Field orientation="horizontal" className={cn("items-start gap-3 px-3 py-2.5", tile)}>
       <Switch id={id} className="mt-0.5" checked={checked} onCheckedChange={onCheckedChange} />
       <FieldContent className="gap-1">
         <FieldLabel htmlFor={id} className="leading-snug">

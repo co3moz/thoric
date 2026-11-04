@@ -17,6 +17,16 @@ export type FormSection = {
   content: React.ReactNode
 }
 
+/**
+ * A dialog of sections, as wide as they need and of one height, so moving between them does not
+ * resize it; on a phone it fills the window.
+ */
+export const sectionedDialog =
+  "flex h-[min(44rem,calc(100dvh-2rem))] flex-col gap-0 p-0 sm:max-w-4xl"
+
+/** The quiet surface of a tile inside a section, such as a switch with its name, without a border. */
+export const tile = "rounded-xl bg-input/40 dark:bg-muted/50"
+
 const ShowSection = React.createContext<(id: string) => void>(() => {})
 
 /** Shows another section of the form, such as the one a hint names. */

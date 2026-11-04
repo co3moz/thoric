@@ -1,11 +1,11 @@
 import { RiCheckLine } from "@remixicon/react"
-import { cn } from "cn"
 
 import { Badge } from "@/components/ui/badge"
 import { FieldDescription } from "@/components/ui/field"
 import { composeEntries, composeSteps, missingValues, stepTitle } from "@/lib/compose"
 import { plural, t } from "@/lib/i18n"
 import type { ImageItem } from "@/lib/types"
+import { NumberedStep, NumberedSteps } from "./numbered-steps"
 import { ParameterField } from "./parameter-field"
 
 type Compose = NonNullable<ImageItem["compose"]>
@@ -61,28 +61,18 @@ export function SetupFields({
   return (
     <>
       <FieldDescription className="text-xs">{t("compose.valuesHintSteps")}</FieldDescription>
-      <ol className="flex flex-col">
+      <NumberedSteps>
         {steps.map((step, index) => {
-          const last = index === steps.length - 1
           const asks = step.parameters.length
           const from = inherited && step.id && inherited.ids.has(step.id) ? inherited.name : ""
           return (
-            <li key={step.id || index} className="grid grid-cols-[1.5rem_minmax(0,1fr)] gap-x-3">
-              <div className="flex flex-col items-center">
-                <span
-                  aria-hidden
-                  className="flex size-6 shrink-0 items-center justify-center rounded-full bg-input/70 text-xs font-medium text-muted-foreground tabular-nums dark:bg-muted"
-                >
-                  {index + 1}
-                </span>
-                {!last && <span aria-hidden className="mt-1 w-px flex-1 bg-border" />}
-              </div>
-              <div className={cn("flex min-w-0 flex-col gap-3", !last && "pb-6")}>
-                <div className="flex min-h-6 flex-wrap items-center gap-x-2 gap-y-1">
-                  <span className="font-medium">
-                    <span className="sr-only">{t("setup.stepNumber", { number: index + 1 })}</span>
-                    {stepTitle(step)}
-                  </span>
+            <NumberedStep
+              key={step.id || index}
+              number={index + 1}
+              last={index === steps.length - 1}
+              heading={
+                <>
+                  <span className="font-medium">{stepTitle(step)}</span>
                   {asks > 0 && (
                     <span className="text-xs text-muted-foreground">
                       {plural(asks, {
@@ -117,19 +107,20 @@ export function SetupFields({
                       )
                     )}
                   </span>
-                </div>
-                {asks > 0 ? (
-                  fields(step)
-                ) : (
-                  <FieldDescription className="-mt-2 text-xs">
-                    {t("compose.stepRunsScript")}
-                  </FieldDescription>
-                )}
-              </div>
-            </li>
+                </>
+              }
+            >
+              {asks > 0 ? (
+                fields(step)
+              ) : (
+                <FieldDescription className="-mt-2 text-xs">
+                  {t("compose.stepRunsScript")}
+                </FieldDescription>
+              )}
+            </NumberedStep>
           )
         })}
-      </ol>
+      </NumberedSteps>
     </>
   )
 }

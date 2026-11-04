@@ -1,4 +1,5 @@
 import { RiAddLine, RiCloseLine } from "@remixicon/react"
+import { cn } from "cn"
 import { toast } from "sonner"
 
 import { ConceptIcon } from "@/components/concept"
@@ -18,6 +19,7 @@ import {
 import type { SetupVolume } from "@/lib/compose"
 import { t } from "@/lib/i18n"
 import type { Mount, Volume } from "@/lib/types"
+import { tile } from "./form-sections"
 import { nextMountKey, type SpecDraft } from "./spec-fields"
 
 /**
@@ -50,7 +52,7 @@ export function MountFields({
           {setup.map((mount) => (
             <div
               key={mount.target}
-              className="flex min-h-10 items-center gap-2.5 rounded-xl bg-input/40 px-3 py-2 text-sm dark:bg-muted/50"
+              className={cn("flex min-h-10 items-center gap-2.5 px-3 py-2 text-sm", tile)}
             >
               <ConceptIcon concept="volume" />
               <span className="min-w-0 truncate font-mono text-xs">{mount.target}</span>
