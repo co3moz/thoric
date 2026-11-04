@@ -493,7 +493,8 @@ export type UpdateStatus = {
 /**
  * One setting of `GET configuration`, named as in `.env`, with the value the manager runs with. A
  * secret comes without its value, which never leaves the manager. A setting the Settings page may
- * change has `editable` and its `text`, the value as the manager's environment gave it.
+ * change has `editable`, and unless it is a secret, its `text`, the value as the manager's
+ * environment gave it. The page replaces or removes an editable secret without reading it.
  */
 export type ConfigVariable =
   | {
@@ -503,7 +504,7 @@ export type ConfigVariable =
       editable?: boolean
       text?: string
     }
-  | { name: string; secret: true; set: boolean }
+  | { name: string; secret: true; set: boolean; editable?: boolean }
 
 /** `GET configuration`: the installation's settings, in the order the settings page lists them. */
 export type Configuration = {

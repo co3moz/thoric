@@ -297,12 +297,16 @@ export function textProblem(
   return null
 }
 
-/** The changes a draft makes: each setting whose text differs from the one it started from. */
+/**
+ * The changes a draft makes: each setting whose text differs from the one it started from. The
+ * page never has a secret's text, so a secret in the draft is a change: the value that replaces
+ * it, or empty to remove it.
+ */
 export function changesOf(variables: ConfigVariable[], draft: Record<string, string>) {
   const changes: Record<string, string> = {}
   for (const variable of variables) {
-    if (variable.secret || !variable.editable || !(variable.name in draft)) continue
-    if (draft[variable.name] !== initialText(variable))
+    if (!variable.editable || !(variable.name in draft)) continue
+    if (variable.secret || draft[variable.name] !== initialText(variable))
       changes[variable.name] = draft[variable.name]
   }
   return changes

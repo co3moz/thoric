@@ -296,6 +296,72 @@ async fn a_change_follows_the_service_through_the_folder() {
 }
 
 #[tokio::test]
+async fn a_secret_reaches_the_request_alone() {
+    let dir = folder();
+    std::fs::write(dir.join(SETTINGS_WATCHED), "").unwrap();
+    let app = app_in(&dir);
+    let url = "https://ntfy.sh/topic-of-the-phone?token=tk_notify";
+    let (status, body) = request(
+        app.clone(),
+        "POST",
+        Some(json!({"changes": {"NOTIFY_URL": url}, "dry_run": true})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["errors"], json!({}), "{body}");
+    // A refused address is named by its place in the list, never by its text.
+    let refused = "https://ntfy.sh/topic-of-the-phone,ftp://user:pass-of-the-phone@example.com";
+    let (_, body) = request(
+        app.clone(),
+        "POST",
+        Some(json!({"changes": {"NOTIFY_URL": refused}, "dry_run": true})),
+    )
+    .await;
+    let error = body["errors"]["NOTIFY_URL"].as_str().unwrap();
+    assert!(error.contains("address 2"), "{error}");
+    assert!(!error.contains("of-the-phone"), "{error}");
+    // Removing it is a change like any other.
+    let (_, body) = request(
+        app.clone(),
+        "POST",
+        Some(json!({"changes": {"NOTIFY_URL": ""}, "dry_run": true})),
+    )
+    .await;
+    assert_eq!(body["errors"], json!({}), "{body}");
+    let taken = {
+        let dir = dir.clone();
+        tokio::spawn(async move {
+            let path = dir.join(SETTINGS_REQUEST);
+            while !path.exists() {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let mode = std::fs::metadata(&path).unwrap().permissions().mode();
+                assert_eq!(mode & 0o777, 0o600, "{mode:o}");
+            }
+            let text = std::fs::read_to_string(&path).unwrap();
+            std::fs::rename(&path, dir.join(SETTINGS_STARTED)).unwrap();
+            std::fs::write(dir.join(SETTINGS_LOG), "  NOTIFY_URL=[hidden]\n").unwrap();
+            std::fs::write(dir.join(SETTINGS_EXIT), "success 0\n").unwrap();
+            text
+        })
+    };
+    let changes = BTreeMap::from([("NOTIFY_URL".to_owned(), url.to_owned())]);
+    let (id, outcome) = jobs::start(app.clone(), JOB, JOB.into(), true, |app, id| async move {
+        run(&app, &id, &changes, FAST).await
+    })
+    .unwrap();
+    assert_eq!(outcome.await.unwrap(), Ok(json!({"applied": true})));
+    assert_eq!(taken.await.unwrap(), format!("{id}\nNOTIFY_URL={url}\n"));
+    let job: Job = app.db.job(&id).unwrap();
+    assert!(job.log.contains("NOTIFY_URL"), "{}", job.log);
+    assert!(!job.log.contains("of-the-phone"), "{}", job.log);
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[tokio::test]
 async fn a_change_the_package_rolled_back_fails_its_job() {
     let dir = folder();
     let app = app_in(&dir);
@@ -360,14 +426,19 @@ fn the_package_takes_exactly_the_editable_settings_through_these_names() {
     };
     let cli = read("packaging/wsl/thoric");
     // The list the package's command accepts is the one the page edits.
-    let line = cli
-        .lines()
-        .find(|line| line.starts_with("DASHBOARD_SETTINGS=("))
-        .expect("DASHBOARD_SETTINGS in packaging/wsl/thoric");
-    let accepted: Vec<&str> = line["DASHBOARD_SETTINGS=(".len()..line.len() - 1]
-        .split_whitespace()
-        .collect();
-    assert_eq!(accepted, super::super::EDITABLE);
+    let list = |name: &str| -> Vec<&str> {
+        let start = format!("{name}=(");
+        let line = cli
+            .lines()
+            .find(|line| line.starts_with(&start))
+            .unwrap_or_else(|| panic!("{name} in packaging/wsl/thoric"));
+        line[start.len()..line.len() - 1]
+            .split_whitespace()
+            .collect()
+    };
+    assert_eq!(list("DASHBOARD_SETTINGS"), super::super::EDITABLE);
+    // And the values it keeps out of its log are those of the secrets the page sets.
+    assert_eq!(list("DASHBOARD_SECRETS"), super::super::EDITABLE_SECRETS);
     let folder = "/opt/thoric/update";
     assert!(
         read("packaging/wsl/thoric-settings.path")

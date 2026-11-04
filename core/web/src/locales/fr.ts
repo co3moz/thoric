@@ -1120,6 +1120,10 @@ export const fr: Messages = {
   "settings.edit.problem.text":
     "Utilisez une seule ligne d'ASCII imprimable, sans guillemets, $, #, barres obliques inverses, accents graves ni espaces au début ou à la fin.",
   "settings.edit.problem.number": "Saisissez un nombre entier de {min} à {max}.",
+  "settings.edit.secretReplace": "Masqué, saisir un autre",
+  "settings.edit.secretRemoving": "Supprimé à l'application",
+  "settings.edit.secretRemove": "Supprimer {name}",
+  "settings.edit.secretNew": "Une nouvelle valeur, masquée",
   "settings.choice.automatic": "Automatique",
   "settings.choice.wiki": "Wiki de Thoric",
   "settings.choice.off": "Désactivé",
@@ -1208,7 +1212,7 @@ export const fr: Messages = {
   "settings.about.MANAGER_CONTAINER": "Le conteneur du manager, auquel Thoric ne touche pas.",
   "settings.about.UPDATE_CHECK": "Cherche de nouvelles versions sur GitHub toutes les six heures.",
   "settings.about.NOTIFY_URL":
-    "Où vont les notifications : ntfy, Discord, Slack, Telegram ou un webhook JSON. L'adresse contient des identifiants, elle ne change donc que dans .env, avec thoric settings.",
+    "Où vont les notifications : ntfy, Discord, Slack, Telegram ou un webhook JSON. L'adresse contient des identifiants, elle n'est donc jamais affichée, seulement remplacée par une nouvelle.",
   "settings.about.NOTIFY_EVENTS":
     "Ce qui est envoyé : human_request, job_failed, update_available et container_lifecycle, séparés par des virgules.",
   "settings.about.DASHBOARD_URL":
@@ -1222,6 +1226,8 @@ export const fr: Messages = {
   "notify.off": "Non configurées",
   "notify.notSet":
     "Définissez NOTIFY_URL dans .env, avec thoric settings dans le paquet WSL, pour recevoir des notifications par ntfy, Discord, Slack, Telegram ou votre propre webhook.",
+  "notify.notSetHere":
+    "Définissez NOTIFY_URL dans Notifications, plus bas, pour recevoir des notifications par ntfy, Discord, Slack, Telegram ou votre propre webhook.",
   "notify.sends": "Envoie",
   "notify.nothing": "Rien",
   "notify.event.human_request": "Demandes à une personne",

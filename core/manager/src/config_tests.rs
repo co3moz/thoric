@@ -134,18 +134,19 @@ fn a_secret_says_only_whether_it_is_set() {
     };
     assert_eq!(
         setting(config, "MCP_TOKEN"),
-        json!({"name": "MCP_TOKEN", "secret": true, "set": true})
+        json!({"name": "MCP_TOKEN", "secret": true, "set": true, "editable": false})
     );
     assert_eq!(setting(config, "ADMIN_PASSWORD")["set"], true);
     assert_eq!(
         setting(config, "METRICS_TOKEN"),
-        json!({"name": "METRICS_TOKEN", "secret": true, "set": true})
+        json!({"name": "METRICS_TOKEN", "secret": true, "set": true, "editable": false})
     );
     assert_eq!(setting(config, "PROXY_PASSWORD")["set"], true);
     assert_eq!(setting(config, "PROXY_USERNAME")["value"], "corp");
+    // The page replaces this one, still without reading it.
     assert_eq!(
         setting(config, "NOTIFY_URL"),
-        json!({"name": "NOTIFY_URL", "secret": true, "set": true})
+        json!({"name": "NOTIFY_URL", "secret": true, "set": true, "editable": true})
     );
     assert_eq!(setting(config, "NOTIFY_EVENTS")["value"], "human_request");
     config.mcp_token = None;
@@ -316,7 +317,8 @@ fn the_page_edits_only_the_settings_it_may_change() {
             "{name} is not shown"
         );
     }
-    // Sign-in, the root MCP and its token, and what Compose reads stay with thoric settings.
+    // Sign-in, the root MCP and its token, the other secrets and what Compose reads stay with
+    // thoric settings.
     for name in [
         "AUTH_MODE",
         "ADMIN_USERNAME",
@@ -325,19 +327,27 @@ fn the_page_edits_only_the_settings_it_may_change() {
         "ROOT_MCP_ENABLED",
         "MCP_AUTH_MODE",
         "MCP_TOKEN",
+        "METRICS_TOKEN",
+        "PROXY_PASSWORD",
         "DESKTOP_HOST",
-        "NOTIFY_URL",
     ] {
         assert!(!EDITABLE.contains(&name), "{name}");
     }
+    for name in EDITABLE_SECRETS {
+        assert!(EDITABLE.contains(name), "{name}");
+    }
     for entry in &shown {
-        let editable = EDITABLE.contains(&entry["name"].as_str().unwrap());
-        if entry["secret"] == true {
-            assert!(!editable && entry.get("editable").is_none(), "{entry}");
-        } else {
-            assert_eq!(entry["editable"], editable, "{entry}");
-            assert_eq!(entry.get("text").is_some(), editable, "{entry}");
-        }
+        let name = entry["name"].as_str().unwrap();
+        let editable = EDITABLE.contains(&name);
+        assert_eq!(entry["editable"], editable, "{entry}");
+        // A secret's text is its value, which the page never gets.
+        let secret = entry["secret"] == true;
+        assert_eq!(
+            secret && editable,
+            EDITABLE_SECRETS.contains(&name),
+            "{entry}"
+        );
+        assert_eq!(entry.get("text").is_some(), editable && !secret, "{entry}");
     }
 }
 

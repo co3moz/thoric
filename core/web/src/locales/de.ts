@@ -1120,6 +1120,10 @@ export const de: Messages = {
   "settings.edit.problem.text":
     "Verwenden Sie eine Zeile druckbarer ASCII-Zeichen ohne Anführungszeichen, $, #, Backslashes, Backticks oder Leerzeichen an Anfang und Ende.",
   "settings.edit.problem.number": "Geben Sie eine ganze Zahl von {min} bis {max} ein.",
+  "settings.edit.secretReplace": "Verborgen, neu eingeben",
+  "settings.edit.secretRemoving": "Wird beim Übernehmen entfernt",
+  "settings.edit.secretRemove": "{name} entfernen",
+  "settings.edit.secretNew": "Ein neuer Wert, verborgen",
   "settings.choice.automatic": "Automatisch",
   "settings.choice.wiki": "Thoric-Wiki",
   "settings.choice.off": "Ausgeschaltet",
@@ -1213,7 +1217,7 @@ export const de: Messages = {
     "Der eigene Container des Managers, den Thoric nicht anrührt.",
   "settings.about.UPDATE_CHECK": "Sucht alle sechs Stunden auf GitHub nach neuen Versionen.",
   "settings.about.NOTIFY_URL":
-    "Wohin Benachrichtigungen gehen: ntfy, Discord, Slack, Telegram oder ein JSON-Webhook. Die Adresse enthält Zugangsdaten und ändert sich daher nur in .env, mit thoric settings.",
+    "Wohin Benachrichtigungen gehen: ntfy, Discord, Slack, Telegram oder ein JSON-Webhook. Die Adresse enthält Zugangsdaten und wird daher nie angezeigt, nur durch eine neue ersetzt.",
   "settings.about.NOTIFY_EVENTS":
     "Was gesendet wird: human_request, job_failed, update_available und container_lifecycle, durch Kommas getrennt.",
   "settings.about.DASHBOARD_URL":
@@ -1227,6 +1231,8 @@ export const de: Messages = {
   "notify.off": "Nicht eingerichtet",
   "notify.notSet":
     "Setzen Sie NOTIFY_URL in .env, im WSL-Paket mit thoric settings, um Benachrichtigungen über ntfy, Discord, Slack, Telegram oder einen eigenen Webhook zu erhalten.",
+  "notify.notSetHere":
+    "Setzen Sie NOTIFY_URL unten unter Benachrichtigungen, um Benachrichtigungen über ntfy, Discord, Slack, Telegram oder einen eigenen Webhook zu erhalten.",
   "notify.sends": "Sendet",
   "notify.nothing": "Nichts",
   "notify.event.human_request": "Anfragen an eine Person",

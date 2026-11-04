@@ -1123,6 +1123,10 @@ export const en = {
   "settings.edit.problem.text":
     "Use one line of printable ASCII, without quotes, $, #, backslashes, backquotes or spaces at either end.",
   "settings.edit.problem.number": "Enter a whole number from {min} to {max}.",
+  "settings.edit.secretReplace": "Hidden, type to replace",
+  "settings.edit.secretRemoving": "Removed when you apply",
+  "settings.edit.secretRemove": "Remove {name}",
+  "settings.edit.secretNew": "A new value, hidden",
   "settings.choice.automatic": "Automatic",
   "settings.choice.wiki": "Thoric wiki",
   "settings.choice.off": "Turned off",
@@ -1211,7 +1215,7 @@ export const en = {
   "settings.about.MANAGER_CONTAINER": "The manager's own container, which Thoric leaves alone.",
   "settings.about.UPDATE_CHECK": "Looks for new releases on GitHub every six hours.",
   "settings.about.NOTIFY_URL":
-    "Where notices go: ntfy, Discord, Slack, Telegram or a JSON webhook. It holds credentials, so it changes only in .env, with thoric settings.",
+    "Where notices go: ntfy, Discord, Slack, Telegram or a JSON webhook. It holds credentials, so it is never shown, only replaced by a new address.",
   "settings.about.NOTIFY_EVENTS":
     "What is sent: human_request, job_failed, update_available and container_lifecycle, separated by commas.",
   "settings.about.DASHBOARD_URL":
@@ -1225,6 +1229,8 @@ export const en = {
   "notify.off": "Not set up",
   "notify.notSet":
     "Set NOTIFY_URL in .env, with thoric settings in the WSL package, to get notices through ntfy, Discord, Slack, Telegram or a webhook of your own.",
+  "notify.notSetHere":
+    "Set NOTIFY_URL under Notifications below to get notices through ntfy, Discord, Slack, Telegram or a webhook of your own.",
   "notify.sends": "Sends",
   "notify.nothing": "Nothing",
   "notify.event.human_request": "Requests for a person",
