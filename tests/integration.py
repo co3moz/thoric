@@ -1011,8 +1011,12 @@ try:
     # The suite runs with GPU_DEFAULT=false, so a request that leaves gpu out gets none, as before
     # the defaults; the others keep what the create form chose before them.
     settings = api("settings")
-    assert settings["defaults"] == {"gpu": False, "internet": True, "sudo": True, "audio": False, "microphone": False, "gamepad": False, "vpn": False, "idle_stop_minutes": 0}, settings
+    assert settings["defaults"] == {"gpu": False, "internet": True, "sudo": True, "audio": False, "microphone": False, "gamepad": False, "vpn": False, "debugger": False, "realtime": False, "profiler": False, "kvm": False, "idle_stop_minutes": 0}, settings
     assert settings["root_mcp_enabled"] and settings["internet_enabled"] and settings["sudo_enabled"] and settings["gamepad_enabled"] and settings["vpn_enabled"], settings
+    assert settings["debugger_enabled"] and settings["realtime_enabled"] and settings["profiler_enabled"], settings
+    # The manager looked for /dev/kvm in its host's /sys, which WSL has only with nested
+    # virtualization; KVM is allowed exactly where the host has the device.
+    assert settings["kvm_host"] in (True, False) and settings["kvm_enabled"] == settings["kvm_host"], settings
     # The suite's installation has no proxy, so a container follows none unless it has its own.
     assert settings["proxy"] is None, settings
     # The manager looked at its host's /sys: WSL gets the WSL GPU and CUDA beside it, a Linux
@@ -1073,7 +1077,7 @@ try:
         assert error.code == 400 and "expected format" in body and f"words-{tag}" not in body, body
     secret = f"s3cret-{tag}"
     proxy_secret = f"proxy-{tag}"
-    spec = {"name": "GPU test", "image": built["image_id"], "resolution": "1280x720", "gpu": True, "gamepad": True, "vpn": True, "proxy": {"mode": "custom", "url": "http://127.0.0.1:18081", "username": "agent", "bypass": ["intranet.test"]}, "proxy_password": proxy_secret, "internet": False, "audio": True, "microphone": True, "cpus": 2, "memory_mb": 2048, "mounts": [{"volume": share, "target": "/shared", "readonly": False}], "parameters": {"GREETING": "hello", "TOKEN": secret}}
+    spec = {"name": "GPU test", "image": built["image_id"], "resolution": "1280x720", "gpu": True, "gamepad": True, "vpn": True, "debugger": True, "realtime": True, "profiler": True, "kvm": api("settings")["kvm_host"], "proxy": {"mode": "custom", "url": "http://127.0.0.1:18081", "username": "agent", "bypass": ["intranet.test"]}, "proxy_password": proxy_secret, "internet": False, "audio": True, "microphone": True, "cpus": 2, "memory_mb": 2048, "mounts": [{"volume": share, "target": "/shared", "readonly": False}], "parameters": {"GREETING": "hello", "TOKEN": secret}}
     created = api("containers", spec)
     env_id = job(created)["container_id"]
     container_ids.append(env_id)
@@ -1093,6 +1097,32 @@ try:
     open_tun = "import fcntl,os,struct\nfd=os.open('/dev/net/tun',os.O_RDWR)\nfcntl.ioctl(fd,0x400454ca,struct.pack('16sH',b'thoric0',0x1001))\nprint('tunnel')"
     assert docker("exec", container, "python3", "-c", open_tun).strip() == b"tunnel"
     print("PASS VPN access opens a tunnel in the container's own network namespace", flush=True)
+    # The permissions. Root attaches to a program it did not start, which Yama's ptrace_scope
+    # refuses without SYS_PTRACE; the desktop user, in its session and in an exec, takes a
+    # real-time priority, a lower nice value and unlimited locked memory without sudo, and measures
+    # its own program with perf.
+    caps = [c if c.startswith("CAP_") else f"CAP_{c}" for c in host_config["CapAdd"]]
+    assert "CAP_SYS_PTRACE" in caps and "CAP_PERFMON" in caps, host_config
+    docker("exec", "--detach", "--user", "desktop", container, "sleep", "300")
+    attach = "import ctypes,subprocess\nlibc=ctypes.CDLL(None,use_errno=True)\npid=int(subprocess.check_output(['pgrep','-n','-u','desktop','-x','sleep']))\nassert libc.ptrace(16,pid,None,None)==0,ctypes.get_errno()\nlibc.ptrace(17,pid,None,None)\nprint('attached')"
+    assert wait_for(lambda: docker("exec", container, "python3", "-c", attach, check=False).strip() == b"attached" or None)
+    realtime = "import os,resource\nos.sched_setscheduler(0,os.SCHED_FIFO,os.sched_param(50))\nos.setpriority(os.PRIO_PROCESS,0,-10)\nprint(resource.getrlimit(resource.RLIMIT_MEMLOCK))"
+    assert docker("exec", "--user", "desktop", container, "python3", "-c", realtime).strip() == b"(-1, -1)"
+    session_limits = docker("exec", container, "sh", "-c", "cat /proc/$(pgrep -o -u desktop)/limits").decode()
+    assert re.search(r"Max realtime priority\s+95\s+95", session_limits) and re.search(r"Max locked memory\s+unlimited", session_limits), session_limits
+    perf = "import ctypes,platform,struct\nlibc=ctypes.CDLL(None,use_errno=True)\nlibc.syscall.restype=ctypes.c_long\nattr=ctypes.create_string_buffer(struct.pack('IIQQQQQ',1,112,0,0,0,0,1|32|64).ljust(112,b'\\0'),112)\nnumber={'x86_64':298,'aarch64':241}[platform.machine()]\nassert libc.syscall(number,attr,0,-1,-1,0)>=0,ctypes.get_errno()\nprint('measured')"
+    assert docker("exec", "--user", "desktop", container, "python3", "-c", perf).strip() == b"measured"
+    if spec["kvm"]:
+        # The desktop user joined the device's group.
+        assert docker("exec", "--user", "desktop", container, "python3", "-c", "import os\nos.close(os.open('/dev/kvm',os.O_RDWR))\nprint('kvm')").strip() == b"kvm"
+    else:
+        # A host without /dev/kvm refuses the permission before anything changes.
+        try:
+            api(f"containers/{env_id}/settings", {"kvm": True, "dry_run": True}); raise AssertionError("kvm was allowed on a host without /dev/kvm")
+        except urllib.error.HTTPError as error:
+            body = error.read().decode()
+            assert error.code == 400 and "no /dev/kvm" in body, body
+    print(f"PASS permissions: a debugger attaches, real-time and perf work for the desktop user, KVM {'opens' if spec['kvm'] else 'is refused without the device'}", flush=True)
     # The desktop's proxy: programs see only 127.0.0.1:31280, which goes on to the container's own
     # proxy with the user name and password that only the manager and that proxy hold. A fake
     # upstream inside the desktop answers every request itself, so no internet is needed.
@@ -2134,7 +2164,7 @@ try:
     assert snap_layers[:len(base_layers)] == base_layers and len(snap_layers) > len(base_layers)
     # The snapshot keeps the compose its container ran, so a container from it asks again.
     assert [p["name"] for p in snap["compose"]["parameters"]] == ["GREETING", "TOKEN", "FLAVOR"] and "script" not in snap["compose"]
-    spec.update({"name": "Clone", "image": snap["image_id"], "gpu": False, "gamepad": False, "vpn": False, "proxy": None, "proxy_password": None, "audio": False, "microphone": False, "mounts": [{"volume": clone_share, "target": "/shared"}], "parameters": {"GREETING": "again", "TOKEN": "other", "FLAVOR": ""}})
+    spec.update({"name": "Clone", "image": snap["image_id"], "gpu": False, "gamepad": False, "vpn": False, "debugger": False, "realtime": False, "profiler": False, "kvm": False, "proxy": None, "proxy_password": None, "audio": False, "microphone": False, "mounts": [{"volume": clone_share, "target": "/shared"}], "parameters": {"GREETING": "again", "TOKEN": "other", "FLAVOR": ""}})
     clone_id = job(api("containers", spec))["container_id"]
     container_ids.append(clone_id)
     clone = f"thoric-{clone_id}"

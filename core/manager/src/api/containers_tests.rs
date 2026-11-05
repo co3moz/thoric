@@ -157,13 +157,19 @@ fn a_create_request_gets_the_installations_defaults_for_the_features_it_leaves_o
             spec.microphone,
             spec.gamepad,
             spec.vpn,
+            spec.debugger,
+            spec.realtime,
+            spec.profiler,
+            spec.kvm,
         ]
     };
     let plain = json!({"name": "Plain", "image": "sha256:a"});
     // The defaults as they were: GPU access where the installation has it, internet and sudo.
     assert_eq!(
         features(request(plain.clone())),
-        [true, true, true, false, false, false, false]
+        [
+            true, true, true, false, false, false, false, false, false, false, false
+        ]
     );
     config.defaults = crate::config::Features {
         gpu: false,
@@ -173,19 +179,27 @@ fn a_create_request_gets_the_installations_defaults_for_the_features_it_leaves_o
         microphone: true,
         gamepad: true,
         vpn: true,
+        debugger: true,
+        realtime: true,
+        profiler: true,
+        kvm: true,
         idle_stop_minutes: 0,
     };
     let config = &*config;
     let request = |body: Value| creation_request(config, body).unwrap().spec;
     assert_eq!(
         features(request(plain.clone())),
-        [false, false, false, true, true, true, true]
+        [
+            false, false, false, true, true, true, true, true, true, true, true
+        ]
     );
     // What a request asks for is kept, and the microphone follows the request's audio.
     let asked = json!({"name": "Asked", "image": "sha256:a", "gpu": true, "audio": false});
     assert_eq!(
         features(request(asked)),
-        [true, false, false, false, false, true, true]
+        [
+            true, false, false, false, false, true, true, true, true, true, true
+        ]
     );
     // A malformed request is refused as one.
     let error = creation_request(
@@ -209,6 +223,10 @@ fn a_switched_off_feature_is_never_a_default_and_stored_records_keep_theirs() {
         microphone: true,
         gamepad: true,
         vpn: true,
+        debugger: true,
+        realtime: true,
+        profiler: true,
+        kvm: true,
         idle_stop_minutes: 0,
     };
     config.wsl_gpu = false;
@@ -217,12 +235,26 @@ fn a_switched_off_feature_is_never_a_default_and_stored_records_keep_theirs() {
     config.sudo = false;
     config.gamepad = false;
     config.vpn = false;
+    config.debugger = false;
+    config.realtime = false;
+    config.profiler = false;
+    // The host has no /dev/kvm, which keeps the device from being a default however it is set.
+    config.kvm_host = Some(false);
     config.microphone = false;
     let spec = creation_request(config, json!({"name": "Off", "image": "sha256:a"}))
         .unwrap()
         .spec;
     assert!(
-        !spec.gpu && !spec.internet && !spec.sudo && !spec.microphone && !spec.gamepad && !spec.vpn
+        !spec.gpu
+            && !spec.internet
+            && !spec.sudo
+            && !spec.microphone
+            && !spec.gamepad
+            && !spec.vpn
+            && !spec.debugger
+            && !spec.realtime
+            && !spec.profiler
+            && !spec.kvm
     );
     assert!(spec.audio);
     // A record saved before the features existed reads as it always did, whatever the
@@ -236,6 +268,10 @@ fn a_switched_off_feature_is_never_a_default_and_stored_records_keep_theirs() {
             && !stored.audio
             && !stored.gamepad
             && !stored.vpn
+            && !stored.debugger
+            && !stored.realtime
+            && !stored.profiler
+            && !stored.kvm
     );
 }
 

@@ -389,6 +389,10 @@ export const tr: Messages = {
   "restart.field.sudo": "sudo",
   "restart.field.gamepad": "gamepad",
   "restart.field.vpn": "VPN erişimi",
+  "restart.field.debugger": "hata ayıklayıcı erişimi",
+  "restart.field.realtime": "gerçek zamanlı zamanlama",
+  "restart.field.profiler": "profilleme",
+  "restart.field.kvm": "KVM",
   "restart.field.proxy": "proxy'yi açıp kapatmak",
   "restart.field.hostname": "ana makine adı",
   "restart.field.mac_address": "MAC adresi",
@@ -1161,6 +1165,13 @@ export const tr: Messages = {
   "settings.about.GAMEPAD_ENABLED": "Konteynerlerin sanal gamepad'e sahip olup olamayacağı.",
   "settings.about.VPN_ENABLED":
     "Konteynerlerin VPN erişimine (NET_ADMIN ve /dev/net/tun) sahip olup olamayacağı.",
+  "settings.about.DEBUGGER_ENABLED":
+    "Konteynerlerin çalışan programlara bir hata ayıklayıcı bağlatıp bağlatamayacağı (SYS_PTRACE).",
+  "settings.about.REALTIME_ENABLED":
+    "Konteynerlerin gerçek zamanlı zamanlama, yüksek öncelik ve kilitli bellek kullanıp kullanamayacağı.",
+  "settings.about.PROFILER_ENABLED":
+    "Konteynerlerin performans sayaçlarını (PERFMON) okuyup okuyamayacağı.",
+  "settings.about.KVM_ENABLED": "Konteynerlerin, varsa host'un /dev/kvm aygıtını alıp alamayacağı.",
   "settings.about.GPU_DEFAULT":
     "Yeni bir konteynerin, aksi istenmedikçe GPU erişimi alıp almayacağı.",
   "settings.about.INTERNET_DEFAULT":
@@ -1174,6 +1185,13 @@ export const tr: Messages = {
     "Yeni bir konteynerin, aksi istenmedikçe sanal gamepad alıp almayacağı.",
   "settings.about.VPN_DEFAULT":
     "Yeni bir konteynerin, aksi istenmedikçe VPN erişimi alıp almayacağı.",
+  "settings.about.DEBUGGER_DEFAULT":
+    "Yeni bir konteynerin, aksi istenmedikçe hata ayıklayıcı erişimi alıp almayacağı.",
+  "settings.about.REALTIME_DEFAULT":
+    "Yeni bir konteynerin, aksi istenmedikçe gerçek zamanlı zamanlama alıp almayacağı.",
+  "settings.about.PROFILER_DEFAULT":
+    "Yeni bir konteynerin, aksi istenmedikçe profilleme alıp almayacağı.",
+  "settings.about.KVM_DEFAULT": "Yeni bir konteynerin, aksi istenmedikçe KVM alıp almayacağı.",
   "settings.about.IDLE_STOP_DEFAULT":
     "Yeni bir konteynerin masaüstünün, aksi istenmedikçe durdurulmadan önce kullanılmadan kalabileceği dakika; 0 asla.",
   "settings.about.PROXY_URL":
@@ -1353,6 +1371,16 @@ export const tr: Messages = {
   "spec.flag.gamepad.description": "Sanal bir kumanda aygıtı.",
   "spec.flag.vpn": "VPN",
   "spec.flag.vpn.description": "İçindeki bir VPN istemcisi tünel açabilir.",
+  "spec.flag.debugger": "Hata ayıklayıcı",
+  "spec.flag.debugger.description":
+    "Root olarak çalışan bir hata ayıklayıcı, çalışan programlara bağlanabilir.",
+  "spec.flag.realtime": "Gerçek zaman",
+  "spec.flag.realtime.description":
+    "Ses ve düşük gecikme için gerçek zamanlı öncelik ve kilitli bellek.",
+  "spec.flag.profiler": "Profilleyici",
+  "spec.flag.profiler.description": "perf için performans sayaçları.",
+  "spec.flag.kvm": "KVM",
+  "spec.flag.kvm.description": "Host'un /dev/kvm aygıtıyla sanal makineler ve emülatörler.",
   "spec.proxy": "Proxy",
   "spec.proxy.summary": "Proxy üzerinden",
   "spec.proxy.mode.none": "Yok",
@@ -1380,6 +1408,10 @@ export const tr: Messages = {
   "spec.unlimited": "Sınırsız",
   "spec.memoryLimit": "Bellek sınırı (MB)",
   "spec.features": "Özellikler",
+  "spec.permissions": "Hata ayıklama ve performans",
+  "spec.permissionsHint":
+    "Her biri Docker'ın varsayılanlarının ötesine geçer; yalnızca işin gerektirdiğini açın.",
+  "spec.kvmUnavailable": "Bu Docker host'unda /dev/kvm yok.",
   "spec.turnedOffList": "Bu kurulumda kapalı: {features}.",
   "spec.gpuUnavailable": "Bu host'ta masaüstleri için GPU yok; nedenini Yönetim sayfası söyler.",
   "spec.volumeFirst": "Önce bir volume oluşturun.",

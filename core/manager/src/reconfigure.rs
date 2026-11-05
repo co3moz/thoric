@@ -30,6 +30,10 @@ const EDITABLE: &[&str] = &[
     "sudo",
     "gamepad",
     "vpn",
+    "debugger",
+    "realtime",
+    "profiler",
+    "kvm",
     "proxy",
     "hostname",
     "mac_address",
@@ -129,6 +133,11 @@ pub(crate) fn classify(old: &ContainerSpec, new: &ContainerSpec) -> Changes {
     note(old.sudo != new.sudo, false, "sudo");
     note(old.gamepad != new.gamepad, false, "gamepad");
     note(old.vpn != new.vpn, false, "vpn");
+    // Capabilities, limits and devices are fixed at creation too.
+    note(old.debugger != new.debugger, false, "debugger");
+    note(old.realtime != new.realtime, false, "realtime");
+    note(old.profiler != new.profiler, false, "profiler");
+    note(old.kvm != new.kvm, false, "kvm");
     // The desktop's proxy takes new settings as it runs; the variables that lead programs to it
     // are fixed at creation.
     note(
@@ -200,6 +209,10 @@ impl App {
         enabled.sudo &= !env.spec.sudo;
         enabled.gamepad &= !env.spec.gamepad;
         enabled.vpn &= !env.spec.vpn;
+        enabled.debugger &= !env.spec.debugger;
+        enabled.realtime &= !env.spec.realtime;
+        enabled.profiler &= !env.spec.profiler;
+        enabled.kvm &= !env.spec.kvm;
         if enabled.proxy == env.spec.proxy {
             enabled.proxy = None;
         }

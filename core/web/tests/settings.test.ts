@@ -175,6 +175,10 @@ test("a new container starts from the installation's defaults, and a manager wit
       microphone: true,
       gamepad: true,
       vpn: true,
+      debugger: true,
+      realtime: false,
+      profiler: true,
+      kvm: false,
     },
   } as Settings
   assert.deepEqual(featureDraft({}, settings), {
@@ -185,6 +189,10 @@ test("a new container starts from the installation's defaults, and a manager wit
     microphone: true,
     gamepad: true,
     vpn: true,
+    debugger: true,
+    realtime: false,
+    profiler: true,
+    kvm: false,
   })
   // A container's own settings win, and the microphone stays off without sound.
   assert.deepEqual(featureDraft({ audio: false, internet: true }, settings), {
@@ -195,6 +203,10 @@ test("a new container starts from the installation's defaults, and a manager wit
     microphone: false,
     gamepad: true,
     vpn: true,
+    debugger: true,
+    realtime: false,
+    profiler: true,
+    kvm: false,
   })
   assert.deepEqual(featureDraft({}, { gpu_enabled: false } as Settings), {
     gpu: false,
@@ -204,6 +216,10 @@ test("a new container starts from the installation's defaults, and a manager wit
     microphone: false,
     gamepad: false,
     vpn: false,
+    debugger: false,
+    realtime: false,
+    profiler: false,
+    kvm: false,
   })
 })
 
@@ -243,6 +259,10 @@ const FEATURE_SWITCHES: ConfigVariable[] = [
   "SUDO_ENABLED",
   "GAMEPAD_ENABLED",
   "VPN_ENABLED",
+  "DEBUGGER_ENABLED",
+  "REALTIME_ENABLED",
+  "PROFILER_ENABLED",
+  "KVM_ENABLED",
   "GPU_DEFAULT",
   "INTERNET_DEFAULT",
   "SUDO_DEFAULT",
@@ -250,6 +270,10 @@ const FEATURE_SWITCHES: ConfigVariable[] = [
   "MICROPHONE_DEFAULT",
   "GAMEPAD_DEFAULT",
   "VPN_DEFAULT",
+  "DEBUGGER_DEFAULT",
+  "REALTIME_DEFAULT",
+  "PROFILER_DEFAULT",
+  "KVM_DEFAULT",
 ].map((name) => ({ name, value: true, editable: true }))
 
 test("a feature's switch and its default for new containers share a row", () => {
@@ -262,6 +286,10 @@ test("a feature's switch and its default for new containers share a row", () => 
     ["SUDO_ENABLED", "SUDO_DEFAULT"],
     ["GAMEPAD_ENABLED", "GAMEPAD_DEFAULT"],
     ["VPN_ENABLED", "VPN_DEFAULT"],
+    ["DEBUGGER_ENABLED", "DEBUGGER_DEFAULT"],
+    ["REALTIME_ENABLED", "REALTIME_DEFAULT"],
+    ["PROFILER_ENABLED", "PROFILER_DEFAULT"],
+    ["KVM_ENABLED", "KVM_DEFAULT"],
     // The GPU has routes rather than a switch of its own.
     ["GPU_DEFAULT"],
   ])

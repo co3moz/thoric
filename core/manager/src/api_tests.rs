@@ -45,7 +45,7 @@ async fn the_settings_route_tells_the_features_and_their_defaults() {
     // The configured defaults turn GPU access and sudo on, which the installation has off.
     assert_eq!(
         body["defaults"],
-        serde_json::json!({"gpu": false, "internet": true, "sudo": false, "audio": false, "microphone": false, "gamepad": false, "vpn": false, "idle_stop_minutes": 0})
+        serde_json::json!({"gpu": false, "internet": true, "sudo": false, "audio": false, "microphone": false, "gamepad": false, "vpn": false, "debugger": false, "realtime": false, "profiler": false, "kvm": false, "idle_stop_minutes": 0})
     );
     // DRI_GPU is the one GPU setting left on, and the manager cannot see this host.
     assert_eq!(

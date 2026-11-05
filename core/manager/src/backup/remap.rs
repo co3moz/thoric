@@ -89,8 +89,8 @@ pub(crate) fn remap(mut records: Records, loaded: &Loaded) -> Records {
 }
 
 /// Switch off in a restored container's settings what this installation disables, which the
-/// create route refuses, and return the settings switched off. A GPU stays asked for: without a
-/// route to one the container is not created, and says why.
+/// create route refuses, and return the settings switched off. A GPU and `/dev/kvm` stay asked
+/// for: on a host without them the container is not created, and says why.
 pub(crate) fn switch_off_disabled(config: &Config, spec: &mut ContainerSpec) -> Vec<&'static str> {
     let mut off = Vec::new();
     for (on, allowed, name) in [
@@ -98,6 +98,10 @@ pub(crate) fn switch_off_disabled(config: &Config, spec: &mut ContainerSpec) -> 
         (&mut spec.sudo, config.sudo, "sudo"),
         (&mut spec.gamepad, config.gamepad, "gamepad"),
         (&mut spec.vpn, config.vpn, "vpn"),
+        (&mut spec.debugger, config.debugger, "debugger"),
+        (&mut spec.realtime, config.realtime, "realtime"),
+        (&mut spec.profiler, config.profiler, "profiler"),
+        (&mut spec.kvm, config.kvm, "kvm"),
         (&mut spec.audio, config.audio, "audio"),
         (
             &mut spec.microphone,

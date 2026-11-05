@@ -39,6 +39,10 @@ export const SECTION_OF: Record<string, Section> = {
   SUDO_ENABLED: "features",
   GAMEPAD_ENABLED: "features",
   VPN_ENABLED: "features",
+  DEBUGGER_ENABLED: "features",
+  REALTIME_ENABLED: "features",
+  PROFILER_ENABLED: "features",
+  KVM_ENABLED: "features",
   GPU_DEFAULT: "features",
   INTERNET_DEFAULT: "features",
   SUDO_DEFAULT: "features",
@@ -46,6 +50,10 @@ export const SECTION_OF: Record<string, Section> = {
   MICROPHONE_DEFAULT: "features",
   GAMEPAD_DEFAULT: "features",
   VPN_DEFAULT: "features",
+  DEBUGGER_DEFAULT: "features",
+  REALTIME_DEFAULT: "features",
+  PROFILER_DEFAULT: "features",
+  KVM_DEFAULT: "features",
   IDLE_STOP_DEFAULT: "features",
   WSL_GPU: "gpu",
   NVIDIA_COMPUTE: "gpu",
@@ -182,6 +190,10 @@ export const FIELDS: Record<string, Field> = {
   SUDO_ENABLED: { kind: "switch" },
   GAMEPAD_ENABLED: { kind: "switch" },
   VPN_ENABLED: { kind: "switch" },
+  DEBUGGER_ENABLED: { kind: "switch" },
+  REALTIME_ENABLED: { kind: "switch" },
+  PROFILER_ENABLED: { kind: "switch" },
+  KVM_ENABLED: { kind: "switch" },
   GPU_DEFAULT: { kind: "switch" },
   INTERNET_DEFAULT: { kind: "switch" },
   SUDO_DEFAULT: { kind: "switch" },
@@ -189,6 +201,10 @@ export const FIELDS: Record<string, Field> = {
   MICROPHONE_DEFAULT: { kind: "switch" },
   GAMEPAD_DEFAULT: { kind: "switch" },
   VPN_DEFAULT: { kind: "switch" },
+  DEBUGGER_DEFAULT: { kind: "switch" },
+  REALTIME_DEFAULT: { kind: "switch" },
+  PROFILER_DEFAULT: { kind: "switch" },
+  KVM_DEFAULT: { kind: "switch" },
   // Minutes, 0 for never; the manager takes up to a week.
   IDLE_STOP_DEFAULT: { kind: "number", min: 0, max: 10080 },
   UPLOAD_MAX_MB: { kind: "number", min: 1, max: 65536 },
@@ -324,7 +340,13 @@ export function releaseState(
   return update.error ? "failed" : "unchecked"
 }
 
-/** The features of the create and settings forms. */
+/**
+ * What a desktop may do beyond Docker's defaults, for debugging and performance work: the
+ * manager's `permissions`, which the forms show apart from the other features.
+ */
+export const PERMISSIONS = ["debugger", "realtime", "profiler", "kvm"] as const
+
+/** The features of the create and settings forms, the permissions last. */
 export const FEATURES = [
   "gpu",
   "internet",
@@ -333,6 +355,7 @@ export const FEATURES = [
   "microphone",
   "gamepad",
   "vpn",
+  ...PERMISSIONS,
 ] as const
 export type Feature = (typeof FEATURES)[number]
 
@@ -356,6 +379,10 @@ export function featureDraft(
     microphone: spec.microphone ?? (audio && (defaults?.microphone ?? false)),
     gamepad: spec.gamepad ?? defaults?.gamepad ?? false,
     vpn: spec.vpn ?? defaults?.vpn ?? false,
+    debugger: spec.debugger ?? defaults?.debugger ?? false,
+    realtime: spec.realtime ?? defaults?.realtime ?? false,
+    profiler: spec.profiler ?? defaults?.profiler ?? false,
+    kvm: spec.kvm ?? defaults?.kvm ?? false,
   }
 }
 
