@@ -1,11 +1,15 @@
 import * as React from "react"
 import {
+  RiBugLine,
   RiCpuLine,
   RiGamepadLine,
   RiGlobalLine,
+  RiInstanceLine,
   RiMicLine,
+  RiPulseLine,
   RiShieldKeyholeLine,
   RiShieldUserLine,
+  RiTimerFlashLine,
   RiVolumeUpLine,
   type RemixiconComponentType,
 } from "@remixicon/react"
@@ -17,7 +21,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { formatList, t } from "@/lib/i18n"
 import { formatPorts, parsePorts } from "@/lib/ports"
 import { proxyBody, proxyDraft, type ProxyDraft } from "@/lib/proxy"
-import { featureDraft, FEATURES, type Feature } from "@/lib/settings"
+import { featureDraft, FEATURES, PERMISSIONS, type Feature } from "@/lib/settings"
 import type { ContainerSpec, Mount, Settings } from "@/lib/types"
 
 export const RESOLUTIONS = ["1920x1080", "1600x900", "1280x720", "2560x1440", "3840x2160"]
@@ -32,7 +36,17 @@ const FLAG_ICONS: Record<Flag, RemixiconComponentType> = {
   microphone: RiMicLine,
   gamepad: RiGamepadLine,
   vpn: RiShieldKeyholeLine,
+  debugger: RiBugLine,
+  realtime: RiTimerFlashLine,
+  profiler: RiPulseLine,
+  kvm: RiInstanceLine,
 }
+
+/** The features shown first, and the permissions beneath them. */
+const FLAG_GROUPS = [
+  FLAGS.filter((flag) => !(PERMISSIONS as readonly Flag[]).includes(flag)),
+  PERMISSIONS,
+] as const
 
 export type MountDraft = Mount & { key: number }
 export type SpecDraft = {
@@ -177,11 +191,19 @@ export function FeatureFields({
     sudo: settings?.sudo_enabled ?? true,
     gamepad: settings?.gamepad_enabled ?? true,
     vpn: settings?.vpn_enabled ?? true,
+    debugger: settings?.debugger_enabled ?? true,
+    realtime: settings?.realtime_enabled ?? true,
+    profiler: settings?.profiler_enabled ?? true,
+    kvm: settings?.kvm_enabled ?? true,
   }
   const blocked = FLAGS.filter((flag) => !enabled[flag] && !spec?.[flag])
   // The settings allow a GPU, but the host has none of the ones they allow.
   const noGpu = blocked.includes("gpu") && !!settings?.gpu?.unused.length
-  const turnedOff = noGpu ? blocked.filter((flag) => flag !== "gpu") : blocked
+  // The Docker host has no /dev/kvm, whatever KVM_ENABLED says.
+  const noKvm = blocked.includes("kvm") && settings?.kvm_host === false
+  const turnedOff = blocked.filter(
+    (flag) => !(noGpu && flag === "gpu") && !(noKvm && flag === "kvm")
+  )
   const toggle = (flag: Flag, value: boolean) => {
     const patch: Partial<SpecDraft> = { [flag]: value }
     // The microphone travels over the audio connection.
@@ -191,35 +213,43 @@ export function FeatureFields({
   }
 
   return (
-    <FieldSet className="gap-3">
-      <FieldLegend variant="label" className="mb-0">
-        {t("spec.features")}
-      </FieldLegend>
-      <div className="grid grid-cols-1 gap-2 min-[400px]:grid-cols-2">
-        {FLAGS.map((flag) => (
-          <SwitchTile
-            key={flag}
-            icon={FLAG_ICONS[flag]}
-            label={flagLabel(flag)}
-            description={flagDescription(flag)}
-            checked={draft[flag]}
-            disabled={blocked.includes(flag)}
-            describedBy={blocked.includes(flag) ? `${id}-blocked` : undefined}
-            onCheckedChange={(value) => toggle(flag, value)}
-          />
-        ))}
-      </div>
+    <div className="flex flex-col gap-4">
+      {FLAG_GROUPS.map((flags, group) => (
+        <FieldSet key={group} className="gap-3">
+          <FieldLegend variant="label" className="mb-0">
+            {group === 0 ? t("spec.features") : t("spec.permissions")}
+          </FieldLegend>
+          {group === 1 && (
+            <FieldDescription className="text-xs">{t("spec.permissionsHint")}</FieldDescription>
+          )}
+          <div className="grid grid-cols-1 gap-2 min-[400px]:grid-cols-2">
+            {flags.map((flag) => (
+              <SwitchTile
+                key={flag}
+                icon={FLAG_ICONS[flag]}
+                label={flagLabel(flag)}
+                description={flagDescription(flag)}
+                checked={draft[flag]}
+                disabled={blocked.includes(flag)}
+                describedBy={blocked.includes(flag) ? `${id}-blocked` : undefined}
+                onCheckedChange={(value) => toggle(flag, value)}
+              />
+            ))}
+          </div>
+        </FieldSet>
+      ))}
       {blocked.length > 0 && (
         <FieldDescription id={`${id}-blocked`} className="text-xs">
           {[
             turnedOff.length > 0 &&
               t("spec.turnedOffList", { features: formatList(turnedOff.map(flagLabel)) }),
             noGpu && t("spec.gpuUnavailable"),
+            noKvm && t("spec.kvmUnavailable"),
           ]
             .filter(Boolean)
             .join(" ")}
         </FieldDescription>
       )}
-    </FieldSet>
+    </div>
   )
 }

@@ -22,6 +22,14 @@ export type ContainerSpec = {
   gamepad: boolean
   /** NET_ADMIN and /dev/net/tun, for a VPN client inside the desktop. */
   vpn: boolean
+  /** SYS_PTRACE, so a debugger run as root attaches to running programs. */
+  debugger: boolean
+  /** Real-time priorities, lower nice values and locked memory for the desktop user. */
+  realtime: boolean
+  /** PERFMON, so `perf` reads performance counters. */
+  profiler: boolean
+  /** The host's /dev/kvm, for virtual machines and emulators. */
+  kvm: boolean
   /** Absent only before a container exists; `null` is none. */
   proxy?: ProxyChoice | null
   /** The machine identity; `null` on containers created before identities were kept. */
@@ -458,11 +466,28 @@ export type Settings = {
   sudo_enabled?: boolean
   gamepad_enabled?: boolean
   vpn_enabled?: boolean
+  debugger_enabled?: boolean
+  realtime_enabled?: boolean
+  profiler_enabled?: boolean
+  /** False also where the Docker host has no /dev/kvm. */
+  kvm_enabled?: boolean
+  /** Whether the Docker host has /dev/kvm, `null` when the manager cannot see it. */
+  kvm_host?: boolean | null
   /** The installation's proxy (PROXY_URL), without its password; `null` when it has none. */
   proxy?: { url: string; username: string | null; bypass: string[] } | null
   /** What a new container gets of each feature unless it asks otherwise. */
   defaults?: Record<
-    "gpu" | "internet" | "sudo" | "audio" | "microphone" | "gamepad" | "vpn",
+    | "gpu"
+    | "internet"
+    | "sudo"
+    | "audio"
+    | "microphone"
+    | "gamepad"
+    | "vpn"
+    | "debugger"
+    | "realtime"
+    | "profiler"
+    | "kvm",
     boolean
   > & {
     /** The idle stop a new container gets, in minutes; 0 never (IDLE_STOP_DEFAULT). */

@@ -270,6 +270,10 @@ fn a_create_request_names_no_fixed_default_for_what_the_installation_fills() {
             microphone: on,
             gamepad: on,
             vpn: on,
+            debugger: on,
+            realtime: on,
+            profiler: on,
+            kvm: on,
             idle_stop_minutes: if on { 30 } else { 0 },
         };
         if on {

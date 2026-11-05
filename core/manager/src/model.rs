@@ -38,6 +38,19 @@ pub struct ContainerSpec {
     /// tunnel in its own network namespace.
     #[serde(default)]
     pub vpn: bool,
+    /// Give the desktop `SYS_PTRACE`, so a debugger run as root attaches to its running programs;
+    /// see [`crate::permissions`].
+    #[serde(default)]
+    pub debugger: bool,
+    /// Let the desktop's programs schedule in real time, raise their priority and lock memory.
+    #[serde(default)]
+    pub realtime: bool,
+    /// Give the desktop `PERFMON`, so `perf` reads the performance counters of its programs.
+    #[serde(default)]
+    pub profiler: bool,
+    /// Attach the host's `/dev/kvm`, for virtual machines and emulators inside the desktop.
+    #[serde(default)]
+    pub kvm: bool,
     /// The proxy the desktop's programs go through, `None` for none; see [`crate::outbound`].
     #[serde(default)]
     pub proxy: Option<crate::outbound::ProxyChoice>,

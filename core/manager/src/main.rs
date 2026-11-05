@@ -46,6 +46,7 @@ mod ocr;
 mod openapi;
 mod outbound;
 mod package_requests;
+mod permissions;
 mod process;
 mod proxy;
 mod pulls;
@@ -494,6 +495,7 @@ async fn main() -> anyhow::Result<()> {
     // architecture of the images it runs.
     let docker_info = desktop_limits::docker_info(&config.docker_bin).await;
     config.gpu_host = gpu::Host::detect(&config, docker_info.as_ref());
+    config.kvm_host = permissions::kvm_host(&config, std::path::Path::new("/sys"));
     config.log_driver = desktop_limits::log_driver(docker_info.as_ref());
     config.architecture = pulls::image_architecture(docker_info.as_ref());
     tracing::info!("Docker runs linux/{} images", config.architecture);

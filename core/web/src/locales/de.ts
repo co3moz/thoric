@@ -394,6 +394,10 @@ export const de: Messages = {
   "restart.field.sudo": "sudo",
   "restart.field.gamepad": "Gamepad",
   "restart.field.vpn": "VPN-Zugriff",
+  "restart.field.debugger": "Debugger-Zugriff",
+  "restart.field.realtime": "Echtzeitplanung",
+  "restart.field.profiler": "Profiling",
+  "restart.field.kvm": "KVM",
   "restart.field.proxy": "das Ein- oder Ausschalten des Proxys",
   "restart.field.hostname": "Hostname",
   "restart.field.mac_address": "MAC-Adresse",
@@ -1182,6 +1186,13 @@ export const de: Messages = {
   "settings.about.GAMEPAD_ENABLED": "Ob Container das virtuelle Gamepad haben dürfen.",
   "settings.about.VPN_ENABLED":
     "Ob Container VPN-Zugriff haben dürfen, NET_ADMIN und /dev/net/tun.",
+  "settings.about.DEBUGGER_ENABLED":
+    "Ob Container einen Debugger an laufende Programme anhängen lassen dürfen, SYS_PTRACE.",
+  "settings.about.REALTIME_ENABLED":
+    "Ob Container in Echtzeit planen, Prioritäten anheben und Speicher sperren dürfen.",
+  "settings.about.PROFILER_ENABLED": "Ob Container Leistungszähler lesen dürfen, PERFMON.",
+  "settings.about.KVM_ENABLED":
+    "Ob Container das /dev/kvm des Hosts erhalten dürfen, sofern er eines hat.",
   "settings.about.GPU_DEFAULT":
     "Ob ein neuer Container GPU-Zugriff erhält, sofern er nichts anderes verlangt.",
   "settings.about.INTERNET_DEFAULT":
@@ -1196,6 +1207,14 @@ export const de: Messages = {
     "Ob ein neuer Container das virtuelle Gamepad erhält, sofern er nichts anderes verlangt.",
   "settings.about.VPN_DEFAULT":
     "Ob ein neuer Container VPN-Zugriff erhält, sofern er nichts anderes verlangt.",
+  "settings.about.DEBUGGER_DEFAULT":
+    "Ob ein neuer Container Debugger-Zugriff erhält, sofern er nichts anderes verlangt.",
+  "settings.about.REALTIME_DEFAULT":
+    "Ob ein neuer Container Echtzeitplanung erhält, sofern er nichts anderes verlangt.",
+  "settings.about.PROFILER_DEFAULT":
+    "Ob ein neuer Container Profiling erhält, sofern er nichts anderes verlangt.",
+  "settings.about.KVM_DEFAULT":
+    "Ob ein neuer Container KVM erhält, sofern er nichts anderes verlangt.",
   "settings.about.IDLE_STOP_DEFAULT":
     "Minuten, die der Desktop eines neuen Containers unbenutzt bleiben darf, bevor er gestoppt wird, sofern er nichts anderes verlangt; 0 für nie.",
   "settings.about.PROXY_URL":
@@ -1379,6 +1398,16 @@ export const de: Messages = {
   "spec.flag.gamepad.description": "Ein virtuelles Controller-Gerät.",
   "spec.flag.vpn": "VPN",
   "spec.flag.vpn.description": "Ein VPN-Client darin kann einen Tunnel öffnen.",
+  "spec.flag.debugger": "Debugger",
+  "spec.flag.debugger.description":
+    "Ein als root laufender Debugger kann sich an laufende Programme anhängen.",
+  "spec.flag.realtime": "Echtzeit",
+  "spec.flag.realtime.description":
+    "Echtzeitpriorität und gesperrter Speicher, für Audio und geringe Latenz.",
+  "spec.flag.profiler": "Profiler",
+  "spec.flag.profiler.description": "Leistungszähler für perf.",
+  "spec.flag.kvm": "KVM",
+  "spec.flag.kvm.description": "Virtuelle Maschinen und Emulatoren über das /dev/kvm des Hosts.",
   "spec.proxy": "Proxy",
   "spec.proxy.summary": "Über einen Proxy",
   "spec.proxy.mode.none": "Keiner",
@@ -1409,6 +1438,10 @@ export const de: Messages = {
   "spec.unlimited": "Unbegrenzt",
   "spec.memoryLimit": "Speicherlimit (MB)",
   "spec.features": "Funktionen",
+  "spec.permissions": "Debugging und Leistung",
+  "spec.permissionsHint":
+    "Jede geht über die Vorgaben von Docker hinaus; schalten Sie nur ein, was die Arbeit braucht.",
+  "spec.kvmUnavailable": "Dieser Docker-Host hat kein /dev/kvm.",
   "spec.turnedOffList": "Für diese Installation deaktiviert: {features}.",
   "spec.gpuUnavailable":
     "Dieser Host hat keine GPU für Desktops; die Verwaltungsseite nennt den Grund.",

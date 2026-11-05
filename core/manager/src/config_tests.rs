@@ -453,7 +453,18 @@ fn a_default_gives_nothing_while_its_feature_is_switched_off() {
         .collect();
     assert_eq!(
         paired,
-        ["INTERNET", "SUDO", "AUDIO", "MICROPHONE", "GAMEPAD", "VPN"]
+        [
+            "INTERNET",
+            "SUDO",
+            "AUDIO",
+            "MICROPHONE",
+            "GAMEPAD",
+            "VPN",
+            "DEBUGGER",
+            "REALTIME",
+            "PROFILER",
+            "KVM"
+        ]
     );
     let defaults = |off: &[&str]| {
         let mut changes: BTreeMap<String, String> = paired

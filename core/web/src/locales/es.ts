@@ -391,6 +391,10 @@ export const es: Messages = {
   "restart.field.sudo": "sudo",
   "restart.field.gamepad": "el gamepad",
   "restart.field.vpn": "el acceso VPN",
+  "restart.field.debugger": "el acceso del depurador",
+  "restart.field.realtime": "la planificación en tiempo real",
+  "restart.field.profiler": "el perfilado",
+  "restart.field.kvm": "KVM",
   "restart.field.proxy": "activar o desactivar el proxy",
   "restart.field.hostname": "el nombre de host",
   "restart.field.mac_address": "la dirección MAC",
@@ -1169,6 +1173,14 @@ export const es: Messages = {
   "settings.about.GAMEPAD_ENABLED": "Si los contenedores pueden tener el mando virtual.",
   "settings.about.VPN_ENABLED":
     "Si los contenedores pueden tener acceso VPN, NET_ADMIN y /dev/net/tun.",
+  "settings.about.DEBUGGER_ENABLED":
+    "Si los contenedores pueden dejar que un depurador se conecte a programas en ejecución, SYS_PTRACE.",
+  "settings.about.REALTIME_ENABLED":
+    "Si los contenedores pueden planificar en tiempo real, subir prioridades y bloquear memoria.",
+  "settings.about.PROFILER_ENABLED":
+    "Si los contenedores pueden leer contadores de rendimiento, PERFMON.",
+  "settings.about.KVM_ENABLED":
+    "Si los contenedores pueden tener el /dev/kvm del host, cuando lo tiene.",
   "settings.about.GPU_DEFAULT":
     "Si un contenedor nuevo tiene acceso a la GPU, salvo que pida otra cosa.",
   "settings.about.INTERNET_DEFAULT":
@@ -1182,6 +1194,13 @@ export const es: Messages = {
     "Si un contenedor nuevo tiene el mando virtual, salvo que pida otra cosa.",
   "settings.about.VPN_DEFAULT":
     "Si un contenedor nuevo tiene acceso VPN, salvo que pida otra cosa.",
+  "settings.about.DEBUGGER_DEFAULT":
+    "Si un contenedor nuevo tiene acceso del depurador, salvo que pida otra cosa.",
+  "settings.about.REALTIME_DEFAULT":
+    "Si un contenedor nuevo tiene planificación en tiempo real, salvo que pida otra cosa.",
+  "settings.about.PROFILER_DEFAULT":
+    "Si un contenedor nuevo tiene perfilado, salvo que pida otra cosa.",
+  "settings.about.KVM_DEFAULT": "Si un contenedor nuevo tiene KVM, salvo que pida otra cosa.",
   "settings.about.IDLE_STOP_DEFAULT":
     "Minutos que el escritorio de un contenedor nuevo puede quedar sin uso antes de detenerse, salvo que pida otra cosa; 0 para nunca.",
   "settings.about.PROXY_URL":
@@ -1365,6 +1384,16 @@ export const es: Messages = {
   "spec.flag.gamepad.description": "Un dispositivo de mando virtual.",
   "spec.flag.vpn": "VPN",
   "spec.flag.vpn.description": "Un cliente VPN dentro puede abrir un túnel.",
+  "spec.flag.debugger": "Depurador",
+  "spec.flag.debugger.description":
+    "Un depurador ejecutado como root puede conectarse a programas en ejecución.",
+  "spec.flag.realtime": "Tiempo real",
+  "spec.flag.realtime.description":
+    "Prioridad en tiempo real y memoria bloqueada, para audio y baja latencia.",
+  "spec.flag.profiler": "Perfilador",
+  "spec.flag.profiler.description": "Contadores de rendimiento para perf.",
+  "spec.flag.kvm": "KVM",
+  "spec.flag.kvm.description": "Máquinas virtuales y emuladores con el /dev/kvm del host.",
   "spec.proxy": "Proxy",
   "spec.proxy.summary": "A través de un proxy",
   "spec.proxy.mode.none": "Ninguno",
@@ -1395,6 +1424,10 @@ export const es: Messages = {
   "spec.unlimited": "Ilimitado",
   "spec.memoryLimit": "Límite de memoria (MB)",
   "spec.features": "Funciones",
+  "spec.permissions": "Depuración y rendimiento",
+  "spec.permissionsHint":
+    "Cada uno va más allá de lo que Docker da por defecto; active solo lo que el trabajo necesita.",
+  "spec.kvmUnavailable": "Este host de Docker no tiene /dev/kvm.",
   "spec.turnedOffList": "Desactivado en esta instalación: {features}.",
   "spec.gpuUnavailable":
     "Este host no tiene GPU para los escritorios; la página de administración indica el motivo.",

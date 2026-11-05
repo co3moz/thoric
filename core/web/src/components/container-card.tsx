@@ -1,16 +1,20 @@
 import * as React from "react"
 import {
   RiAlertLine,
+  RiBugLine,
   RiPlayCircleLine,
+  RiPulseLine,
   RiCpuLine,
   RiGamepadLine,
   RiMicLine,
   RiComputerLine,
   RiGroupLine,
   RiHourglassLine,
+  RiInstanceLine,
   RiResetLeftLine,
   RiRouteLine,
   RiShieldKeyholeLine,
+  RiTimerFlashLine,
   RiTimerLine,
   RiUploadLine,
   RiVolumeUpLine,
@@ -93,6 +97,30 @@ export function SpecBadges({ spec, className }: { spec: ContainerSpec; className
         <Badge variant="outline" className="text-muted-foreground">
           <RiShieldKeyholeLine />
           {t("spec.vpn")}
+        </Badge>
+      )}
+      {spec.debugger && (
+        <Badge variant="outline" className="text-muted-foreground">
+          <RiBugLine />
+          {t("spec.flag.debugger")}
+        </Badge>
+      )}
+      {spec.realtime && (
+        <Badge variant="outline" className="text-muted-foreground">
+          <RiTimerFlashLine />
+          {t("spec.flag.realtime")}
+        </Badge>
+      )}
+      {spec.profiler && (
+        <Badge variant="outline" className="text-muted-foreground">
+          <RiPulseLine />
+          {t("spec.flag.profiler")}
+        </Badge>
+      )}
+      {spec.kvm && (
+        <Badge variant="outline" className="text-muted-foreground">
+          <RiInstanceLine />
+          {t("spec.flag.kvm")}
         </Badge>
       )}
       {spec.proxy && (

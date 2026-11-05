@@ -119,6 +119,7 @@ impl App {
                 "net.ipv4.conf.all.src_valid_mark=1".into(),
             ]);
         }
+        args.extend(crate::permissions::docker_args(&env.spec));
         // Use an immutable ID, not a tag that could change between inspect and create.
         args.push(env.container_image().to_owned());
         args

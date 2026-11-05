@@ -222,6 +222,10 @@ async fn switched_off_features_are_refused_and_a_container_that_has_them_keeps_t
         config.sudo = false;
         config.gamepad = false;
         config.vpn = false;
+        config.debugger = false;
+        config.realtime = false;
+        config.profiler = false;
+        config.kvm = false;
     }
     let without = || {
         let mut spec = spec();
@@ -237,13 +241,21 @@ async fn switched_off_features_are_refused_and_a_container_that_has_them_keeps_t
         ("sudo", "SUDO_ENABLED"),
         ("gamepad", "GAMEPAD_ENABLED"),
         ("vpn", "VPN_ENABLED"),
+        ("debugger", "DEBUGGER_ENABLED"),
+        ("realtime", "REALTIME_ENABLED"),
+        ("profiler", "PROFILER_ENABLED"),
+        ("kvm", "KVM_ENABLED"),
     ] {
         let mut spec = without();
         match feature {
             "internet" => spec.internet = true,
             "sudo" => spec.sudo = true,
             "gamepad" => spec.gamepad = true,
-            _ => spec.vpn = true,
+            "vpn" => spec.vpn = true,
+            "debugger" => spec.debugger = true,
+            "realtime" => spec.realtime = true,
+            "profiler" => spec.profiler = true,
+            _ => spec.kvm = true,
         }
         let error = app
             .create_container("refused", spec.clone(), Default::default(), "create-job")
@@ -274,6 +286,10 @@ async fn switched_off_features_are_refused_and_a_container_that_has_them_keeps_t
     let mut kept = spec();
     kept.gamepad = true;
     kept.vpn = true;
+    kept.debugger = true;
+    kept.realtime = true;
+    kept.profiler = true;
+    kept.kvm = true;
     let env = Container {
         id: "kept".into(),
         container: "thoric-kept".into(),
@@ -297,6 +313,12 @@ async fn switched_off_features_are_refused_and_a_container_that_has_them_keeps_t
     let args = app.container_args(&env, None);
     assert!(args.iter().any(|arg| arg == "/dev/uinput"), "{args:?}");
     assert!(args.iter().any(|arg| arg == "NET_ADMIN"), "{args:?}");
+    for kept in ["SYS_PTRACE", "PERFMON", "rtprio=95", "/dev/kvm"] {
+        assert!(
+            args.iter().any(|arg| arg == kept),
+            "{kept} missing from {args:?}"
+        );
+    }
     assert!(
         args.iter().any(|arg| arg == "DESKTOP_SUDO=true"),
         "{args:?}"
