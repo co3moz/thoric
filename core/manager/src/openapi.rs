@@ -344,6 +344,10 @@ const INSTALLATION_DEFAULTS: &[&str] = &[
     "microphone",
     "gamepad",
     "vpn",
+    "debugger",
+    "realtime",
+    "profiler",
+    "kvm",
     "proxy",
     // Its idle_stop_minutes.
     "lifecycle",

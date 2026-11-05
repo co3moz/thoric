@@ -393,6 +393,10 @@ export const fr: Messages = {
   "restart.field.sudo": "l'accès sudo",
   "restart.field.gamepad": "la manette",
   "restart.field.vpn": "l'accès VPN",
+  "restart.field.debugger": "l'accès du débogueur",
+  "restart.field.realtime": "l'ordonnancement temps réel",
+  "restart.field.profiler": "le profilage",
+  "restart.field.kvm": "KVM",
   "restart.field.proxy": "l'activation ou la désactivation du proxy",
   "restart.field.hostname": "le nom d'hôte",
   "restart.field.mac_address": "l'adresse MAC",
@@ -1181,6 +1185,14 @@ export const fr: Messages = {
   "settings.about.GAMEPAD_ENABLED": "Si les conteneurs peuvent avoir la manette virtuelle.",
   "settings.about.VPN_ENABLED":
     "Si les conteneurs peuvent avoir l'accès VPN, NET_ADMIN et /dev/net/tun.",
+  "settings.about.DEBUGGER_ENABLED":
+    "Si les conteneurs peuvent laisser un débogueur s'attacher aux programmes en cours, SYS_PTRACE.",
+  "settings.about.REALTIME_ENABLED":
+    "Si les conteneurs peuvent s'ordonnancer en temps réel, relever les priorités et verrouiller la mémoire.",
+  "settings.about.PROFILER_ENABLED":
+    "Si les conteneurs peuvent lire les compteurs de performance, PERFMON.",
+  "settings.about.KVM_ENABLED":
+    "Si les conteneurs peuvent avoir le /dev/kvm de l'hôte, quand il en a un.",
   "settings.about.GPU_DEFAULT": "Si un nouveau conteneur a accès au GPU, sauf demande contraire.",
   "settings.about.INTERNET_DEFAULT":
     "Si un nouveau conteneur a accès à Internet, sauf demande contraire.",
@@ -1192,6 +1204,13 @@ export const fr: Messages = {
   "settings.about.GAMEPAD_DEFAULT":
     "Si un nouveau conteneur a la manette virtuelle, sauf demande contraire.",
   "settings.about.VPN_DEFAULT": "Si un nouveau conteneur a l'accès VPN, sauf demande contraire.",
+  "settings.about.DEBUGGER_DEFAULT":
+    "Si un nouveau conteneur a l'accès du débogueur, sauf demande contraire.",
+  "settings.about.REALTIME_DEFAULT":
+    "Si un nouveau conteneur a l'ordonnancement temps réel, sauf demande contraire.",
+  "settings.about.PROFILER_DEFAULT":
+    "Si un nouveau conteneur a le profilage, sauf demande contraire.",
+  "settings.about.KVM_DEFAULT": "Si un nouveau conteneur a KVM, sauf demande contraire.",
   "settings.about.IDLE_STOP_DEFAULT":
     "Minutes pendant lesquelles le bureau d'un nouveau conteneur peut rester inutilisé avant d'être arrêté, sauf demande contraire ; 0 pour jamais.",
   "settings.about.PROXY_URL":
@@ -1372,6 +1391,16 @@ export const fr: Messages = {
   "spec.flag.gamepad.description": "Une manette virtuelle.",
   "spec.flag.vpn": "VPN",
   "spec.flag.vpn.description": "Un client VPN à l'intérieur peut ouvrir un tunnel.",
+  "spec.flag.debugger": "Débogueur",
+  "spec.flag.debugger.description":
+    "Un débogueur lancé en root peut s'attacher aux programmes en cours.",
+  "spec.flag.realtime": "Temps réel",
+  "spec.flag.realtime.description":
+    "Priorité temps réel et mémoire verrouillée, pour l'audio et la faible latence.",
+  "spec.flag.profiler": "Profileur",
+  "spec.flag.profiler.description": "Compteurs de performance pour perf.",
+  "spec.flag.kvm": "KVM",
+  "spec.flag.kvm.description": "Machines virtuelles et émulateurs sur le /dev/kvm de l'hôte.",
   "spec.proxy": "Proxy",
   "spec.proxy.summary": "Via un proxy",
   "spec.proxy.mode.none": "Aucun",
@@ -1399,6 +1428,10 @@ export const fr: Messages = {
   "spec.unlimited": "Illimité",
   "spec.memoryLimit": "Limite de mémoire (MB)",
   "spec.features": "Fonctionnalités",
+  "spec.permissions": "Débogage et performance",
+  "spec.permissionsHint":
+    "Chacune dépasse ce que Docker donne par défaut ; n'activez que ce dont le travail a besoin.",
+  "spec.kvmUnavailable": "Cet hôte Docker n'a pas de /dev/kvm.",
   "spec.turnedOffList": "Désactivé pour cette installation : {features}.",
   "spec.gpuUnavailable":
     "Cet hôte n'a pas de GPU pour les bureaux ; la page d'administration en donne la raison.",

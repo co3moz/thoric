@@ -44,6 +44,10 @@ impl config::Config {
             sudo: true,
             gamepad: true,
             vpn: true,
+            debugger: true,
+            realtime: true,
+            profiler: true,
+            kvm: true,
             defaults: config::Features {
                 gpu: true,
                 internet: true,
@@ -55,6 +59,8 @@ impl config::Config {
             dri_gpu: true,
             adapter: String::new(),
             gpu_host: Default::default(),
+            // A host the manager does not see, where Docker would say whether it has the device.
+            kvm_host: None,
             // Docker's own default.
             log_driver: Some("json-file".into()),
             architecture: "amd64".into(),

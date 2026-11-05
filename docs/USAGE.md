@@ -264,7 +264,7 @@ docker cp thoric-CONTAINER_ID:/home/desktop/Downloads/result ./result
 
 ## Change a container's settings
 
-Open a container's actions menu and select **Settings** to change its name, resolution, limits, GPU, internet, sudo, sound, microphone, gamepad, VPN access, proxy, [groups](#container-groups), volumes or machine identity. The image cannot change; take a snapshot or reset the container instead. A new resolution reaches the running desktop without a restart, and the desktop gets it again whenever it starts. A change that recreates the container keeps its files, so turning sudo off takes the desktop user's sudo away but not what root changed while it was on, such as a program that runs as root for anyone; reset the container to start clean.
+Open a container's actions menu and select **Settings** to change its name, resolution, limits, GPU, internet, sudo, sound, microphone, gamepad, VPN access, [debugging and performance permissions](#debugging-and-performance), proxy, [groups](#container-groups), volumes or machine identity. The image cannot change; take a snapshot or reset the container instead. A new resolution reaches the running desktop without a restart, and the desktop gets it again whenever it starts. A change that recreates the container keeps its files, so turning sudo off takes the desktop user's sudo away but not what root changed while it was on, such as a program that runs as root for anyone; reset the container to start clean.
 
 **Machine identity** shows the hostname, MAC address and machine ID that software inside the desktop sees, such as a license bound to one machine. A container keeps them through resets, retries and settings changes, while a new container, also one from a snapshot, gets its own. Change them only to let this container take over the identity of one it replaces; they can be changed but not cleared. A container created before Thoric kept identities shows them empty until it is next recreated, and keeps the machine ID of its image until one is set here. The details, including which Docker releases keep the internet interface's MAC address, are in [the API guide](API.md#machine-identity).
 
@@ -303,6 +303,17 @@ The **VPN** button gives a container what a VPN client needs inside it: the `NET
 - **Tailscale**: install it with its install script, start `sudo tailscaled --state=/var/lib/tailscale/tailscaled.state &` and run `sudo tailscale up`. A container without VPN access can still run `tailscaled --tun=userspace-networking`, which offers a SOCKS5 or HTTP proxy instead of a tunnel.
 
 Desktops have no init system, so a client runs until the container stops; start it again after a restart, or run it as a [background application](API.md#applications-and-windows).
+
+## Debugging and performance
+
+**Debugging and performance**, below the features in the create form and in a container's settings, gives a container what debuggers, profilers, audio software and emulators ask of the system. Each is off unless you turn it on, the administrator can turn each off for the installation, and a change creates the container again. Thoric installs none of the tools; install them in the container or in an image built for it.
+
+- **Debugger** lets a debugger attach to a program that already runs: `sudo gdb -p PID`, `sudo strace -p PID` or `sudo py-spy dump --pid PID`. Starting a program under a debugger, `gdb ./program`, needs no permission. An IDE that attaches as the desktop user needs a debugger it starts through `sudo`.
+- **Real-time** lets programs take real-time priorities and lock memory, as PipeWire, JACK and digital audio workstations do, and `nice -n -10` or `chrt -f 50` work without `sudo`. A real-time program is not held to the container's CPU limit.
+- **Profiler** lets `perf` read performance counters: `perf stat ./program` or `perf record -p PID` for the desktop user's own programs, and `sudo perf` for every program on the host, which is why it is a permission.
+- **KVM** gives virtual machines and emulators hardware virtualization, such as the Android emulator or `qemu-system-x86_64 -enable-kvm`. The host needs `/dev/kvm`; in WSL that is nested virtualization. The create form says when the host has none.
+
+What each one opens, and what Thoric never gives, is in [the installation guide](INSTALLATION.md#desktop-permissions).
 
 ## Sound and microphone
 

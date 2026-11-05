@@ -398,6 +398,10 @@ export const en = {
   "restart.field.sudo": "sudo",
   "restart.field.gamepad": "gamepad",
   "restart.field.vpn": "VPN access",
+  "restart.field.debugger": "debugger access",
+  "restart.field.realtime": "real-time scheduling",
+  "restart.field.profiler": "profiling",
+  "restart.field.kvm": "KVM",
   "restart.field.proxy": "turning the proxy on or off",
   "restart.field.hostname": "hostname",
   "restart.field.mac_address": "MAC address",
@@ -1183,6 +1187,13 @@ export const en = {
   "settings.about.GAMEPAD_ENABLED": "Whether containers may have the virtual gamepad.",
   "settings.about.VPN_ENABLED":
     "Whether containers may have VPN access, NET_ADMIN and /dev/net/tun.",
+  "settings.about.DEBUGGER_ENABLED":
+    "Whether containers may let a debugger attach to running programs, SYS_PTRACE.",
+  "settings.about.REALTIME_ENABLED":
+    "Whether containers may schedule in real time, raise priorities and lock memory.",
+  "settings.about.PROFILER_ENABLED": "Whether containers may read performance counters, PERFMON.",
+  "settings.about.KVM_ENABLED":
+    "Whether containers may have the host's /dev/kvm, where it has one.",
   "settings.about.GPU_DEFAULT": "Whether a new container gets GPU access unless it asks otherwise.",
   "settings.about.INTERNET_DEFAULT":
     "Whether a new container gets internet access unless it asks otherwise.",
@@ -1194,6 +1205,13 @@ export const en = {
   "settings.about.GAMEPAD_DEFAULT":
     "Whether a new container gets the virtual gamepad unless it asks otherwise.",
   "settings.about.VPN_DEFAULT": "Whether a new container gets VPN access unless it asks otherwise.",
+  "settings.about.DEBUGGER_DEFAULT":
+    "Whether a new container gets debugger access unless it asks otherwise.",
+  "settings.about.REALTIME_DEFAULT":
+    "Whether a new container gets real-time scheduling unless it asks otherwise.",
+  "settings.about.PROFILER_DEFAULT":
+    "Whether a new container gets profiling unless it asks otherwise.",
+  "settings.about.KVM_DEFAULT": "Whether a new container gets KVM unless it asks otherwise.",
   "settings.about.IDLE_STOP_DEFAULT":
     "Minutes a new container's desktop may go unused before it is stopped, unless it asks otherwise; 0 for never.",
   "settings.about.PROXY_URL":
@@ -1377,6 +1395,15 @@ export const en = {
   "spec.flag.gamepad.description": "A virtual controller device.",
   "spec.flag.vpn": "VPN",
   "spec.flag.vpn.description": "Lets a VPN client inside open a tunnel.",
+  "spec.flag.debugger": "Debugger",
+  "spec.flag.debugger.description": "Lets a debugger run as root attach to running programs.",
+  "spec.flag.realtime": "Real-time",
+  "spec.flag.realtime.description":
+    "Real-time priority and locked memory, for audio and low latency.",
+  "spec.flag.profiler": "Profiler",
+  "spec.flag.profiler.description": "Performance counters for perf.",
+  "spec.flag.kvm": "KVM",
+  "spec.flag.kvm.description": "Virtual machines and emulators on the host's /dev/kvm.",
   "spec.proxy": "Proxy",
   "spec.proxy.summary": "Through a proxy",
   "spec.proxy.mode.none": "None",
@@ -1404,6 +1431,10 @@ export const en = {
   "spec.unlimited": "Unlimited",
   "spec.memoryLimit": "Memory limit (MB)",
   "spec.features": "Features",
+  "spec.permissions": "Debugging and performance",
+  "spec.permissionsHint":
+    "Each goes beyond Docker's defaults, so turn on only what the work needs.",
+  "spec.kvmUnavailable": "This Docker host has no /dev/kvm.",
   "spec.turnedOffList": "Turned off for this installation: {features}.",
   "spec.gpuUnavailable": "This host has no GPU for desktops; the Management page says why.",
   "spec.volumeFirst": "Create a volume first.",

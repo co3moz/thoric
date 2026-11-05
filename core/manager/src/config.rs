@@ -34,6 +34,12 @@ pub struct Config {
     /// Whether desktops may get `NET_ADMIN` and `/dev/net/tun`, which a VPN client needs; see
     /// [`crate::App::installation_allows`].
     pub vpn: bool,
+    /// Whether desktops may have the permissions of [`crate::permissions`]: a debugger that
+    /// attaches to running programs, real-time scheduling, profiling and the host's `/dev/kvm`.
+    pub debugger: bool,
+    pub realtime: bool,
+    pub profiler: bool,
+    pub kvm: bool,
     /// The features of a new container as the installation sets them; see [`Config::feature_defaults`].
     pub defaults: Features,
     pub wsl_gpu: bool,
@@ -44,6 +50,10 @@ pub struct Config {
     /// The GPU devices the Docker host showed when the manager started. Not a setting: the GPU
     /// settings allow the routes, and these decide which of them desktops get; see [`crate::gpu`].
     pub gpu_host: crate::gpu::Host,
+    /// Whether the Docker host had `/dev/kvm` when the manager started, `None` when the manager
+    /// cannot see it. Not a setting: `KVM_ENABLED` allows the device, and this says whether there
+    /// is one; see [`crate::permissions::kvm_host`].
+    pub kvm_host: Option<bool>,
     /// The logging driver Docker gives a container that names none, as `docker info` said when
     /// the manager started, or `None` when it did not answer. Not a setting: desktops get log
     /// options of their own only under json-file; see [`crate::desktop_limits`].
@@ -113,6 +123,10 @@ pub struct Features {
     pub microphone: bool,
     pub gamepad: bool,
     pub vpn: bool,
+    pub debugger: bool,
+    pub realtime: bool,
+    pub profiler: bool,
+    pub kvm: bool,
     /// Minutes a new container's desktop may go unused before it is stopped, `0` for never; see
     /// [`crate::lifecycle`].
     pub idle_stop_minutes: u32,
@@ -150,6 +164,10 @@ pub(crate) const EDITABLE: &[&str] = &[
     "SUDO_ENABLED",
     "GAMEPAD_ENABLED",
     "VPN_ENABLED",
+    "DEBUGGER_ENABLED",
+    "REALTIME_ENABLED",
+    "PROFILER_ENABLED",
+    "KVM_ENABLED",
     "GPU_DEFAULT",
     "INTERNET_DEFAULT",
     "SUDO_DEFAULT",
@@ -157,6 +175,10 @@ pub(crate) const EDITABLE: &[&str] = &[
     "MICROPHONE_DEFAULT",
     "GAMEPAD_DEFAULT",
     "VPN_DEFAULT",
+    "DEBUGGER_DEFAULT",
+    "REALTIME_DEFAULT",
+    "PROFILER_DEFAULT",
+    "KVM_DEFAULT",
     "IDLE_STOP_DEFAULT",
     "UPLOAD_MAX_MB",
     "IMAGE_ARCHIVE_MAX_MB",
@@ -421,8 +443,12 @@ impl Config {
             sudo: flag("SUDO_ENABLED", true)?,
             gamepad: flag("GAMEPAD_ENABLED", true)?,
             vpn: flag("VPN_ENABLED", true)?,
+            debugger: flag("DEBUGGER_ENABLED", true)?,
+            realtime: flag("REALTIME_ENABLED", true)?,
+            profiler: flag("PROFILER_ENABLED", true)?,
+            kvm: flag("KVM_ENABLED", true)?,
             // As the create form chose before these settings: GPU access where the installation
-            // has it, internet and sudo, and neither sound, a gamepad nor a VPN.
+            // has it, internet and sudo, and neither sound, a gamepad, a VPN nor a permission.
             defaults: Features {
                 gpu: flag("GPU_DEFAULT", true)?,
                 internet: flag("INTERNET_DEFAULT", true)?,
@@ -431,6 +457,10 @@ impl Config {
                 microphone: flag("MICROPHONE_DEFAULT", false)?,
                 gamepad: flag("GAMEPAD_DEFAULT", false)?,
                 vpn: flag("VPN_DEFAULT", false)?,
+                debugger: flag("DEBUGGER_DEFAULT", false)?,
+                realtime: flag("REALTIME_DEFAULT", false)?,
+                profiler: flag("PROFILER_DEFAULT", false)?,
+                kvm: flag("KVM_DEFAULT", false)?,
                 idle_stop_minutes: crate::lifecycle::idle_stop_default(
                     var("IDLE_STOP_DEFAULT").as_deref(),
                 )?,
@@ -440,6 +470,7 @@ impl Config {
             dri_gpu: flag("DRI_GPU", true)?,
             adapter: var("GPU_ADAPTER").unwrap_or_default(),
             gpu_host: crate::gpu::Host::default(),
+            kvm_host: None,
             log_driver: None,
             architecture: crate::pulls::image_architecture(None),
             user_namespaces: flag("DESKTOP_USER_NAMESPACES", true)?,
@@ -554,6 +585,10 @@ impl Config {
             value("SUDO_ENABLED", json!(self.sudo)),
             value("GAMEPAD_ENABLED", json!(self.gamepad)),
             value("VPN_ENABLED", json!(self.vpn)),
+            value("DEBUGGER_ENABLED", json!(self.debugger)),
+            value("REALTIME_ENABLED", json!(self.realtime)),
+            value("PROFILER_ENABLED", json!(self.profiler)),
+            value("KVM_ENABLED", json!(self.kvm)),
             value("GPU_DEFAULT", json!(self.defaults.gpu)),
             value("INTERNET_DEFAULT", json!(self.defaults.internet)),
             value("SUDO_DEFAULT", json!(self.defaults.sudo)),
@@ -561,6 +596,10 @@ impl Config {
             value("MICROPHONE_DEFAULT", json!(self.defaults.microphone)),
             value("GAMEPAD_DEFAULT", json!(self.defaults.gamepad)),
             value("VPN_DEFAULT", json!(self.defaults.vpn)),
+            value("DEBUGGER_DEFAULT", json!(self.defaults.debugger)),
+            value("REALTIME_DEFAULT", json!(self.defaults.realtime)),
+            value("PROFILER_DEFAULT", json!(self.defaults.profiler)),
+            value("KVM_DEFAULT", json!(self.defaults.kvm)),
             value("IDLE_STOP_DEFAULT", json!(self.defaults.idle_stop_minutes)),
             value("UPLOAD_MAX_MB", mib(self.upload_limit)),
             value("IMAGE_ARCHIVE_MAX_MB", mib(self.archive_limit)),
@@ -619,6 +658,10 @@ impl Config {
             microphone: self.defaults.microphone && self.microphone && audio,
             gamepad: self.defaults.gamepad && self.gamepad,
             vpn: self.defaults.vpn && self.vpn,
+            debugger: self.defaults.debugger && self.debugger,
+            realtime: self.defaults.realtime && self.realtime,
+            profiler: self.defaults.profiler && self.profiler,
+            kvm: self.defaults.kvm && crate::permissions::kvm_enabled(self),
             idle_stop_minutes: self.defaults.idle_stop_minutes,
         }
     }

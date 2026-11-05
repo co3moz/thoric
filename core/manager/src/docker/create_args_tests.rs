@@ -14,6 +14,10 @@ fn a_recreated_container_gets_every_setting_from_the_commit_that_holds_its_files
     spec.gpu = true;
     spec.gamepad = true;
     spec.vpn = true;
+    spec.debugger = true;
+    spec.realtime = true;
+    spec.profiler = true;
+    spec.kvm = true;
     spec.shm_mb = 1024;
     spec.memory_mb = Some(2048);
     spec.mounts = vec![Mount {
@@ -55,6 +59,10 @@ fn a_recreated_container_gets_every_setting_from_the_commit_that_holds_its_files
         "--cap-add NET_ADMIN",
         "--device /dev/net/tun",
         "--sysctl net.ipv4.conf.all.src_valid_mark=1",
+        "--cap-add SYS_PTRACE",
+        "--cap-add PERFMON",
+        "--ulimit rtprio=95",
+        "--device /dev/kvm",
         "--label thoric.environment=args-id",
     ] {
         assert!(args.contains(flag), "{flag} missing from {args}");

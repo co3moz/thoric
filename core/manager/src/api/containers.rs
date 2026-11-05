@@ -180,6 +180,10 @@ pub(crate) fn creation_request(
             ("audio", defaults.audio),
             ("gamepad", defaults.gamepad),
             ("vpn", defaults.vpn),
+            ("debugger", defaults.debugger),
+            ("realtime", defaults.realtime),
+            ("profiler", defaults.profiler),
+            ("kvm", defaults.kvm),
         ] {
             request.entry(feature).or_insert(json!(default));
         }

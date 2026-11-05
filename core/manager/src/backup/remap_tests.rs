@@ -163,6 +163,10 @@ fn what_this_installation_disables_is_switched_off() {
     spec.sudo = true;
     spec.gamepad = true;
     spec.vpn = true;
+    spec.debugger = true;
+    spec.realtime = true;
+    spec.profiler = true;
+    spec.kvm = true;
     spec.audio = true;
     spec.microphone = true;
     spec.gpu = true;
@@ -184,12 +188,16 @@ fn what_this_installation_disables_is_switched_off() {
     assert!(config.proxy.is_some());
     let mut kept = spec.clone();
     assert!(switch_off_disabled(&config, &mut kept).is_empty());
-    assert!(kept.gamepad && kept.vpn && kept.proxy.is_some());
+    assert!(kept.gamepad && kept.vpn && kept.kvm && kept.proxy.is_some());
 
     config.internet = false;
     config.sudo = false;
     config.gamepad = false;
     config.vpn = false;
+    config.debugger = false;
+    config.realtime = false;
+    config.profiler = false;
+    config.kvm = false;
     config.audio = false;
     config.proxy = None;
     let off = switch_off_disabled(&config, &mut spec);
@@ -200,12 +208,17 @@ fn what_this_installation_disables_is_switched_off() {
             "sudo",
             "gamepad",
             "vpn",
+            "debugger",
+            "realtime",
+            "profiler",
+            "kvm",
             "audio",
             "microphone",
             "proxy"
         ]
     );
     assert!(!spec.internet && !spec.sudo && !spec.gamepad && !spec.vpn);
+    assert!(!spec.debugger && !spec.realtime && !spec.profiler && !spec.kvm);
     assert!(!spec.audio && !spec.microphone && spec.proxy.is_none());
     // The GPU stays asked for: the container then says why it was not created.
     assert!(spec.gpu);

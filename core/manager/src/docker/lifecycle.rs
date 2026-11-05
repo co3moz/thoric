@@ -28,6 +28,9 @@ impl App {
         if spec.vpn && !self.config.vpn {
             bail!("VPN access is disabled for this installation (VPN_ENABLED=false)");
         }
+        if let Some(refusal) = crate::permissions::refusal(&self.config, spec) {
+            bail!(refusal);
+        }
         if spec.proxy == Some(crate::outbound::ProxyChoice::Installation)
             && self.config.proxy.is_none()
         {
@@ -56,6 +59,7 @@ impl App {
                 "VPN access needs /dev/net/tun on the Docker host, which this host does not have; use the container without vpn",
             );
         }
+        let error = crate::permissions::explain(&env.spec, error);
         if env.spec.gpu {
             crate::gpu::explain(error, &crate::gpu::routes(&self.config).used)
         } else {
