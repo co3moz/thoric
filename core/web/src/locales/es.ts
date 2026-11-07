@@ -2194,9 +2194,11 @@ export const es: Messages = {
     "Las instancias se llaman {name}-1, {name}-2 y así, y el endpoint del grupo es /mcp/{name}.",
   "scale.min": "Mantener",
   "scale.max": "Como máximo",
-  "scale.idleDelete": "Eliminar inactivas tras (minutos)",
+  "scale.idleDelete": "Eliminar instancias inactivas tras",
   "scale.limitsHint":
-    "El grupo mantiene sus instancias de número más bajo, tantas como diga Mantener: se crean con él, y ni un agente ni la eliminación por inactividad las quitan. 0 minutos nunca elimina una instancia inactiva.",
+    "El grupo mantiene sus instancias de número más bajo, tantas como diga Mantener: se crean con él, y ni un agente ni la eliminación por inactividad las quitan.",
+  "scale.idleDeleteHint":
+    "Una instancia además de las que el grupo mantiene que nadie usó durante este tiempo se elimina con los volúmenes creados para ella.",
   "scale.volumes": "Volúmenes de las instancias nuevas",
   "scale.volumesHint":
     "Compartido monta el mismo volumen en cada instancia, así que cada una ve lo que las otras escriben ahí. Nuevo por instancia da a cada una un volumen vacío propio, que se elimina con ella. Primera mantiene el volumen para la instancia 1 y da volúmenes nuevos a las demás.",

@@ -2167,9 +2167,11 @@ export const tr: Messages = {
     "Örnekler {name}-1, {name}-2 diye adlanır, grubun endpoint'i /mcp/{name} olur.",
   "scale.min": "Tut",
   "scale.max": "En fazla",
-  "scale.idleDelete": "Boştayken silme (dakika)",
+  "scale.idleDelete": "Boştaki örnekleri silme süresi",
   "scale.limitsHint":
-    "Grup, Tut kadar en düşük numaralı örneğini tutar: grupla birlikte oluşturulurlar, ne bir ajan ne de boşta silme onları kaldırır. 0 dakika boştaki örneği hiç silmez.",
+    "Grup, Tut kadar en düşük numaralı örneğini tutar: grupla birlikte oluşturulurlar, ne bir ajan ne de boşta silme onları kaldırır.",
+  "scale.idleDeleteHint":
+    "Grubun tuttuklarının dışındaki bir örnek bu kadar süre kullanılmazsa, onun için oluşturulan volume'lerle birlikte silinir.",
   "scale.volumes": "Yeni örneklerin volume'leri",
   "scale.volumesHint":
     "Ortak, her örneğe aynı volume'ü bağlar; her örnek diğerlerinin oraya yazdığını görür. Örnek başına yeni, her örneğe kendine ait boş bir volume verir, örnekle birlikte silinir. İlki, volume'ü 1. örnekte tutar, diğerlerine yenisini verir.",

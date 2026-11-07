@@ -161,7 +161,7 @@ export function ScaleSetDialog({ name, ...props }: DialogProps & { name: string 
             <DialogTitle>{t("scale.settingsTitle", { name })}</DialogTitle>
             <DialogDescription>{t("scale.settingsDescription")}</DialogDescription>
           </DialogHeader>
-          <ScalingFields draft={draft} onChange={setDraft} targets={targets} name={name} />
+          <ScalingFields named draft={draft} onChange={setDraft} targets={targets} name={name} />
           <FieldError>{error}</FieldError>
           <Footer busy={busy} label={t("common.save")} />
         </form>

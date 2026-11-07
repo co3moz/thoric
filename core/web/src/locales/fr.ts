@@ -2205,9 +2205,11 @@ export const fr: Messages = {
     "Les instances s'appellent {name}-1, {name}-2 et ainsi de suite, et le point d'accès du groupe est /mcp/{name}.",
   "scale.min": "Garder",
   "scale.max": "Au plus",
-  "scale.idleDelete": "Supprimer inactive après (minutes)",
+  "scale.idleDelete": "Supprimer les instances inactives après",
   "scale.limitsHint":
-    "Le groupe garde ses instances aux numéros les plus bas, autant que Garder l'indique : elles sont créées avec lui, et ni un agent ni la suppression pour inactivité ne les retire. 0 minute ne supprime jamais une instance inactive.",
+    "Le groupe garde ses instances aux numéros les plus bas, autant que Garder l'indique : elles sont créées avec lui, et ni un agent ni la suppression pour inactivité ne les retire.",
+  "scale.idleDeleteHint":
+    "Une instance au-delà de celles que le groupe garde, que rien n'a utilisée pendant ce temps, est supprimée avec les volumes créés pour elle.",
   "scale.volumes": "Volumes des nouvelles instances",
   "scale.volumesHint":
     "Partagé monte le même volume dans chaque instance, si bien que chacune voit ce que les autres y écrivent. Nouveau par instance donne à chacune un volume vide à elle, supprimé avec elle. Première garde le volume pour l'instance 1 et en donne de nouveaux aux autres.",
