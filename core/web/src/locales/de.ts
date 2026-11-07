@@ -403,6 +403,7 @@ export const de: Messages = {
   "restart.field.mac_address": "MAC-Adresse",
   "restart.field.machine_id": "Maschinen-ID",
   "restart.field.shm_mb": "gemeinsamer Speicher",
+  "restart.field.tmp_mb": "/tmp-Größe",
   "restart.field.mounts": "Volumes",
   "restart.field.cpus": "Entfernen des CPU-Limits",
   "restart.field.memory_mb": "Entfernen des Speicherlimits",
@@ -1430,6 +1431,9 @@ export const de: Messages = {
   "spec.resolution.height": "Höhe",
   "spec.resolution.customHint": "Jede Größe von {min} bis {max}.",
   "spec.sharedMemory": "Gemeinsamer Speicher (MB)",
+  "spec.tmpSize": "/tmp-Größe (MB)",
+  "spec.inMemoryHint":
+    "Gemeinsamer Speicher und /tmp liegen im Arbeitsspeicher und zählen zum Speicherlimit.",
   "spec.cpuLimit": "CPU-Limit",
   "spec.unlimited": "Unbegrenzt",
   "spec.memoryLimit": "Speicherlimit (MB)",

@@ -116,6 +116,7 @@ pub(super) fn policy(tool: &str) -> Option<&'static [Rule]> {
             ("cpus", Text, false),
             ("memory_mb", Text, false),
             ("shm_mb", Text, false),
+            ("tmp_mb", Text, false),
             ("mounts", Whole, false),
             ("lifecycle", Whole, false),
             // Secret compose values are among these.
@@ -153,6 +154,7 @@ pub(super) fn policy(tool: &str) -> Option<&'static [Rule]> {
             ("cpus", Text, false),
             ("memory_mb", Text, false),
             ("shm_mb", Text, false),
+            ("tmp_mb", Text, false),
             ("mounts", Whole, false),
             ("lifecycle", Whole, false),
         ],

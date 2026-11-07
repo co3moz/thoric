@@ -52,7 +52,8 @@ fn name_internet_and_limits_change_in_place_while_creation_settings_restart() {
         &old,
         &request(json!({
             "resolution": "1280x720", "gpu": true, "audio": true, "microphone": true, "sudo": false,
-            "gamepad": true, "shm_mb": 1024, "mounts": [{"volume": "work", "target": "/workspace"}]
+            "gamepad": true, "shm_mb": 1024, "tmp_mb": 2048,
+            "mounts": [{"volume": "work", "target": "/workspace"}]
         })),
     )
     .unwrap();
@@ -68,6 +69,7 @@ fn name_internet_and_limits_change_in_place_while_creation_settings_restart() {
                 "sudo",
                 "gamepad",
                 "shm_mb",
+                "tmp_mb",
                 "mounts"
             ]
         }
@@ -143,6 +145,7 @@ fn every_setting_that_recreates_the_container_is_named_in_the_dashboards_warning
         cpus: None,
         memory_mb: None,
         shm_mb: 1024,
+        tmp_mb: 2048,
         mounts: vec![Mount {
             volume: "work".into(),
             target: "/workspace".into(),
@@ -151,7 +154,7 @@ fn every_setting_that_recreates_the_container_is_named_in_the_dashboards_warning
         ..old.clone()
     };
     let restart = classify(&old, &new).restart;
-    assert_eq!(restart.len(), 14, "{restart:?}");
+    assert_eq!(restart.len(), 15, "{restart:?}");
     let catalog = include_str!("../../web/src/locales/en.ts");
     for name in restart {
         assert!(
@@ -202,6 +205,7 @@ fn requests_cannot_change_the_image_or_reach_unknown_or_invalid_settings() {
     assert!(error.contains("Enable audio"), "{error}");
     assert!(merged_spec(&current, &request(json!({"resolution": "10x10"}))).is_err());
     assert!(merged_spec(&current, &request(json!({"shm_mb": "large"}))).is_err());
+    assert!(merged_spec(&current, &request(json!({"tmp_mb": 32}))).is_err());
     assert!(
         merged_spec(
             &current,

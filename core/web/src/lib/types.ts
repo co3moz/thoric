@@ -45,6 +45,8 @@ export type ContainerSpec = {
   cpus: number | null
   memory_mb: number | null
   shm_mb: number
+  /** The size of /tmp, a tmpfs kept in memory. */
+  tmp_mb: number
   mounts: Mount[]
   /** When Thoric stops or deletes the container by itself; absent before a container exists. */
   lifecycle?: Lifecycle
