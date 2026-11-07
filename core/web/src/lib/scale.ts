@@ -149,3 +149,38 @@ export function bySet(containers: ContainerItem[], sets: ScaleSet[]) {
 
 /** The instances a set has, also those being made, and how many more it may have. */
 export const room = (set: ScaleSet) => Math.max(0, set.max - set.instances.length)
+
+/** One entry of the sidebar's running containers: a container, or a scale set's running instances. */
+export type RunningEntry =
+  | { kind: "container"; item: ContainerItem }
+  | { kind: "set"; set: string; instances: ContainerItem[] }
+
+/**
+ * The running containers as the sidebar lists them, first to last: a scale set's instances
+ * together under the set, in the order of their numbers, at the place of its first instance, and
+ * every other container by when it was created.
+ */
+export function runningEntries(running: ContainerItem[]): RunningEntry[] {
+  const byAge = [...running].sort(
+    (a, b) => a.created_at - b.created_at || a.spec.name.localeCompare(b.spec.name)
+  )
+  const entries: RunningEntry[] = []
+  for (const item of byAge) {
+    const set = item.scale?.set
+    if (!set) {
+      entries.push({ kind: "container", item })
+      continue
+    }
+    const entry = entries.find((other) => other.kind === "set" && other.set === set)
+    if (entry?.kind === "set") entry.instances.push(item)
+    else entries.push({ kind: "set", set, instances: [item] })
+  }
+  for (const entry of entries)
+    if (entry.kind === "set")
+      entry.instances.sort((a, b) => (a.scale?.number ?? 0) - (b.scale?.number ?? 0))
+  return entries
+}
+
+/** How many containers the entries hold. */
+export const entryCount = (entries: RunningEntry[]) =>
+  entries.reduce((sum, entry) => sum + (entry.kind === "set" ? entry.instances.length : 1), 0)

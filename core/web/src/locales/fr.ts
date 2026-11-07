@@ -1004,6 +1004,7 @@ export const fr: Messages = {
   "nav.running": "Conteneurs actifs",
   "nav.noneRunning": "Aucun conteneur en cours d'exécution.",
   "nav.more": "{count} de plus",
+  "nav.instancesRunning": "{count} en cours",
   "nav.toggleSidebar": "Afficher ou masquer la barre latérale",
   "nav.sidebar": "Barre latérale",
   "nav.sidebarHint": "Affiche la barre latérale mobile.",

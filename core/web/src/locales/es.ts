@@ -993,6 +993,7 @@ export const es: Messages = {
   "nav.running": "Contenedores en ejecución",
   "nav.noneRunning": "No hay ningún contenedor en ejecución.",
   "nav.more": "{count} más",
+  "nav.instancesRunning": "{count} en ejecución",
   "nav.toggleSidebar": "Mostrar u ocultar barra lateral",
   "nav.sidebar": "Barra lateral",
   "nav.sidebarHint": "Muestra la barra lateral móvil.",
