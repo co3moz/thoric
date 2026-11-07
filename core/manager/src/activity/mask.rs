@@ -52,7 +52,11 @@ pub(super) type Rule = (&'static str, Keep, bool);
 
 /// The arguments every Thoric tool keeps: the container, by ID on `/mcp` and by its alias on
 /// an endpoint of several.
-const COMMON: &[Rule] = &[("container_id", Text, false), ("container", Text, false)];
+const COMMON: &[Rule] = &[
+    ("container_id", Text, false),
+    ("container", Text, false),
+    ("instance", Text, false),
+];
 
 /// What a transfer link's operation keeps: the paths, names and volumes it names.
 const TRANSFER: &[Rule] = &[
@@ -119,6 +123,7 @@ pub(super) fn policy(tool: &str) -> Option<&'static [Rule]> {
             ("tmp_mb", Text, false),
             ("mounts", Whole, false),
             ("lifecycle", Whole, false),
+            ("scaling", Whole, false),
             // Secret compose values are among these.
             ("parameters", Keys, false),
         ],
@@ -179,6 +184,13 @@ pub(super) fn policy(tool: &str) -> Option<&'static [Rule]> {
         ],
         "set_image_compose" => &[("image_id", Text, true)],
         "snapshot" => &[("name", Text, true), ("description", Text, false)],
+        "list_instances" => &[("set", Text, true)],
+        "create_instance" => &[
+            ("set", Text, true),
+            ("volumes", Whole, false),
+            ("note", Text, false),
+        ],
+        "delete_instance" => &[("set", Text, true), ("instance", Text, true)],
         "duplicate_container" => &[
             ("name", Text, true),
             ("start", Text, false),

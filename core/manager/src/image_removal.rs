@@ -63,6 +63,7 @@ impl App {
         let info = self.inspect("image", &image.reference).await?;
         let image_id = info["Id"].as_str().unwrap_or_default();
         self.refuse_used(image_id)?;
+        self.refuse_set(&[&image.reference, image_id])?;
         let removed = self.remove_docker_image(&image.reference, image_id).await?;
         Ok(json!({"id": image.id, "name": image.name, "deleted": true, "image_removed": removed}))
     }
@@ -71,6 +72,9 @@ impl App {
     /// image. The caller holds the image's lock.
     async fn delete_saved_image(&self, id: &str) -> Result<Value> {
         let record: ImageRecord = self.db.get("image", id)?;
+        // A scale set creates its instances from the image by the name it was given, whatever
+        // keeps the Docker image.
+        self.refuse_set(&[&record.id, &record.reference, &record.image_id])?;
         let removed = if record.kind == "import" {
             false
         } else {
@@ -232,6 +236,23 @@ impl App {
             Ok(())
         } else {
             Err(Error(StatusCode::CONFLICT, in_use(&users)))
+        }
+    }
+
+    /// Refuse while a scale set creates its instances from an image `names` names.
+    fn refuse_set(&self, names: &[&str]) -> Result<()> {
+        let sets = self
+            .db
+            .list_complete::<crate::scale::ScaleSet>(crate::scale::SETS)?;
+        match crate::scale::starts_from(&sets, &crate::scale::templates(self)?, names) {
+            Some(set) => Err(Error(
+                StatusCode::CONFLICT,
+                format!(
+                    "The scale set {} creates its instances from this image; delete that set first",
+                    set.name
+                ),
+            )),
+            None => Ok(()),
         }
     }
 

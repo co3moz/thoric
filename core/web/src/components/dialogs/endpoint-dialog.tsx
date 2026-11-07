@@ -11,6 +11,7 @@ import {
   RiKeyboardLine,
   RiPlugLine,
   RiShutDownLine,
+  RiStackLine,
   RiTerminalBoxLine,
   type RemixiconComponentType,
 } from "@remixicon/react"
@@ -54,6 +55,7 @@ import { closeDialog, openDialog, useDraft } from "@/lib/dialogs"
 import { formatNumber, plural, rich, t } from "@/lib/i18n"
 import {
   ALIAS_PATTERN,
+  defaultAlias,
   ENDPOINT_NAME_PATTERN,
   endpointUrl,
   grantDraft,
@@ -66,7 +68,14 @@ import {
   type GrantDraft,
 } from "@/lib/mcp"
 import { createEndpoint, updateEndpoint } from "@/lib/mcp-api"
-import { useContainers, useMcpEndpoints, useMcpScopes, useMcpServers } from "@/lib/queries"
+import {
+  useContainers,
+  useMcpEndpoints,
+  useMcpScopes,
+  useMcpServers,
+  useScaleSets,
+} from "@/lib/queries"
+import type { ScaleSet } from "@/lib/scale"
 import type { ContainerItem, DesktopServer, McpScope, McpScopes, ServerTool } from "@/lib/types"
 import { useSubmit } from "./container-dialogs"
 import type { DialogProps } from "./side-drawer"
@@ -82,6 +91,7 @@ const SCOPE_ICONS: Record<McpScope, RemixiconComponentType> = {
   commands: RiTerminalBoxLine,
   media: RiFilmLine,
   power: RiShutDownLine,
+  scale: RiStackLine,
 }
 /** A scope's icon; a scope a newer manager added gets a plain one. */
 const scopeIcon = (scope: string): RemixiconComponentType =>
@@ -175,9 +185,14 @@ function GrantFields({
 }) {
   const id = React.useId()
   const set = (patch: Partial<GrantDraft>) => onChange({ ...draft, ...patch })
-  const name = container?.spec.name ?? draft.container_name
-  // Every scope this release knows, and any a newer manager offers besides.
-  const offered = orderScopes([...SCOPES, ...(scopes?.scopes.map((scope) => scope.id) ?? [])])
+  const name = draft.set
+    ? t("scale.setOf", { name: draft.set })
+    : (container?.spec.name ?? draft.container_name)
+  // Every scope this release knows, and any a newer manager offers besides; `scale` only for a set.
+  const offered = orderScopes([
+    ...SCOPES,
+    ...(scopes?.scopes.map((scope) => scope.id) ?? []),
+  ]).filter((scope) => !!draft.set || scope !== "scale")
   // A container tool keeps its own name on the endpoint.
   const toolsOf = (scope: McpScope): ServerTool[] =>
     (scopes?.scopes.find((entry) => entry.id === scope)?.tools ?? []).map((tool) => ({
@@ -207,7 +222,7 @@ function GrantFields({
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <ConceptIcon concept="container" className="size-4 shrink-0" />
           <span className="text-sm font-medium break-all">{name}</span>
-          {!container && (
+          {!container && !draft.set && (
             <Badge variant="outline" className="text-warning">
               {t("mcp.grant.deleted")}
             </Badge>
@@ -359,6 +374,26 @@ function GrantFields({
   )
 }
 
+/** The picker's value of a scale set, beside the containers' IDs. */
+const SET_CHOICE = "set:"
+
+/**
+ * The desktop servers a grant chooses from: its container's, or for a scale set those of its
+ * instances, each name once, since they come from one image.
+ */
+function grantServers(grant: GrantDraft, servers: DesktopServer[], sets: ScaleSet[]) {
+  if (!grant.set) return servers.filter((server) => server.container_id === grant.container_id)
+  const members = new Set(
+    sets.find((set) => set.name === grant.set)?.instances.map((entry) => entry.container_id) ?? []
+  )
+  const seen = new Set<string>()
+  return servers.filter((server) => {
+    if (!members.has(server.container_id) || seen.has(server.name)) return false
+    seen.add(server.name)
+    return true
+  })
+}
+
 /**
  * Creates an MCP endpoint, or changes which containers an existing one reaches and what it may do
  * there. Its name is its URL, so an existing endpoint keeps it.
@@ -372,6 +407,7 @@ export function EndpointDialog({ name: existing, ...props }: DialogProps & { nam
   const scopes = useMcpScopes().data
   const containers = useContainers().data ?? []
   const servers = useMcpServers().data ?? []
+  const sets = useScaleSets().data ?? []
   const [name, setName] = React.useState(existing ?? "")
   const [grants, setGrants] = React.useState<GrantDraft[]>(
     () => endpoint?.grants.map(grantDraft) ?? []
@@ -379,10 +415,29 @@ export function EndpointDialog({ name: existing, ...props }: DialogProps & { nam
   useDraft({ name, grants })
   const { busy, error, submit } = useSubmit()
   const id = React.useId()
-  const available = containers.filter(
-    (container) => !grants.some((grant) => grant.container_id === container.id)
-  )
+  // A scale set's grant is its endpoint's only one.
+  const ofSet = grants.some((grant) => grant.set)
+  const available = ofSet
+    ? []
+    : containers.filter((container) => !grants.some((grant) => grant.container_id === container.id))
+  const availableSets = grants.length ? [] : sets
   const add = (containerId: string) => {
+    if (containerId.startsWith(SET_CHOICE)) {
+      const set = containerId.slice(SET_CHOICE.length)
+      setGrants([
+        {
+          container_id: "",
+          set,
+          container_name: set,
+          alias: defaultAlias(set),
+          scopes: orderScopes([...(scopes?.default ?? ["view"]), "scale"]),
+          all: true,
+          servers: [],
+          excluded: [],
+        },
+      ])
+      return
+    }
     const container = containers.find((entry) => entry.id === containerId)
     if (!container) return
     // Without the manager's defaults the new container starts with the least: viewing.
@@ -460,7 +515,11 @@ export function EndpointDialog({ name: existing, ...props }: DialogProps & { nam
                 <FieldLegend variant="label" className="mb-0">
                   {t("mcp.endpoint.containers")}
                 </FieldLegend>
-                <Select value="" onValueChange={add} disabled={!available.length}>
+                <Select
+                  value=""
+                  onValueChange={add}
+                  disabled={!available.length && !availableSets.length}
+                >
                   <SelectTrigger
                     size="sm"
                     className="w-full sm:w-64"
@@ -468,7 +527,9 @@ export function EndpointDialog({ name: existing, ...props }: DialogProps & { nam
                   >
                     <SelectValue
                       placeholder={
-                        available.length ? t("mcp.grant.addPlaceholder") : t("mcp.grant.allAdded")
+                        available.length || availableSets.length
+                          ? t("mcp.grant.addPlaceholder")
+                          : t("mcp.grant.allAdded")
                       }
                     />
                   </SelectTrigger>
@@ -481,16 +542,26 @@ export function EndpointDialog({ name: existing, ...props }: DialogProps & { nam
                         </SelectItem>
                       ))}
                     </SelectGroup>
+                    {availableSets.length > 0 && (
+                      <SelectGroup>
+                        {availableSets.map((set) => (
+                          <SelectItem key={set.name} value={`${SET_CHOICE}${set.name}`}>
+                            <RiStackLine />
+                            {t("scale.setOf", { name: set.name })}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
               {grants.length ? (
                 grants.map((grant, index) => (
                   <GrantFields
-                    key={grant.container_id}
+                    key={grant.set ?? grant.container_id}
                     draft={grant}
                     container={containers.find((entry) => entry.id === grant.container_id)}
-                    servers={servers.filter((server) => server.container_id === grant.container_id)}
+                    servers={grantServers(grant, servers, sets)}
                     scopes={scopes}
                     onChange={(next) =>
                       setGrants(grants.map((other, at) => (at === index ? next : other)))

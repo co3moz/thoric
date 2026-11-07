@@ -81,6 +81,7 @@ pub(super) fn server(app: &App, container_id: &str, name: &str, tools: &[&str]) 
 pub(super) fn grant(container_id: &str, alias: &str, scopes: &[Scope]) -> Grant {
     Grant {
         container_id: container_id.into(),
+        set: None,
         alias: alias.into(),
         scopes: scopes.to_vec(),
         servers: Servers::All,
@@ -805,6 +806,7 @@ fn excluded_tools_are_checked_against_the_scopes_and_kept_for_servers_not_known_
         .unwrap();
     let request = |scopes: &[Scope], excluded: &[&str]| GrantRequest {
         container_id: "c1".into(),
+        set: None,
         alias: None,
         scopes: scopes.to_vec(),
         servers: Servers::All,
@@ -946,6 +948,7 @@ fn grants_name_existing_containers_once_with_their_own_aliases() {
         .unwrap();
     let request = |id: &str, alias: Option<&str>| GrantRequest {
         container_id: id.into(),
+        set: None,
         alias: alias.map(str::to_owned),
         scopes: vec![Scope::View, Scope::View],
         servers: Servers::All,
@@ -2108,5 +2111,285 @@ async fn a_containers_servers_are_read_by_its_own_ids_alone() {
             r#""Zeta"/"chrome""#,
             r#""Zeta"/"web""#
         ]
+    );
+}
+
+/// A scale set `re` of `instances`, numbers with their containers, with the shared volume
+/// `analysis` and a folder each instance gets of its own.
+fn scale_set(app: &App, instances: &[(u32, &str)], max: u32) {
+    let mut spec = crate::test_support::spec();
+    spec.mounts = vec![
+        crate::model::Mount {
+            volume: "analysis".into(),
+            target: "/home/desktop/analysis".into(),
+            readonly: false,
+        },
+        crate::model::Mount {
+            volume: "profile".into(),
+            target: "/home/desktop/.config/chrome-agent".into(),
+            readonly: false,
+        },
+    ];
+    let set = json!({
+        "name": "re", "created_at": 1, "template": spec, "min": 1, "max": max,
+        "volumes": {"/home/desktop/.config/chrome-agent": "new"},
+        "instances": instances.iter().map(|(number, id)| (number.to_string(), json!({"container_id": id}))).collect::<serde_json::Map<_, _>>(),
+    });
+    app.db.put(crate::scale::SETS, "re", &set).unwrap();
+}
+
+fn set_grant(scopes: &[Scope]) -> Grant {
+    Grant {
+        container_id: String::new(),
+        set: Some("re".into()),
+        alias: "re".into(),
+        scopes: scopes.to_vec(),
+        servers: Servers::All,
+        excluded_tools: Vec::new(),
+    }
+}
+
+#[test]
+fn an_endpoint_of_a_scale_set_takes_instance_and_offers_each_server_tool_once() {
+    let app = app(false);
+    for (id, name) in [("c1", "re-1"), ("c2", "re-2")] {
+        app.db.put(CONTAINERS, id, &container(id, name)).unwrap();
+        server(&app, id, "ghidra", &["decompile"]);
+    }
+    // A server's tool with an `instance` of its own takes the instance by another name.
+    let mut own = tool("start");
+    own.input_schema = Arc::new(
+        json!({"type":"object","properties":{"instance":{"type":"string"}},"required":["instance"]})
+            .as_object()
+            .unwrap()
+            .clone(),
+    );
+    let record = ServerRecord {
+        container_id: "c1".into(),
+        name: "qemu".into(),
+        source: Source::Image,
+        spec: Some(stdio("qemu-mcp")),
+        tools: vec![own],
+        tools_at: Some(1),
+        error: None,
+    };
+    app.db
+        .put(SERVERS, &ServerRecord::key("c1", "qemu"), &record)
+        .unwrap();
+    scale_set(&app, &[(1, "c1"), (2, "c2")], 4);
+    let set = endpoint(
+        "re",
+        vec![set_grant(&[Scope::View, Scope::Power, Scope::Scale])],
+    );
+    let entries = catalog(&app, &set);
+    let offered = names(&app, &set);
+    for name in [
+        "list_instances",
+        "screenshot",
+        "container_action",
+        "create_instance",
+        "delete_instance",
+        "get_job",
+        "ghidra__decompile",
+        "qemu__start",
+    ] {
+        assert!(offered.contains(&name.to_owned()), "{name}: {offered:?}");
+    }
+    assert_eq!(
+        offered
+            .iter()
+            .filter(|name| name.contains("decompile"))
+            .count(),
+        1,
+        "{offered:?}"
+    );
+    let schema = |name: &str| {
+        let entry = entries.iter().find(|e| e.tool.name == name).unwrap();
+        Value::Object((*entry.tool.input_schema).clone())
+    };
+    let screenshot = schema("screenshot");
+    assert_eq!(screenshot["properties"]["instance"]["type"], "integer");
+    assert!(
+        screenshot["required"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("instance"))
+    );
+    assert!(screenshot["properties"].get("container_id").is_none());
+    assert!(screenshot["properties"].get("container").is_none());
+    let create = schema("create_instance");
+    assert!(create["properties"].get("set").is_none());
+    assert!(
+        !create["required"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("set"))
+    );
+    let decompile = schema("ghidra__decompile");
+    assert!(
+        decompile["required"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("instance"))
+    );
+    let start = schema("qemu__start");
+    assert_eq!(start["properties"]["instance"]["type"], "string");
+    assert_eq!(start["properties"]["thoric_instance"]["type"], "integer");
+    let started = entries
+        .iter()
+        .find(|e| e.tool.name == "qemu__start")
+        .unwrap();
+    assert_eq!(
+        started.target,
+        Target::InstanceServer {
+            set: "re".into(),
+            server: "qemu".into(),
+            tool: "start".into(),
+            argument: "thoric_instance",
+        }
+    );
+    // Without scale, an agent lists the instances and creates none.
+    let viewer = endpoint("re-view", vec![set_grant(&[Scope::View])]);
+    let offered = names(&app, &viewer);
+    assert!(offered.contains(&"list_instances".to_owned()));
+    for absent in [
+        "create_instance",
+        "delete_instance",
+        "get_job",
+        "create_container",
+    ] {
+        assert!(!offered.contains(&absent.to_owned()), "{absent}");
+    }
+}
+
+#[test]
+fn the_scale_scope_is_for_an_endpoint_of_a_scale_set_alone() {
+    let app = app(false);
+    app.db
+        .put(CONTAINERS, "c1", &container("c1", "re-1"))
+        .unwrap();
+    scale_set(&app, &[(1, "c1")], 4);
+    let request = |container: &str, set: Option<&str>, scopes: &[Scope]| GrantRequest {
+        container_id: container.into(),
+        set: set.map(str::to_owned),
+        alias: None,
+        scopes: scopes.to_vec(),
+        servers: Servers::All,
+        excluded_tools: vec!["list_instances".into()],
+    };
+    let made = grants(
+        &app,
+        vec![request("", Some("re"), &[Scope::View, Scope::Scale])],
+    )
+    .unwrap();
+    assert_eq!(made[0].set.as_deref(), Some("re"));
+    assert_eq!(made[0].container_id, "");
+    assert_eq!(made[0].excluded_tools, ["list_instances"]);
+    let refused = |requests: Vec<GrantRequest>| grants(&app, requests).unwrap_err().to_string();
+    let mut container_grant = request("c1", None, &[Scope::View, Scope::Scale]);
+    container_grant.excluded_tools.clear();
+    assert!(refused(vec![container_grant.clone()]).contains("scale scope"));
+    container_grant.scopes = vec![Scope::View];
+    assert!(
+        refused(vec![
+            request("", Some("re"), &[Scope::View]),
+            container_grant
+        ])
+        .contains("nothing else")
+    );
+    assert!(refused(vec![request("c1", Some("re"), &[Scope::View])]).contains("not both"));
+    assert!(refused(vec![request("", Some("gone"), &[Scope::View])]).contains("not found"));
+    // A container's endpoint never offers a set's tools, whatever it was granted.
+    let everything = endpoint("all", vec![grant("c1", "re-1", &Scope::ALL)]);
+    let offered = names(&app, &everything);
+    for absent in ["create_instance", "delete_instance", "list_instances"] {
+        assert!(!offered.contains(&absent.to_owned()), "{absent}");
+    }
+}
+
+#[tokio::test]
+async fn a_set_endpoint_works_on_the_instance_its_number_names() {
+    let app = mcp_app();
+    for (id, name) in [("c1", "re-1"), ("c2", "re-2")] {
+        app.db.put(CONTAINERS, id, &container(id, name)).unwrap();
+    }
+    scale_set(&app, &[(1, "c1"), (2, "c2")], 2);
+    app.db
+        .put(
+            ENDPOINTS,
+            "re",
+            &endpoint("re", vec![set_grant(&[Scope::View, Scope::Scale])]),
+        )
+        .unwrap();
+    let (status, session, body) = call(
+        app.clone(),
+        "/mcp/re",
+        Some(ADMIN),
+        None,
+        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    // The agent is told what its instances share and what each has of its own.
+    let instructions = body["result"]["instructions"].as_str().unwrap();
+    assert!(
+        instructions.contains("/home/desktop/analysis")
+            && instructions.contains("each instance's own: /home/desktop/.config/chrome-agent")
+            && instructions.contains("create_instance"),
+        "{instructions}"
+    );
+    let session = session.unwrap();
+    let (status, _, _) = call(
+        app.clone(),
+        "/mcp/re",
+        Some(ADMIN),
+        Some(&session),
+        json!({"jsonrpc":"2.0","method":"notifications/initialized"}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED);
+    let tool = |id: u32, name: &str, arguments: Value| {
+        call(
+            app.clone(),
+            "/mcp/re",
+            Some(ADMIN),
+            Some(&session),
+            json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":name,"arguments":arguments}}),
+        )
+    };
+    let (_, _, body) = tool(2, "get_container", json!({"instance": 2})).await;
+    assert_eq!(body["result"]["structuredContent"]["id"], "c2", "{body}");
+    let (_, _, body) = tool(3, "get_container", json!({"instance": 9})).await;
+    assert_eq!(body["result"]["isError"], true, "{body}");
+    assert!(
+        body["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap()
+            .contains("no instance 9")
+    );
+    // The set is the endpoint's own: another one cannot be named.
+    let (_, _, body) = tool(4, "list_instances", json!({"set": "other"})).await;
+    assert_eq!(body["result"]["isError"], true, "{body}");
+    let (_, _, body) = tool(5, "list_instances", json!({})).await;
+    let listed = &body["result"]["structuredContent"];
+    assert_eq!(listed["name"], "re", "{body}");
+    assert_eq!(listed["instances"][1]["instance"], 2);
+    assert_eq!(listed["free"], 0);
+    // The set has its most instances, and the one it keeps is not an agent's to delete.
+    let (_, _, body) = tool(6, "create_instance", json!({})).await;
+    assert!(
+        body["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap()
+            .contains("most instances"),
+        "{body}"
+    );
+    let (_, _, body) = tool(7, "delete_instance", json!({"instance": 1})).await;
+    assert!(
+        body["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap()
+            .contains("keeps"),
+        "{body}"
     );
 }

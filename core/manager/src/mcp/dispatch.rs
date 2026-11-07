@@ -239,6 +239,31 @@ impl ThoricMcp {
                     .await?
                     .0
             }
+            "list_instances" => {
+                api::list_instances(self.app.clone(), &string(&args, "set")?).await?
+            }
+            "create_instance" => {
+                let set = string(&args, "set")?;
+                let request: api::NewInstance = parse(json!({
+                    "volumes": args.get("volumes").cloned().unwrap_or(json!({})),
+                    "note": args.get("note").cloned().unwrap_or(json!("")),
+                }))?;
+                crate::scale::instances::grow(self.app.clone(), &set, request.volumes, request.note)
+                    .await?
+            }
+            "delete_instance" => {
+                let set = string(&args, "set")?;
+                let number = args["instance"]
+                    .as_u64()
+                    .and_then(|number| u32::try_from(number).ok())
+                    .ok_or_else(|| {
+                        error::Error(
+                            axum::http::StatusCode::BAD_REQUEST,
+                            "instance must be a number from list_instances".into(),
+                        )
+                    })?;
+                crate::scale::instances::shrink(self.app.clone(), &set, number, true)?
+            }
             "duplicate_container" => {
                 duplicate::duplicate(state, Path(id.unwrap()), Json(parse(args)?))
                     .await?

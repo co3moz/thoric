@@ -75,6 +75,13 @@ pub(crate) fn container_lifecycle(
             ),
             "#/containers",
         ),
+        Due::IdleDelete(minutes) => (
+            format!("{name} was deleted"),
+            format!(
+                "Nothing used this instance of its scale set for {minutes} minutes, so Thoric deleted it with the volumes made for it. The volumes it shared stay."
+            ),
+            "#/jobs",
+        ),
         Due::Expiry(OnExpiry::Stop) => (
             format!("{name} expired"),
             "Thoric stopped it at its expiry and cleared the expiry, so starting it again keeps it running.".to_owned(),

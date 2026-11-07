@@ -7,7 +7,9 @@
 //! installation's state. Jobs with their logs, which are in a table of their own, the processes
 //! of running desktops (applications, terminals, recordings), the tool lists of desktop MCP servers, which
 //! the manager reads again from a running desktop, and any kind added later are history or what a
-//! running manager rebuilds, and stay out until someone decides otherwise here. The tests list
+//! running manager rebuilds, and stay out until someone decides otherwise here. Scale sets stay out
+//! too, with the endpoints of a set: a set's instances come back as containers of their own, which
+//! can be made scalable again. The tests list
 //! both sides and fail on a kind the code writes that is on neither.
 use crate::{
     compose::Pinned,
@@ -239,7 +241,11 @@ pub(crate) fn plan(
     }
     kept_passwords.sort_by(|a, b| a.container_id.cmp(&b.container_id));
     secrets_left_out.sort();
-    let mut endpoints = endpoints;
+    // An endpoint of a scale set covers a set the backup does not carry.
+    let mut endpoints = endpoints
+        .into_iter()
+        .filter(|endpoint| endpoint.grants.iter().all(|grant| grant.set.is_none()))
+        .collect::<Vec<_>>();
     endpoints.sort_by(|a, b| a.name.cmp(&b.name));
 
     let mut parts = Vec::new();

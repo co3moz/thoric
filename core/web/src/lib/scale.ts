@@ -1,0 +1,151 @@
+// Scalable containers: a container whose request is kept as a scale set's template, which creates
+// more instances of it on demand. Each instance is a container of its own from the same image and
+// settings, numbered from 1; what they share are volumes, each folder by the set's policy.
+import type { ContainerItem } from "./types"
+
+/** What an instance mounts for a volume of the template. */
+export type VolumePolicy = "shared" | "new" | "first"
+
+/** The policies in the order the forms offer them. */
+export const POLICIES: VolumePolicy[] = ["shared", "new", "first"]
+
+/** The most instances a set may have, as the manager's `MAX_INSTANCES`. */
+export const MAX_INSTANCES = 16
+
+/** The longest set name the manager takes. */
+const NAME_LIMIT = 40
+
+/** One instance as `GET scale-sets` lists it. */
+export type ScaleInstance = {
+  number: number
+  container_id: string
+  /** `null` while its record is still being made. */
+  name: string | null
+  note: string
+  creating: boolean
+  /** One of the lowest numbers the set keeps, which an agent and the idle delete leave alone. */
+  kept: boolean
+}
+
+/** A volume of the template: where it is mounted, the template's volume there and its policy. */
+export type ScaleSlot = {
+  target: string
+  /** Empty for a compose parameter given no volume. */
+  volume: string
+  /** The compose value it is, by the name the value goes by; `null` for a volume of the settings. */
+  parameter: string | null
+  readonly: boolean
+  policy: VolumePolicy
+  /** The compose parameter's label, when a compose names the folder. */
+  label: string | null
+}
+
+export type ScaleSet = {
+  name: string
+  created_at: number
+  image: string
+  min: number
+  max: number
+  idle_delete_minutes: number
+  /** The folders whose policy is not `shared`. */
+  volumes: Record<string, VolumePolicy>
+  instances: ScaleInstance[]
+  endpoint: string | null
+  endpoint_path: string | null
+  slots: ScaleSlot[]
+}
+
+/** The scaling section of a form, as the fields edit it. */
+export type ScalingDraft = {
+  enabled: boolean
+  /** Empty for the name made of the container's. */
+  set: string
+  min: string
+  max: string
+  idle: string
+  volumes: Record<string, VolumePolicy>
+}
+
+export const scalingDraft = (set?: Partial<ScaleSet>): ScalingDraft => ({
+  enabled: false,
+  set: set?.name ?? "",
+  min: String(set?.min ?? 1),
+  max: String(set?.max ?? 4),
+  idle: String(set?.idle_delete_minutes ?? 0),
+  volumes: { ...(set?.volumes ?? {}) },
+})
+
+/**
+ * The set name the manager makes of a container's: lowercase letters and digits with dashes
+ * between words, at most 40, or `set` when nothing is left.
+ */
+export function setNameOf(name: string) {
+  let out = ""
+  for (const char of name.toLowerCase()) {
+    if (/[a-z0-9]/.test(char)) out += char
+    else if (out && !out.endsWith("-")) out += "-"
+  }
+  out = out.slice(0, NAME_LIMIT).replace(/-+$/, "")
+  return out || "set"
+}
+
+/** A set name as the manager takes it: a slug of at most 40 that neither starts nor ends with a dash. */
+export const SET_NAME_PATTERN = "[a-z0-9]([a-z0-9\\-]{0,38}[a-z0-9])?"
+
+/** A whole number from a field, or `null` for one that is not. */
+const whole = (value: string) => (/^\d+$/.test(value.trim()) ? Number(value.trim()) : null)
+
+/**
+ * Why the draft's numbers cannot be sent, or `null` when they can: the maximum from 1 to 16, the
+ * minimum within it, and the idle delete in whole minutes.
+ */
+export function scalingError(draft: ScalingDraft): "min" | "max" | "idle" | null {
+  const min = whole(draft.min)
+  const max = whole(draft.max)
+  const idle = whole(draft.idle)
+  if (max === null || max < 1 || max > MAX_INSTANCES) return "max"
+  if (min === null || min > max) return "min"
+  if (idle === null || idle > 10080) return "idle"
+  return null
+}
+
+/** The `scaling` a request sends for the draft, policies other than `shared` alone. */
+export function scalingBody(draft: ScalingDraft) {
+  const volumes = Object.fromEntries(
+    Object.entries(draft.volumes).filter(([, policy]) => policy !== "shared")
+  )
+  return {
+    ...(draft.set.trim() ? { set: draft.set.trim() } : {}),
+    min: whole(draft.min) ?? 1,
+    max: whole(draft.max) ?? 4,
+    idle_delete_minutes: whole(draft.idle) ?? 0,
+    volumes,
+  }
+}
+
+/** The folders a container's volumes are mounted at, each once: its settings', then its compose's. */
+export function scalingTargets(mounts: { target: string }[]): string[] {
+  return [...new Set(mounts.map((mount) => mount.target))]
+}
+
+/**
+ * The containers grouped as the containers page shows them: each set with its instances in their
+ * order, then every container of none. A set whose instances are all left out is left out too.
+ */
+export function bySet(containers: ContainerItem[], sets: ScaleSet[]) {
+  const groups = sets
+    .map((set) => ({
+      set,
+      instances: containers
+        .filter((item) => item.scale?.set === set.name)
+        .sort((a, b) => (a.scale?.number ?? 0) - (b.scale?.number ?? 0)),
+    }))
+    .filter((group) => group.instances.length > 0)
+  const alone = containers.filter(
+    (item) => !item.scale || !sets.some((set) => set.name === item.scale?.set)
+  )
+  return { groups, alone }
+}
+
+/** The instances a set has, also those being made, and how many more it may have. */
+export const room = (set: ScaleSet) => Math.max(0, set.max - set.instances.length)

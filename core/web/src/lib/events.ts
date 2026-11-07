@@ -56,10 +56,15 @@ const finished = (job: Pick<Job, "status">) =>
 /** What else a job changes when it ends, beyond the jobs themselves. */
 const changes: Record<string, string[]> = {
   // A creation may make volumes for its parameters and an endpoint; a deletion may remove them.
-  create: ["containers", "volumes", "mcp"],
-  delete: ["containers", "volumes", "mcp"],
+  create: ["containers", "volumes", "mcp", "scale-sets"],
+  delete: ["containers", "volumes", "mcp", "scale-sets"],
   // The lifecycle deletes a container as `delete` does; its stops change the containers alone.
-  "expiry-delete": ["containers", "volumes", "mcp"],
+  "expiry-delete": ["containers", "volumes", "mcp", "scale-sets"],
+  // A scale set's instances come and go with volumes of their own; a set's endpoint lists them.
+  "scale-up": ["containers", "volumes", "mcp", "scale-sets"],
+  "scale-down": ["containers", "volumes", "mcp", "scale-sets"],
+  "idle-delete": ["containers", "volumes", "mcp", "scale-sets"],
+  "scale-set-delete": ["containers", "volumes", "mcp", "scale-sets"],
   snapshot: ["containers", "images"],
   // A duplicate makes a container, the snapshot it starts from, copies of volumes and an endpoint.
   duplicate: ["containers", "images", "volumes", "mcp"],
@@ -109,6 +114,7 @@ const quiet = new Set([
 const makes = new Set([
   "create",
   "duplicate",
+  "scale-up",
   "build",
   "snapshot",
   "image-pull",

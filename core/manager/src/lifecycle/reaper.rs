@@ -7,7 +7,7 @@
 //! [`EXPIRY_DELETE`]. A job that outlasts [`JOB_WAIT`] is followed by the rounds after, and one
 //! that failed leaves its container alone for [`RETRY_AFTER`]. While a restore runs, which saves
 //! the records of the containers it brings back before it creates them, the reaper does nothing.
-use super::{Due, OnExpiry, busy, due, idle};
+use super::{Due, OnExpiry, busy, due_for};
 use crate::{
     App,
     jobs::Outcome,
@@ -38,6 +38,8 @@ pub(crate) const IDLE_STOP: &str = "idle-stop";
 pub(crate) const EXPIRY_STOP: &str = "expiry-stop";
 /// A container deleted at its expiry.
 pub(crate) const EXPIRY_DELETE: &str = "expiry-delete";
+/// An instance of a scale set deleted because nothing used it.
+pub(crate) const IDLE_DELETE: &str = "idle-delete";
 
 /// What a failed round reports itself as.
 const ROUND: &str = "Container lifecycle";
@@ -92,15 +94,17 @@ impl Reaper {
             .retain(|id, at| at.elapsed() < RETRY_AFTER && known(id));
         self.reported
             .retain(|line| line == ROUND || records.iter().any(|r| line == subject(&r.id)));
-        if records
+        let sets = crate::scale::all(app)?;
+        if (records
             .iter()
             .all(|record| record.spec.lifecycle.is_never())
+            && sets.iter().all(|set| set.idle_delete_minutes == 0))
             || restoring(app)?
         {
             return Ok(());
         }
         let running = running(app).await?;
-        for id in self.due(app, &records, &running, crate::model::now()) {
+        for id in self.due(app, &records, &sets, &running, crate::model::now()) {
             match act(app, &id).await {
                 Ok(Acted::Nothing) => {}
                 Ok(Acted::Ended(outcome)) => self.settle(&id, outcome.map(drop)),
@@ -148,12 +152,17 @@ impl Reaper {
         &self,
         app: &App,
         records: &[Container],
+        sets: &[crate::scale::ScaleSet],
         running: &HashSet<String>,
         now: u64,
     ) -> Vec<String> {
-        records
+        let mut due: Vec<(Option<u32>, String)> = records
             .iter()
-            .filter(|record| !record.spec.lifecycle.is_never())
+            .filter(|record| {
+                !record.spec.lifecycle.is_never()
+                    || crate::scale::instance_of(sets, &record.id)
+                        .is_some_and(|(set, _)| set.idle_delete_minutes > 0)
+            })
             .filter_map(|record| {
                 let up = running.contains(&record.container);
                 if up && busy(app, &record.id) {
@@ -162,10 +171,15 @@ impl Reaper {
                 if self.failed.contains_key(&record.id) || self.pending.contains_key(&record.id) {
                     return None;
                 }
-                due(&record.spec.lifecycle, up, idle(app, &record.id, up), now)
-                    .map(|_| record.id.clone())
+                due_for(app, record, sets, up, now).map(|_| {
+                    let number = crate::scale::instance_of(sets, &record.id).map(|(_, n)| n);
+                    (number, record.id.clone())
+                })
             })
-            .collect()
+            .collect();
+        // A set's highest numbers go first, so the instances that stay keep the lowest.
+        due.sort_by_key(|entry| std::cmp::Reverse(entry.0));
+        due.into_iter().map(|(_, id)| id).collect()
     }
 }
 
@@ -216,11 +230,13 @@ pub(super) async fn act(app: &Arc<App>, id: &str) -> Result<Acted> {
         .as_ref()
         .is_some_and(|info| info["State"]["Running"] == true);
     let now = crate::model::now();
-    let Some(due) = due(&record.spec.lifecycle, running, idle(app, id, running), now) else {
+    let sets = crate::scale::all(app)?;
+    let Some(due) = due_for(app, &record, &sets, running, now) else {
         return Ok(Acted::Nothing);
     };
     let kind = match due {
         Due::IdleStop(_) => IDLE_STOP,
+        Due::IdleDelete(_) => IDLE_DELETE,
         Due::Expiry(OnExpiry::Stop) => EXPIRY_STOP,
         Due::Expiry(OnExpiry::Delete) => EXPIRY_DELETE,
     };
@@ -237,6 +253,7 @@ pub(super) async fn act(app: &Arc<App>, id: &str) -> Result<Acted> {
         "{} \"{}\" ({id}), job {job}",
         match due {
             Due::IdleStop(_) => "Stopping the idle container",
+            Due::IdleDelete(_) => "Deleting the idle instance",
             Due::Expiry(OnExpiry::Stop) => "Stopping the expired container",
             Due::Expiry(OnExpiry::Delete) => "Deleting the expired container",
         },
@@ -299,6 +316,16 @@ async fn carried_out(app: &App, record: &Container, due: Due, job_id: &str) -> R
                 "Cleared its expiry, so it keeps running once it is started again.",
             )?;
             Ok(json!({"container_id": id, "expired": true}))
+        }
+        Due::IdleDelete(minutes) => {
+            app.append_log(
+                job_id,
+                &format!(
+                    "Deleting \"{name}\": nothing used this instance of its scale set for {minutes} minutes."
+                ),
+            )?;
+            let removed = app.remove_container(record, job_id, true).await?;
+            Ok(crate::api::removal(id, name, true, removed))
         }
         Due::Expiry(OnExpiry::Delete) => {
             app.append_log(job_id, &format!("\"{name}\" expired; deleting it."))?;

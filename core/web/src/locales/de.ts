@@ -2192,4 +2192,63 @@ export const de: Messages = {
   "completion.parameter": "Compose-Wert · {type}",
   "completion.parameterSecret": "Geheim: das Auftragsprotokoll maskiert ihn.",
   "completion.volumeName": "Der Name des Volumes unter ${name}, leer ohne eines",
+  "job.scale-up": "Instanz erstellen",
+  "job.scale-down": "Instanz löschen",
+  "job.scale-set-delete": "Skalierungsgruppe löschen",
+  "job.idle-delete": "Bei Leerlauf löschen",
+  "mcp.scope.scale": "Skalieren",
+  "mcp.scope.scale.description":
+    "Instanzen der Gruppe aus ihrer Vorlage und in ihren Grenzen erstellen und löschen.",
+  "scale.title": "Skalierung",
+  "scale.enable": "Skalierbar",
+  "scale.enableHint":
+    "Instanz 1 einer Skalierungsgruppe, von der Agenten und Sie bei Bedarf weitere erstellen. Jede Instanz ist ein neuer Container aus derselben Anfrage, nie eine Kopie der Dateien einer anderen, und der MCP-Endpunkt der Gruppe nimmt die Instanz über ihre Nummer.",
+  "scale.setName": "Name der Gruppe",
+  "scale.setNamePattern":
+    "Kleinbuchstaben, Ziffern und Bindestriche, höchstens 40, ohne Bindestrich am Anfang oder Ende",
+  "scale.setNameHint":
+    "Instanzen heißen {name}-1, {name}-2 und so weiter, und der Endpunkt der Gruppe ist /mcp/{name}.",
+  "scale.min": "Behalten",
+  "scale.max": "Höchstens",
+  "scale.idleDelete": "Im Leerlauf löschen nach (Minuten)",
+  "scale.limitsHint":
+    "Die Gruppe behält ihre Instanzen mit den niedrigsten Nummern, so viele wie Behalten sagt: Sie entstehen mit ihr, und weder ein Agent noch das Löschen im Leerlauf entfernt sie. 0 Minuten löscht nie eine Instanz im Leerlauf.",
+  "scale.volumes": "Volumes neuer Instanzen",
+  "scale.volumesHint":
+    "Gemeinsam bindet in jeder Instanz dasselbe Volume ein, sodass jede sieht, was die anderen dort schreiben. Neu je Instanz gibt jeder ein eigenes leeres Volume, das mit ihr gelöscht wird. Erste behält das Volume für Instanz 1 und gibt den anderen neue.",
+  "scale.noVolumes": "Der Container bindet kein Volume ein, seine Instanzen teilen also nichts.",
+  "scale.policyOf": "Was neue Instanzen unter {target} bekommen",
+  "scale.policy.shared": "Gemeinsam",
+  "scale.policy.new": "Neu je Instanz",
+  "scale.policy.first": "Erste behält es, andere neu",
+  "scale.summary": "Skalierbar, bis zu {max}",
+  "scale.error.min": "Behalten muss eine ganze Zahl sein, nicht größer als Höchstens.",
+  "scale.error.max": "Höchstens muss zwischen 1 und 16 liegen.",
+  "scale.error.idle": "Im Leerlauf löschen ist eine ganze Zahl von Minuten, höchstens eine Woche.",
+  "scale.make": "Skalierbar machen",
+  "scale.makeTitle": "{name} skalierbar machen",
+  "scale.makeDescription":
+    "Der Container wird Instanz 1 einer neuen Skalierungsgruppe und behält Namen und Dateien. Neue Instanzen entstehen aus dem Image und den Einstellungen, mit denen er erstellt wurde, nie aus seinen Dateien.",
+  "scale.made": "{name} ist jetzt skalierbar.",
+  "scale.endpoint": "MCP-Endpunkt für die Gruppe",
+  "scale.endpointHint":
+    "/mcp/GRUPPE erstellen, dessen Werkzeuge die Instanz über ihre Nummer nehmen und Instanzen erstellen und löschen können. Der eigene Endpunkt des Containers bleibt.",
+  "scale.settingsTitle": "Einstellungen von {name}",
+  "scale.settingsDescription":
+    "Grenzen und Volumes gelten für die ab jetzt erstellten Instanzen; bestehende behalten ihre.",
+  "scale.saved": "{name} gespeichert.",
+  "scale.newInstanceTitle": "Neue Instanz von {name}",
+  "scale.newInstanceDescription":
+    "Die Gruppe hat {count} von höchstens {max} Instanzen. Die neue startet aus dem Image und führt ihr Setup selbst aus.",
+  "scale.full": "Die Gruppe hat ihre Höchstzahl von {max} Instanzen.",
+  "scale.note": "Notiz",
+  "scale.notePlaceholder": "Wofür sie ist, etwa der Agent, der darin arbeitet",
+  "scale.setPolicy": "Wahl der Gruppe: {policy}",
+  "scale.addInstance": "Instanz hinzufügen",
+  "scale.deleteTitle": "Skalierungsgruppe {name} löschen?",
+  "scale.deleteDescription":
+    "Ihre {count} Instanzen werden mit den für sie erstellten Volumes gelöscht, ihr MCP-Endpunkt ebenso. Die gemeinsamen Volumes bleiben.",
+  "scale.instanceOf": "Instanz {number} von {set}",
+  "scale.setOf": "Skalierungsgruppe {name}",
+  "scale.count": "{count} von {max}",
 }

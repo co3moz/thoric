@@ -2668,6 +2668,62 @@ try:
     assert gone["volumes_deleted"] == [copy_volume], gone
     assert api(f"images/{copy_snapshot}", method="DELETE")["deleted"] is True
     print("PASS a duplicate copies the files, settings and own volume of a running container, with a new identity and a snapshot to reset to", flush=True)
+    # A scalable container is instance 1 of a scale set whose request is the template: a new
+    # instance is created from the image and runs the setup itself, with none of instance 1's
+    # files, mounts the shared volume and gets a workspace of its own, and is reached by its
+    # number on the set's one endpoint, which creates and deletes instances within the limits.
+    set_name = f"scale-{tag}"
+    scaled = api("containers", {**own_base, "name": "Scaled", "mounts": [{"volume": share, "target": "/home/desktop/Shared"}], "scaling": {"set": set_name, "min": 1, "max": 2, "volumes": {"/home/desktop/Projects": "new"}}})
+    assert scaled["set"] == set_name and scaled["instance"] == 1 and scaled["name"] == f"{set_name}-1" and scaled["mcp_endpoint"] == set_name, scaled
+    first = job(scaled)["container_id"]
+    container_ids.append(first)
+    ready(f"thoric-{first}")
+    first_volume = f"thoric-{first}-work-space"
+    own_volumes.append(first_volume)
+    assert volume_mounts(f"thoric-{first}") == {"/home/desktop/Projects": first_volume, "/home/desktop/Shared": share}
+    assert api(f"containers/{first}")["scale"] == {"set": set_name, "number": 1}
+    docker("exec", "--user", "desktop", f"thoric-{first}", "sh", "-c", "printf mine > /home/desktop/only-first && printf ours > /home/desktop/Shared/from-first")
+    session = endpoint_session(set_name, mcp_token)
+    names = [t["name"] for t in endpoint_call(set_name, mcp_token, session, "tools/list")["tools"]]
+    assert {"list_instances", "create_instance", "delete_instance", "screenshot", "get_job"} <= set(names) and "create_container" not in names, names
+    started = endpoint_call(set_name, mcp_token, session, "tools/call", {"name": "create_instance", "arguments": {"note": "acceptance"}})["structuredContent"]
+    assert started["instance"] == 2 and started["name"] == f"{set_name}-2", started
+    second = started["container_id"]
+    container_ids.append(second)
+    second_job = wait_for(lambda: (j if (j := endpoint_call(set_name, mcp_token, session, "tools/call", {"name": "get_job", "arguments": {"job_id": started["job_id"], "wait_seconds": 60}})["structuredContent"])["status"] not in ("queued", "running") else None), 600)
+    assert second_job["status"] == "completed" and second_job["kind"] == "scale-up", second_job
+    ready(f"thoric-{second}")
+    second_volume = f"thoric-{second}-work-space"
+    own_volumes.append(second_volume)
+    # The setup ran in the new instance itself, into its own workspace.
+    assert volume_mounts(f"thoric-{second}") == {"/home/desktop/Projects": second_volume, "/home/desktop/Shared": share}
+    assert docker("exec", f"thoric-{second}", "cat", "/home/desktop/Projects/owner") == f"/home/desktop/Projects|{second_volume}|1001".encode()
+    assert subprocess.run(["docker", "exec", f"thoric-{second}", "test", "-e", "/home/desktop/only-first"]).returncode != 0
+    assert docker("exec", f"thoric-{second}", "cat", "/home/desktop/Shared/from-first") == b"ours"
+    assert machine(f"thoric-{second}")["hostname"] != machine(f"thoric-{first}")["hostname"]
+    listed = endpoint_call(set_name, mcp_token, session, "tools/call", {"name": "list_instances", "arguments": {}})["structuredContent"]
+    assert [(i["instance"], i["note"], i["kept"]) for i in listed["instances"]] == [(1, "", True), (2, "acceptance", False)], listed
+    shared = [m for m in listed["instances"][1]["mounts"] if m["target"] == "/home/desktop/Shared"]
+    assert shared == [{"target": "/home/desktop/Shared", "volume": share, "readonly": False, "sharing": "shared"}], listed["instances"][1]["mounts"]
+    # The instance is the one its number names, the set has its most instances, and the one it
+    # keeps is not an agent's to delete.
+    named = endpoint_call(set_name, mcp_token, session, "tools/call", {"name": "get_container", "arguments": {"instance": 2}})["structuredContent"]
+    assert named["id"] == second, named
+    _, full = endpoint_post(set_name, mcp_token, {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"create_instance","arguments":{}}}, session)
+    assert full["result"]["isError"] and "most instances" in full["result"]["content"][0]["text"], full
+    _, kept = endpoint_post(set_name, mcp_token, {"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"delete_instance","arguments":{"instance":1}}}, session)
+    assert kept["result"]["isError"] and "keeps" in kept["result"]["content"][0]["text"], kept
+    removed = endpoint_call(set_name, mcp_token, session, "tools/call", {"name": "delete_instance", "arguments": {"instance": 2}})["structuredContent"]
+    gone = wait_for(lambda: (j if (j := api(f"jobs/{removed['job_id']}"))["status"] not in ("queued", "running") else None), 180)
+    assert gone["status"] == "completed" and gone["result"]["volumes_deleted"] == [second_volume], gone
+    container_ids.remove(second)
+    assert json.loads(docker("volume", "inspect", second_volume, check=False) or b"[]") == []
+    assert docker("volume", "inspect", share)
+    deleted_set = job(api(f"scale-sets/{set_name}", method="DELETE"))
+    container_ids.remove(first)
+    assert deleted_set["instances"] == [1], deleted_set
+    assert all(e["name"] != set_name for e in api("mcp/endpoints")["items"])
+    print("PASS a scalable container's instances start from its request, share what the set shares and are created and deleted through the set's endpoint", flush=True)
     # A container that names the volume shares it and gets none of its own, so deleting the
     # owner with the option keeps it, and deleting the sharer never takes a volume it chose.
     sharer = job(api("containers", {**own_base, "name": "Own sharer", "parameters": {"WORK_SPACE": own_volume}}))["container_id"]

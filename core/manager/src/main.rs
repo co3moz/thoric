@@ -56,6 +56,7 @@ mod releases;
 mod reported;
 mod request_log;
 mod resolution;
+mod scale;
 mod script_progress;
 mod stages;
 mod terminal;
@@ -171,6 +172,19 @@ fn router(app: Arc<App>) -> Router {
         .route("/api/containers/{id}/settings", post(api::update_settings))
         .route("/api/containers/{id}/snapshot", post(api::snapshot))
         .route("/api/containers/{id}/duplicate", post(duplicate::duplicate))
+        .route("/api/scale-sets", get(api::sets).post(api::make_scalable))
+        .route(
+            "/api/scale-sets/{name}",
+            get(api::set).put(api::update_set).delete(api::delete_set),
+        )
+        .route(
+            "/api/scale-sets/{name}/instances",
+            post(api::create_instance),
+        )
+        .route(
+            "/api/scale-sets/{name}/instances/{number}",
+            delete(api::delete_instance),
+        )
         .route("/api/containers/{id}/exec", post(exec::execute))
         .route("/api/containers/{id}/files/read", post(files::read))
         .route("/api/containers/{id}/files/write", post(files::write))
@@ -538,6 +552,7 @@ async fn main() -> anyhow::Result<()> {
         }
     }
     compose::mark_interrupted(&db)?;
+    scale::prune(&db)?;
     let listen = config.listen.clone();
     let app = Arc::new(App {
         config,

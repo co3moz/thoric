@@ -13,7 +13,9 @@ use serde_json::{Value, json};
 use std::sync::Arc;
 
 /// A group of container tools an endpoint can be granted for a container. Creating, changing and
-/// deleting containers, images and volumes are never part of one.
+/// deleting containers, images and volumes are never part of one, but for `scale`, which an
+/// endpoint of a scale set alone is granted: it creates and deletes that set's instances, from its
+/// template and within its limits.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum Scope {
@@ -25,9 +27,13 @@ pub(crate) enum Scope {
     Commands,
     Media,
     Power,
+    Scale,
 }
+/// The tool an endpoint of a scale set offers whatever it was granted, since its other tools take
+/// the numbers it lists.
+pub(crate) const LIST_INSTANCES: &str = "list_instances";
 impl Scope {
-    pub const ALL: [Scope; 8] = [
+    pub const ALL: [Scope; 9] = [
         Scope::View,
         Scope::Input,
         Scope::Applications,
@@ -36,6 +42,7 @@ impl Scope {
         Scope::Commands,
         Scope::Media,
         Scope::Power,
+        Scope::Scale,
     ];
     /// What a container's own endpoint gets: everything but commands, which with sudo is root
     /// inside the container.
@@ -58,6 +65,7 @@ impl Scope {
             Scope::Commands => "commands",
             Scope::Media => "media",
             Scope::Power => "power",
+            Scope::Scale => "scale",
         }
     }
     /// The Thoric MCP tools of the scope, each of which works on one container.
@@ -121,11 +129,12 @@ impl Scope {
                 "inject_audio",
             ],
             Scope::Power => &["container_action"],
+            Scope::Scale => &["create_instance", "delete_instance"],
         }
     }
     /// Scopes whose tools return a job, which `get_job` then reads.
     pub(super) fn has_jobs(self) -> bool {
-        matches!(self, Scope::Commands | Scope::Power)
+        matches!(self, Scope::Commands | Scope::Power | Scope::Scale)
     }
     /// Whether the tool of this name is one of the scope's.
     pub(super) fn offers(self, name: &str) -> bool {
@@ -169,6 +178,18 @@ pub(super) const ENDPOINT_WORDING: [(&str, &str, &str); 5] = [
 /// What a tool of an endpoint calls.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Target {
+    /// A Thoric MCP tool for the instance of the scale set that `instance` names.
+    Instance { tool: &'static str, set: String },
+    /// A Thoric MCP tool of the scale set itself, which lists, creates or deletes its instances.
+    Set { tool: &'static str, set: String },
+    /// A tool of a desktop server, in the instance of the scale set that the argument named
+    /// `argument` names.
+    InstanceServer {
+        set: String,
+        server: String,
+        tool: String,
+        argument: &'static str,
+    },
     /// A Thoric MCP tool, for the containers listed by their alias. With one grant the tool
     /// takes no container argument.
     Thoric {
@@ -291,6 +312,176 @@ pub(crate) fn bound_tool(tool: &Tool, aliases: Option<&[String]>) -> Tool {
     bound
 }
 
+/// What an endpoint of a scale set says of the instance a tool takes.
+const INSTANCE: &str = "The instance of the scale set to work on, by its number; list_instances shows the instances and the volumes they share.";
+
+/// A Thoric tool as an endpoint of a scale set offers it: taking `instance`, never `container_id`
+/// or root.
+pub(crate) fn instance_tool(tool: &Tool) -> Tool {
+    let mut bound = bound_tool(tool, None);
+    let mut schema = Value::Object((*bound.input_schema).clone());
+    schema["properties"]["instance"] = instance_schema();
+    match schema["required"].as_array_mut() {
+        Some(required) => required.push(json!("instance")),
+        None => schema["required"] = json!(["instance"]),
+    }
+    bound.input_schema = Arc::new(schema.as_object().cloned().unwrap_or_default());
+    bound
+}
+
+fn instance_schema() -> Value {
+    json!({"type": "integer", "minimum": 1, "maximum": crate::scale::MAX_INSTANCES, "description": INSTANCE})
+}
+
+/// A tool of the scale set itself as its endpoint offers it: for that set, so without `set`.
+pub(crate) fn set_tool(tool: &Tool) -> Tool {
+    let mut schema = Value::Object((*tool.input_schema).clone());
+    if let Some(properties) = schema["properties"].as_object_mut() {
+        properties.remove("set");
+    }
+    if let Some(required) = schema["required"].as_array_mut() {
+        required.retain(|key| key != "set");
+    }
+    let mut bound = tool.clone();
+    bound.input_schema = Arc::new(schema.as_object().cloned().unwrap_or_default());
+    bound
+}
+
+/// The argument a desktop server's tool takes the instance by on an endpoint of a scale set:
+/// `instance`, or `thoric_instance` for a tool that has an `instance` of its own.
+pub(super) fn instance_argument(tool: &Tool) -> &'static str {
+    if tool
+        .input_schema
+        .get("properties")
+        .and_then(|properties| properties.get("instance"))
+        .is_some()
+    {
+        "thoric_instance"
+    } else {
+        "instance"
+    }
+}
+
+/// A desktop server's tool as an endpoint of a scale set offers it once for every instance: with
+/// the argument that names the instance beside its own.
+fn instance_server_tool(tool: &Tool, name: String, set: &str, server: &str) -> Tool {
+    let mut exposed = tool.clone();
+    exposed.name = name.into();
+    let description = tool.description.as_deref().unwrap_or_default();
+    exposed.description = Some(format!("[{set} / {server}] {description}").into());
+    exposed.annotations = None;
+    exposed.icons = None;
+    let argument = instance_argument(tool);
+    let mut schema = Value::Object((*tool.input_schema).clone());
+    if !schema["properties"].is_object() {
+        schema["properties"] = json!({});
+    }
+    schema["properties"][argument] = instance_schema();
+    match schema["required"].as_array_mut() {
+        Some(required) => required.push(json!(argument)),
+        None => schema["required"] = json!([argument]),
+    }
+    exposed.input_schema = Arc::new(schema.as_object().cloned().unwrap_or_default());
+    let mut meta = serde_json::Map::new();
+    meta.insert("thoric/set".into(), json!(set));
+    meta.insert("thoric/server".into(), json!(server));
+    meta.insert("thoric/tool".into(), json!(tool.name));
+    exposed.meta = Some(MetaObject(meta));
+    exposed
+}
+
+/// The tools of an endpoint of the scale set `set`: `list_instances`, the container tools of the
+/// scopes granted, taking `instance`, `create_instance` and `delete_instance` with `scale`,
+/// `get_job`, and each desktop server's tools once, taking `instance`, as the instances have
+/// them; they come from one image and compose, so they have the same ones.
+fn set_catalog(app: &App, grant: &Grant, set: &str) -> Vec<Entry> {
+    let mut entries: Vec<Entry> = Vec::new();
+    if !grant.excludes(LIST_INSTANCES)
+        && let Some(tool) = crate::mcp::listed_tool(LIST_INSTANCES)
+    {
+        entries.push(Entry {
+            tool: set_tool(&tool),
+            target: Target::Set {
+                tool: LIST_INSTANCES,
+                set: set.into(),
+            },
+        });
+    }
+    for scope in Scope::ALL {
+        if !grant.scopes.contains(&scope) {
+            continue;
+        }
+        for name in scope.tools() {
+            if grant.excludes(name) {
+                continue;
+            }
+            let Some(tool) = crate::mcp::listed_tool(name) else {
+                continue;
+            };
+            entries.push(if scope == Scope::Scale {
+                Entry {
+                    tool: set_tool(&tool),
+                    target: Target::Set {
+                        tool: name,
+                        set: set.into(),
+                    },
+                }
+            } else {
+                Entry {
+                    tool: instance_tool(&tool),
+                    target: Target::Instance {
+                        tool: name,
+                        set: set.into(),
+                    },
+                }
+            });
+        }
+    }
+    let record = app
+        .db
+        .get::<crate::scale::ScaleSet>(crate::scale::SETS, set)
+        .ok();
+    let members = record
+        .iter()
+        .flat_map(|record| record.instances.values())
+        .map(|instance| instance.container_id.clone())
+        .collect::<Vec<_>>();
+    if grant.scopes.iter().any(|scope| scope.has_jobs())
+        && !grant.excludes("get_job")
+        && let Some(mut tool) = crate::mcp::listed_tool("get_job")
+    {
+        tool.description = Some("Read a job that a tool of this endpoint started, such as create_instance, exec_container or container_action: its status, bounded log and result. Wait for completed, failed or interrupted; a queued job is not finished.".into());
+        entries.push(Entry {
+            tool,
+            target: Target::Job {
+                containers: members.clone(),
+            },
+        });
+    }
+    for container_id in &members {
+        for record in records(app, container_id)
+            .iter()
+            .filter(|record| record.error.is_none() && grant.servers.includes(&record.name))
+        {
+            for Named { name, tool, .. } in server_tool_names(record) {
+                if grant.excludes(&name) || entries.iter().any(|entry| entry.tool.name == name) {
+                    continue;
+                }
+                entries.push(Entry {
+                    tool: instance_server_tool(tool, name, set, &record.name),
+                    target: Target::InstanceServer {
+                        set: set.into(),
+                        server: record.name.clone(),
+                        tool: tool.name.to_string(),
+                        argument: instance_argument(tool),
+                    },
+                });
+            }
+        }
+    }
+    entries
+}
+
 /// A desktop server's tool as an endpoint offers it. Its annotations and icons come from inside
 /// the desktop, so they are left out: a client could otherwise run a tool unasked because it
 /// claims to be read-only.
@@ -320,9 +511,16 @@ fn server_tool(
 /// for that container: on an endpoint of several containers it keeps the others, and it is gone
 /// once every grant leaves it out.
 pub(crate) fn catalog(app: &App, endpoint: &Endpoint) -> Vec<Entry> {
+    if let Some((grant, set)) = endpoint.set() {
+        return set_catalog(app, grant, set);
+    }
     let single = endpoint.grants.len() == 1;
     let mut entries: Vec<Entry> = Vec::new();
-    for scope in Scope::ALL {
+    // A container has no instances to create or delete.
+    for scope in Scope::ALL
+        .into_iter()
+        .filter(|scope| *scope != Scope::Scale)
+    {
         let granted: Vec<&Grant> = endpoint
             .grants
             .iter()
@@ -426,8 +624,9 @@ pub(crate) fn describe() -> Value {
     json!({
         "scopes": Scope::ALL
             .iter()
-            .map(|scope| json!({"id": scope.id(), "tools": scope.tools()}))
+            .map(|scope| json!({"id": scope.id(), "tools": scope.tools(), "set_only": *scope == Scope::Scale}))
             .collect::<Vec<_>>(),
         "default": Scope::DEFAULT.iter().map(|scope| scope.id()).collect::<Vec<_>>(),
+        "set_tools": [LIST_INSTANCES],
     })
 }

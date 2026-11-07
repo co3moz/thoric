@@ -15,13 +15,15 @@ const INCLUDED_KINDS: [&str; 5] = [
 /// The kinds a backup leaves out on purpose: history with the requests kept to retry it, the
 /// processes of running desktops, and the tool lists the manager reads again from a desktop once
 /// it runs.
-const EXCLUDED_KINDS: [&str; 6] = [
+const EXCLUDED_KINDS: [&str; 8] = [
     "job",
     crate::jobs::retry::REQUESTS,
     "application",
     "terminal",
     "recording",
     crate::desktop_mcp::SERVERS,
+    crate::scale::SETS,
+    crate::scale::TEMPLATES,
 ];
 
 /// The password of a container's own proxy.
@@ -172,6 +174,20 @@ fn a_backup_carries_every_record_and_the_parts_docker_still_has() {
 }
 
 #[test]
+fn an_endpoint_of_a_scale_set_stays_out_with_the_set() {
+    let mut installation = installation();
+    let set_endpoint: crate::desktop_mcp::Endpoint = serde_json::from_value(serde_json::json!({
+        "name": "re", "automatic": true, "created_at": 1,
+        "grants": [{"set": "re", "alias": "re", "scopes": ["view", "scale"], "servers": "all"}],
+    }))
+    .unwrap();
+    installation.endpoints.push(set_endpoint);
+    let (manifest, records) = plan(installation, EVERYTHING, "0.9.3", 99);
+    assert_eq!(manifest.endpoints, ["desk"]);
+    assert_eq!(records.endpoints.len(), 1);
+}
+
+#[test]
 fn the_optional_parts_stay_out_unless_asked_for() {
     let (manifest, records) = plan(installation(), Included::default(), "0.7.0", 1);
     assert!(manifest.parts.is_empty());
@@ -298,6 +314,8 @@ fn every_record_kind_is_either_carried_or_left_out() {
         ("SERVERS", crate::desktop_mcp::SERVERS),
         ("REQUESTS", crate::jobs::retry::REQUESTS),
         ("CREDENTIALS", crate::outbound::CREDENTIALS),
+        ("SETS", crate::scale::SETS),
+        ("TEMPLATES", crate::scale::TEMPLATES),
     ];
     let put = regex::Regex::new(r"\bdb\s*\.\s*put(?:::<[^>]*>)?\s*\(\s*([^,]+?)\s*,").unwrap();
     let mut found = BTreeSet::new();

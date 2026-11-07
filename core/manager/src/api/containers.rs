@@ -51,6 +51,7 @@ pub async fn containers(State(app): State<Arc<App>>) -> Result<Json<Value>> {
         .map(|(name, _)| name.as_str())
         .collect::<Vec<_>>();
     let details = health_details(&app, &unhealthy).await;
+    let sets = crate::scale::all(&app).unwrap_or_default();
     // Each record with Docker's view of it beside its own fields.
     let items = containers
         .into_iter()
@@ -87,6 +88,8 @@ pub async fn containers(State(app): State<Arc<App>>) -> Result<Json<Value>> {
             item["status"] = json!(docker.map(|d| &d["Status"]));
             // Whether the members of its groups are kept from its screen.
             item["vnc_private"] = json!(docker.map(crate::groups::vnc_private));
+            // The scale set it is an instance of, with its number.
+            item["scale"] = crate::scale::membership(&sets, &record.id);
             item
         })
         .collect::<Vec<_>>();
@@ -163,6 +166,10 @@ pub struct CreateContainer {
     /// The password of the container's own proxy, kept apart from its settings.
     #[serde(default)]
     pub proxy_password: Option<String>,
+    /// Make the container scalable: instance 1 of a set that creates more of it on demand, from
+    /// the same request (see `scale`).
+    #[serde(default)]
+    pub scaling: Option<crate::scale::Scaling>,
 }
 /// A create request with the installation's defaults for the features it leaves out. Only a
 /// request gets them: the serde defaults of [`ContainerSpec`] fill the fields that records saved
@@ -220,11 +227,15 @@ pub async fn create(State(app): State<Arc<App>>, Json(body): Json<Value>) -> Res
         parameters,
         mcp_endpoint,
         proxy_password,
+        scaling,
     } = creation_request(&app.config, body)?;
     let password =
         crate::outbound::PasswordChange::from_value(proxy_password.map(Value::String).as_ref())?;
     password.settle(None, &mut spec.proxy)?;
     spec.validate()?;
+    if let Some(scaling) = scaling {
+        return create_scalable(app, spec, parameters, password, &scaling, mcp_endpoint).await;
+    }
     let id = uuid::Uuid::new_v4().simple().to_string();
     // A compose found by the name the request uses is checked now; the job checks again once
     // Docker has resolved the image.
@@ -248,6 +259,43 @@ pub async fn create(State(app): State<Arc<App>>, Json(body): Json<Value>) -> Res
             creation_finished(&app, &id, created, mcp_endpoint, &job_id).await
         },
     )
+}
+/// Create a scalable container: its set, with the request as the template and an MCP endpoint
+/// whose tools take `instance` unless `mcp_endpoint` is false, and its first instance, whose job
+/// the answer names. The instances the set keeps beyond the first follow once it stands.
+async fn create_scalable(
+    app: Arc<App>,
+    spec: ContainerSpec,
+    parameters: std::collections::BTreeMap<String, String>,
+    password: crate::outbound::PasswordChange,
+    scaling: &crate::scale::Scaling,
+    mcp_endpoint: bool,
+) -> Result<Json<Value>> {
+    scaling.validate()?;
+    app.installation_allows(&spec)?;
+    let name = scaling
+        .set
+        .clone()
+        .unwrap_or_else(|| crate::scale::name_of(&spec.name));
+    crate::scale::set_name(&name)?;
+    let password = match password {
+        crate::outbound::PasswordChange::Set(password) => Some(password),
+        _ => None,
+    };
+    let endpoint = crate::scale::instances::make_set(
+        &app,
+        &name,
+        &spec,
+        parameters,
+        password,
+        scaling,
+        mcp_endpoint,
+    )
+    .await?;
+    let mut answer =
+        crate::scale::instances::grow(app, &name, Default::default(), String::new()).await?;
+    answer["mcp_endpoint"] = json!(endpoint);
+    Ok(Json(answer))
 }
 /// What a creation job ends with once the container's creation has returned: its own MCP endpoint
 /// whenever the container's record was saved, also when its desktop was not ready or its setup
