@@ -486,6 +486,14 @@ impl Pinned {
     pub fn mounts(&self) -> Vec<Mount> {
         self.compose.mounts(&self.values)
     }
+    /// The volume parameters, by the name their value goes by, with the folder each mounts at.
+    pub fn volume_slots(&self) -> Vec<(String, String)> {
+        self.compose
+            .entries()
+            .filter(|(_, parameter, _)| parameter.volume_variable().is_some())
+            .map(|(_, parameter, key)| (key, parameter.path.clone()))
+            .collect()
+    }
     /// The volumes the container `container` gets of its own, as `(parameter, volume)`: those
     /// of the parameters that create one and were left empty, so their value names it.
     pub fn new_volumes(&self, container: &str) -> Vec<(String, &str)> {

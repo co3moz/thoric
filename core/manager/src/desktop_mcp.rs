@@ -29,8 +29,9 @@ mod watch;
 
 pub(crate) use endpoints::{CreateEndpoint, UpdateEndpoint};
 pub(crate) use endpoints::{
-    ENDPOINTS, Endpoint, automatic_endpoint, create_endpoint, delete_endpoint, endpoint_name,
-    endpoint_tools, endpoints, revoke_token, scopes_list, token, update_endpoint,
+    ENDPOINTS, Endpoint, announce_set, automatic_endpoint, create_endpoint, delete_endpoint,
+    endpoint_name, endpoint_tools, endpoints, forget_set, revoke_token, scopes_list, set_endpoint,
+    slug_of, token, update_endpoint,
 };
 pub(crate) use gateway::endpoint;
 pub(crate) use inspect::inspect;

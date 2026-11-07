@@ -7,10 +7,11 @@ use rmcp::model::{Tool, ToolAnnotations};
 /// set a state, replace a whole value, or are refused once their work is done, as a delete or a
 /// create of a name that exists is. `container_action` is not one, since a second restart
 /// restarts again, nor is `request_human`, which asks anew once its request was answered.
-pub(super) const IDEMPOTENT: [&str; 24] = [
+pub(super) const IDEMPOTENT: [&str; 25] = [
     "set_internet",
     "update_container",
     "delete_container",
+    "delete_instance",
     "duplicate_container",
     "pull_image",
     "set_image_compose",
@@ -35,7 +36,7 @@ pub(super) const IDEMPOTENT: [&str; 24] = [
 ];
 
 /// Every tool's title.
-pub(super) const TITLES: [(&str, &str); 83] = [
+pub(super) const TITLES: [(&str, &str); 86] = [
     ("get_settings", "Read installation settings"),
     ("get_system", "Check the Docker host"),
     ("pull_image", "Download a catalog image"),
@@ -60,6 +61,9 @@ pub(super) const TITLES: [(&str, &str); 83] = [
     ("set_image_compose", "Set an image's compose"),
     ("snapshot", "Snapshot a container"),
     ("duplicate_container", "Duplicate a container"),
+    ("list_instances", "List a scale set's instances"),
+    ("create_instance", "Create an instance of a scale set"),
+    ("delete_instance", "Delete an instance of a scale set"),
     ("delete_image", "Delete an image"),
     ("list_volumes", "List volumes"),
     ("create_volume", "Create a volume"),

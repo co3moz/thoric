@@ -150,6 +150,47 @@ pub(super) fn all() -> Vec<Route> {
         )
         .json::<duplicate::Duplicate>()
         .job(),
+        get(
+            "/api/scale-sets",
+            CONTAINERS,
+            "The scale sets: scalable containers with their instances.",
+        ),
+        post(
+            "/api/scale-sets",
+            CONTAINERS,
+            "Make an existing container scalable, as instance 1 of a new scale set.",
+        )
+        .json::<api::MakeScalable>(),
+        get(
+            "/api/scale-sets/{name}",
+            CONTAINERS,
+            "A scale set with its instances and the volumes they mount.",
+        ),
+        put(
+            "/api/scale-sets/{name}",
+            CONTAINERS,
+            "Change a scale set's limits and volume policies.",
+        )
+        .json::<api::UpdateSet>(),
+        delete(
+            "/api/scale-sets/{name}",
+            CONTAINERS,
+            "Delete a scale set with its instances and the volumes made for them.",
+        )
+        .job(),
+        post(
+            "/api/scale-sets/{name}/instances",
+            CONTAINERS,
+            "Create an instance of a scale set.",
+        )
+        .json::<api::NewInstance>()
+        .job(),
+        delete(
+            "/api/scale-sets/{name}/instances/{number}",
+            CONTAINERS,
+            "Delete an instance of a scale set with the volumes made for it.",
+        )
+        .job(),
         post("/api/containers/{id}/exec", CONTAINERS, "Run a script.")
             .json::<exec::Execute>()
             .job(),

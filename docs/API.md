@@ -74,6 +74,13 @@ A transfer ends when its client stops. A download of an image, volume or folder 
 | POST | `/api/containers/{id}/exec` | Run a script; returns a job. |
 | POST | `/api/containers/{id}/snapshot` | Save filesystem changes as an image; returns a job. |
 | POST | `/api/containers/{id}/duplicate` | Make a new container with the container's files and settings under a new `name` ([duplicate](#duplicate-a-container)); returns a job. |
+| GET | `/api/scale-sets` | The [scale sets](#scalable-containers) with their instances. |
+| POST | `/api/scale-sets` | Make an existing container scalable: `container_id` becomes instance 1 of a new set; `scaling` as below, `mcp_endpoint: false` leaves out the set's endpoint. |
+| GET | `/api/scale-sets/{name}` | A set with its instances and `slots`, the template's volumes with their policies. |
+| PUT | `/api/scale-sets/{name}` | Change `min`, `max`, `idle_delete_minutes` and `volumes` of a set; the template stays. |
+| DELETE | `/api/scale-sets/{name}` | Delete a set with its instances, the volumes made for them and its endpoint; returns a job. |
+| POST | `/api/scale-sets/{name}/instances` | Create an instance, with a `note` and `volumes` that override the set's policy for it; returns a job with the instance's number. |
+| DELETE | `/api/scale-sets/{name}/instances/{number}` | Delete an instance with the volumes made for it; returns a job. Refused below the set's minimum. |
 | GET | `/api/containers/{id}/logs` | Bounded container log output. |
 | GET | `/api/containers/{id}/diagnostics` | Desktop and graphics diagnostics. |
 | GET | `/api/containers/{id}/usage` | One container's [resource usage](#resource-usage) samples; accepts `since`. |
@@ -363,6 +370,25 @@ Start/stop/restart uses `{"action":"start"}`, internet uses `{"enabled":false}` 
 - **Not copied.** The original's MCP endpoints and their tokens, its activity, applications, terminals and recordings. The desktop MCP servers registered in the desktop user's folder, such as with `register_mcp_server`, are files in the desktop, so the duplicate has them, and its desktop reports them once it runs.
 
 The original is only read. Docker pauses a running desktop while it commits it, so the job holds the original's lock alone for `check`, `commit` and `record`, as a snapshot does, and input, files and scripts wait for it; then it shares the lock, as a script does, until the volumes are copied, so a reset, a settings change or a delete of the original waits for the copy. The name is checked again before the new record is saved. Until the new container stands in Docker, a failure takes back everything the job made: the new container with its networks and records, the volumes it created and the snapshot, which stays only when a container was created from it meanwhile. A desktop that is then not ready, or a setup that fails, leaves the duplicate with its error, as a creation leaves a container, for a retry. The job's [stages](#create-a-container-and-follow-the-job) are `check`, `commit`, `record`, `volumes`, `create` and `start`, and its result is `{"container_id", "name", "duplicated_from", "image_id", "volumes_copied", "volumes_shared", "aliases_left_out", "switched_off", "started"}`, with `mcp_endpoint` when it made one. `image_id` is the snapshot's record id and `volumes_copied` lists `{"from", "to"}` pairs.
+
+## Scalable containers
+
+A container made scalable is instance 1 of a scale set, which creates more instances of it on demand. Create one with `POST /api/containers` and `scaling`, or make an existing one scalable with `POST /api/scale-sets` and its `container_id`:
+
+```json
+{"name": "re", "image": "IMAGE", "parameters": {"reverse-engineering.ANALYSIS": "analysis"},
+ "scaling": {"min": 1, "max": 4, "idle_delete_minutes": 60,
+             "volumes": {"/home/desktop/.config/chrome-agent": "new"}}}
+```
+
+- **Not a fork.** The set keeps the request as its template: the settings, the image and the compose with the values it was given, secret ones and the proxy's password in a record of their own that no route returns. Every instance is created from it as the first one was, runs the compose setup itself and starts with none of another instance's files: nothing is committed or copied, unlike a [duplicate](#duplicate-a-container). The compose is the one the first instance pinned, so a change of the image's compose later does not reach the set. Each instance has a [machine identity](#machine-identity) of its own and leaves out the [aliases](#container-groups) another member of its groups answers to.
+- **Names and numbers.** `scaling.set` names the set, lowercase letters, digits and dashes, at most 40; the container's name made into one when left out. Instances take the lowest number the set has free, from 1 to `max` (at most 16), and are named `SET-NUMBER`. A container made scalable keeps its own name as instance 1. The container list carries `scale`, `{"set", "number"}`, on every instance.
+- **Volumes.** `volumes` says, by the folder a volume of the template is mounted at, from `mounts` or a compose volume parameter, what an instance gets: `shared`, the default, mounts the template's volume in every instance; `new` gives each instance an empty volume of its own, `thoric-CONTAINER_ID-PART`, labelled as the [`new_volume` parameter](#composes)'s, which goes with it; `first` keeps the template's volume for instance 1 and gives the others new ones. `POST /api/scale-sets/{name}/instances` takes `volumes` with `shared` or `new` for that instance alone. A shared volume an instance made of its own, such as the first instance's `new_volume` parameter, that is gone when the next instance is created becomes that instance's own, and its job log says so. A set's template keeps its volumes and image: a [volume](#volumes) or an [image](#delete-an-image) a set creates its instances from is not deleted while the set exists.
+- **Limits.** `min`, 1 by default, is how many instances the set keeps: its lowest numbers, created with it one after another, which neither an agent nor the idle delete removes. Deleting an instance through its set never goes below `min`; deleting its container with `DELETE /api/containers/{id}` still works, as for any container, and frees its number. `idle_delete_minutes` deletes an instance beyond those, with the volumes made for it, once nothing used it for that long, running or stopped, as the [lifecycle](#lifecycle)'s use counts it; the job kind is `idle-delete` and it sends the `container_lifecycle` notice. An instance's own idle stop and expiry apply as for any container.
+- **Jobs.** Creating an instance is a `scale-up` job named after the instance, deleting one through its set `scale-down`, and deleting a set `scale-set-delete`. Its number is taken when the request is answered, so two creations never take one number, and given back when the creation ends without a container.
+- **MCP.** The set gets an MCP endpoint, `/mcp/SET`, unless `mcp_endpoint` is `false`, and its instances none of their own; see [MCP](MCP.md#scalable-containers).
+
+A backup carries the instances as containers of their own, without the set and its endpoint; make them scalable again after a restore.
 
 ## Run a script
 

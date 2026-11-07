@@ -13,6 +13,7 @@ import {
   RiDownloadLine,
   RiEraserLine,
   RiFileCopyLine,
+  RiStackLine,
   RiUploadLine,
 } from "@remixicon/react"
 
@@ -112,6 +113,19 @@ export function ContainerMenu({ item }: { item: ContainerItem }) {
           <ConceptIcon concept="container" icon={RiFileCopyLine} />
           {t("containers.duplicate")}
         </DropdownMenuItem>
+        {item.scale ? (
+          <DropdownMenuItem
+            onSelect={() => openDialog({ kind: "scale-instance", name: item.scale!.set })}
+          >
+            <ConceptIcon concept="container" icon={RiStackLine} />
+            {t("scale.addInstance")}
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem onSelect={() => openDialog({ kind: "make-scalable", id })}>
+            <ConceptIcon concept="container" icon={RiStackLine} />
+            {t("scale.make")}
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem
           tone="info"
           onSelect={() =>

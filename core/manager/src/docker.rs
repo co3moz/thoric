@@ -15,7 +15,7 @@ mod networks;
 
 pub(crate) use address_pool::{GROUP_PREFIX, Subnet, address_pool};
 pub(crate) use isolation::{Reach, isolated};
-pub(crate) use lifecycle::image_volumes_mounted;
+pub(crate) use lifecycle::{ComposeChoice, Creation, image_volumes_mounted};
 pub(crate) use logged::LOGGED_LIMIT;
 pub(crate) use networks::{private_ip, private_subnet};
 

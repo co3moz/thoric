@@ -25,7 +25,10 @@ export const SCOPES: McpScope[] = [
   "commands",
   "media",
   "power",
+  "scale",
 ]
+/** The scopes a container's grant may have: every one but `scale`, which only a scale set's has. */
+export const CONTAINER_SCOPES = SCOPES.filter((scope) => scope !== "scale")
 
 /** A desktop MCP server's name: lowercase letters, digits and dashes, at most 32 characters. */
 export const SERVER_NAME = /^[a-z0-9][a-z0-9-]{0,31}$/
@@ -55,7 +58,7 @@ export function orderScopes(scopes: readonly string[]): McpScope[] {
 /** A grant's scopes in a few words. */
 export function scopeSummary(scopes: readonly McpScope[]) {
   if (!scopes.length) return t("mcp.scopes.none")
-  if (SCOPES.every((scope) => scopes.includes(scope))) return t("mcp.scopes.all")
+  if (CONTAINER_SCOPES.every((scope) => scopes.includes(scope))) return t("mcp.scopes.all")
   return formatList(orderScopes(scopes).map(scopeLabel))
 }
 
@@ -96,6 +99,8 @@ export function defaultAlias(name: string, taken: Iterable<string> = []) {
  */
 export type GrantDraft = {
   container_id: string
+  /** The scale set the grant covers instead of a container. */
+  set?: string
   container_name: string
   alias: string
   scopes: McpScope[]
@@ -107,6 +112,7 @@ export type GrantDraft = {
 
 export const grantDraft = (grant: McpGrant): GrantDraft => ({
   container_id: grant.container_id,
+  ...(grant.set ? { set: grant.set } : {}),
   container_name: grant.container_name,
   alias: grant.alias,
   scopes: orderScopes(grant.scopes),
@@ -169,6 +175,7 @@ export function grantRequests(drafts: GrantDraft[], scopes?: McpScopes): GrantRe
     const excluded = excludedTools(draft, scopes)
     return {
       container_id: draft.container_id,
+      ...(draft.set ? { set: draft.set } : {}),
       ...(alias ? { alias } : {}),
       scopes: orderScopes(draft.scopes),
       servers: draft.all ? "all" : draft.servers,

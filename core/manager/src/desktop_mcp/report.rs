@@ -41,14 +41,21 @@ pub(super) fn report(app: &App, container_id: &str) -> Value {
         .collect::<Vec<_>>();
     let mut endpoints: Vec<Endpoint> = app.db.list(ENDPOINTS).unwrap_or_default();
     endpoints.sort_by(|a, b| a.name.cmp(&b.name));
+    let sets = crate::scale::all(app).unwrap_or_default();
     let endpoints = endpoints
         .iter()
         .filter_map(|endpoint| {
             let grant = endpoint
                 .grants
                 .iter()
-                .find(|grant| grant.container_id == container_id)?;
-            Some(json!({
+                .find(|grant| grant.covers(&sets, container_id))?;
+            // On an endpoint of a scale set, the desktop is the instance of this number.
+            let instance = grant.set.as_ref().and_then(|set| {
+                sets.iter()
+                    .find(|known| known.name == *set)
+                    .and_then(|known| known.number_of(container_id))
+            });
+            let mut entry = json!({
                 "name": endpoint.name,
                 "path": format!("/mcp/{}", endpoint.name),
                 "automatic": endpoint.automatic,
@@ -57,7 +64,12 @@ pub(super) fn report(app: &App, container_id: &str) -> Value {
                 "scopes": grant.scopes,
                 "servers": grant.servers,
                 "excluded_tools": grant.excluded_tools,
-            }))
+            });
+            if let Some(set) = &grant.set {
+                entry["set"] = json!(set);
+                entry["instance"] = json!(instance);
+            }
+            Some(entry)
         })
         .collect::<Vec<_>>();
     json!({"servers": servers, "endpoints": endpoints})

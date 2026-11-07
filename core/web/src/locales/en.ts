@@ -2173,6 +2173,65 @@ export const en = {
   "completion.parameter": "Compose value · {type}",
   "completion.parameterSecret": "Secret: the job log masks it.",
   "completion.volumeName": "The name of the volume at ${name}, empty without one",
+  "job.scale-up": "Create an instance",
+  "job.scale-down": "Delete an instance",
+  "job.scale-set-delete": "Delete a scale set",
+  "job.idle-delete": "Delete when idle",
+  "mcp.scope.scale": "Scale",
+  "mcp.scope.scale.description":
+    "Create and delete the set's instances, from its template and within its limits.",
+  "scale.title": "Scaling",
+  "scale.enable": "Scalable",
+  "scale.enableHint":
+    "Instance 1 of a scale set that agents and you can make more of on demand. Each instance is a new container from this same request, never a copy of another's files, and the set's MCP endpoint takes the instance by its number.",
+  "scale.setName": "Set name",
+  "scale.setNamePattern":
+    "Lowercase letters, digits and dashes, at most 40, not starting or ending with a dash",
+  "scale.setNameHint":
+    "Instances are named {name}-1, {name}-2 and on, and the set's endpoint is /mcp/{name}.",
+  "scale.min": "Keep",
+  "scale.max": "At most",
+  "scale.idleDelete": "Delete idle after (minutes)",
+  "scale.limitsHint":
+    "The set keeps its lowest-numbered instances, as many as Keep says: they are made with it, and neither an agent nor the idle delete removes them. 0 minutes never deletes an idle instance.",
+  "scale.volumes": "Volumes of new instances",
+  "scale.volumesHint":
+    "Shared mounts the same volume in every instance, so each sees what the others write there. New per instance gives each its own empty volume, deleted with it. First keeps the volume for instance 1 and gives the others new ones.",
+  "scale.noVolumes": "The container mounts no volume, so its instances share nothing.",
+  "scale.policyOf": "What new instances get at {target}",
+  "scale.policy.shared": "Shared",
+  "scale.policy.new": "New per instance",
+  "scale.policy.first": "First keeps it, others new",
+  "scale.summary": "Scalable, up to {max}",
+  "scale.error.min": "Keep must be a whole number no larger than At most.",
+  "scale.error.max": "At most must be between 1 and 16.",
+  "scale.error.idle": "Delete idle after is a whole number of minutes, at most a week.",
+  "scale.make": "Make scalable",
+  "scale.makeTitle": "Make {name} scalable",
+  "scale.makeDescription":
+    "The container becomes instance 1 of a new scale set and keeps its name and files. New instances are made from the image and settings it was created with, never from its files.",
+  "scale.made": "{name} is scalable now.",
+  "scale.endpoint": "MCP endpoint for the set",
+  "scale.endpointHint":
+    "Create /mcp/SET, whose tools take the instance by its number and can create and delete instances. The container's own endpoint stays.",
+  "scale.settingsTitle": "{name} settings",
+  "scale.settingsDescription":
+    "Limits and volumes apply to the instances made from now on; the instances that exist keep theirs.",
+  "scale.saved": "Saved {name}.",
+  "scale.newInstanceTitle": "New instance of {name}",
+  "scale.newInstanceDescription":
+    "The set has {count} of at most {max} instances. The new one starts from the image and runs its setup itself.",
+  "scale.full": "The set has its most instances, {max}.",
+  "scale.note": "Note",
+  "scale.notePlaceholder": "What it is for, such as the agent that works in it",
+  "scale.setPolicy": "The set's choice: {policy}",
+  "scale.addInstance": "Add instance",
+  "scale.deleteTitle": "Delete the scale set {name}?",
+  "scale.deleteDescription":
+    "Its {count} instances are deleted with the volumes made for them, and its MCP endpoint with them. The volumes they share stay.",
+  "scale.instanceOf": "Instance {number} of {set}",
+  "scale.setOf": "Scale set {name}",
+  "scale.count": "{count} of {max}",
 } as const
 
 export type MessageKey = keyof typeof en

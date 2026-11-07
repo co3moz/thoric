@@ -8,6 +8,7 @@ import {
   RiListCheck3,
   RiPlugLine,
   RiRouterLine,
+  RiStackLine,
   RiTimerLine,
 } from "@remixicon/react"
 import { toast } from "sonner"
@@ -56,6 +57,13 @@ import {
 } from "@/lib/lifecycle"
 import { imageServers } from "@/lib/mcp"
 import { useContainers, useImages, useSettings, useVolumes } from "@/lib/queries"
+import {
+  scalingBody,
+  scalingDraft,
+  scalingError,
+  scalingTargets,
+  type ScalingDraft,
+} from "@/lib/scale"
 import type { Settings, SettingsPreview, Volume } from "@/lib/types"
 import { mountableVolumes } from "@/lib/volume-files"
 import { FormSections, sectionedDialog, type FormSection } from "./form-sections"
@@ -63,6 +71,7 @@ import { identityBody, identityDraft, IdentityFields, type IdentityDraft } from 
 import { LifecycleFields } from "./lifecycle-fields"
 import { MountFields } from "./mount-fields"
 import { NetworkFields } from "./network-fields"
+import { ScalingFields } from "./scaling-fields"
 import { ScreenFields } from "./screen-fields"
 import { SetupFields } from "./setup-fields"
 import type { DialogProps } from "./side-drawer"
@@ -198,8 +207,9 @@ export function CreateContainerDialog({ image, ...props }: DialogProps & { image
   const [values, setValues] = React.useState<Record<string, string>>({})
   const servers = imageServers(images, chosen)
   const [endpoint, setEndpoint] = React.useState(true)
+  const [scaling, setScaling] = React.useState<ScalingDraft>(() => scalingDraft())
   const [section, setSection] = React.useState("basics")
-  useDraft({ name, selected, draft, lifecycle, values, endpoint })
+  useDraft({ name, selected, draft, lifecycle, values, endpoint, scaling })
   const { busy, error, submit } = useSubmit()
   const id = React.useId()
   const missing = compose ? missingValues(compose, values).reduce((sum, n) => sum + n, 0) : 0
@@ -293,6 +303,24 @@ export function CreateContainerDialog({ image, ...props }: DialogProps & { image
       setup: compose ? setupVolumes(compose, values) : [],
       groups,
     }),
+    {
+      id: "scaling",
+      label: t("scale.title"),
+      icon: RiStackLine,
+      group: t("sections.options"),
+      content: (
+        <ScalingFields
+          toggle
+          draft={scaling}
+          onChange={setScaling}
+          name={name}
+          targets={scalingTargets([
+            ...draft.mounts,
+            ...(compose ? setupVolumes(compose, values) : []),
+          ])}
+        />
+      ),
+    },
   ]
 
   return (
@@ -306,6 +334,11 @@ export function CreateContainerDialog({ image, ...props }: DialogProps & { image
               setSection("setup")
               throw new Error(t("setup.missingError"))
             }
+            const scalingProblem = scaling.enabled ? scalingError(scaling) : null
+            if (scalingProblem) {
+              setSection("scaling")
+              throw new Error(t(`scale.error.${scalingProblem}`))
+            }
             await runJob("containers", {
               name,
               image: chosen,
@@ -313,6 +346,7 @@ export function CreateContainerDialog({ image, ...props }: DialogProps & { image
               ...lifecycleBody(lifecycle),
               ...(compose ? { parameters: parameterBody(compose, values) } : {}),
               mcp_endpoint: endpoint,
+              ...(scaling.enabled ? { scaling: scalingBody(scaling) } : {}),
             })
           })}
         >
@@ -336,6 +370,7 @@ export function CreateContainerDialog({ image, ...props }: DialogProps & { image
                   choices.find((choice) => choice.value === chosen)?.label,
                   ...specSummary(draft),
                   lifecycleSummary(lifecycle, now),
+                  scaling.enabled ? t("scale.summary", { max: scaling.max }) : undefined,
                 ]}
               />
               <DialogClose asChild>

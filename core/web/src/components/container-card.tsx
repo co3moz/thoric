@@ -300,6 +300,15 @@ export function ContainerCard({
           >
             {spec.name}
           </button>
+          {item.scale && (
+            <Badge
+              variant="outline"
+              className="font-mono"
+              title={t("scale.instanceOf", { set: item.scale.set, number: item.scale.number })}
+            >
+              #{item.scale.number}
+            </Badge>
+          )}
           {aliases && <AliasBadges aliases={spec.aliases} />}
         </CardTitle>
         <CardDescription className="truncate">

@@ -77,11 +77,17 @@ impl schemars::JsonSchema for Servers {
     }
 }
 
-/// One container of an endpoint.
+/// One container of an endpoint, or the scale set whose instances it covers.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Grant {
+    /// Empty for a grant of a scale set.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub container_id: String,
+    /// The scale set the grant covers instead of a container: every instance it has, now and
+    /// later, which the tools take by `instance`. Such a grant is its endpoint's only one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub set: Option<String>,
     /// The container's name on the endpoint, which its tools take when it covers several.
     pub alias: String,
     pub scopes: Vec<Scope>,
@@ -94,6 +100,15 @@ pub(crate) struct Grant {
     pub excluded_tools: Vec<String>,
 }
 impl Grant {
+    /// Whether the grant covers the container `id`: it names it, or the set it is an instance of.
+    pub fn covers(&self, sets: &[crate::scale::ScaleSet], id: &str) -> bool {
+        match &self.set {
+            Some(set) => sets
+                .iter()
+                .any(|known| known.name == *set && known.number_of(id).is_some()),
+            None => self.container_id == id,
+        }
+    }
     /// Whether the grant leaves out the tool of this name.
     pub fn excludes(&self, name: &str) -> bool {
         self.excluded_tools.iter().any(|excluded| excluded == name)
@@ -116,6 +131,13 @@ pub(crate) struct Endpoint {
     pub created_at: u64,
 }
 impl Endpoint {
+    /// The scale set the endpoint covers, whose tools take `instance`.
+    pub fn set(&self) -> Option<(&Grant, &str)> {
+        match self.grants.as_slice() {
+            [grant] => grant.set.as_deref().map(|set| (grant, set)),
+            _ => None,
+        }
+    }
     /// Whether `token` is this endpoint's, compared in constant time.
     pub fn opens(&self, token: &str) -> bool {
         self.token_hash
@@ -184,7 +206,13 @@ fn unique(base: &str, limit: usize, taken: impl Fn(&str) -> bool) -> String {
 #[derive(Clone, Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct GrantRequest {
+    /// The container, or empty with `set`.
+    #[serde(default)]
     pub container_id: String,
+    /// A scale set instead of a container: the endpoint's tools take `instance`, and it covers
+    /// no other container.
+    #[serde(default)]
+    pub set: Option<String>,
     #[serde(default)]
     pub alias: Option<String>,
     pub scopes: Vec<Scope>,
@@ -209,8 +237,16 @@ pub(crate) fn grants(app: &App, requested: Vec<GrantRequest>) -> anyhow::Result<
     if requested.is_empty() || requested.len() > GRANT_LIMIT {
         bail!("An endpoint covers 1 to {GRANT_LIMIT} containers");
     }
+    if requested.iter().any(|request| request.set.is_some()) {
+        let [request] = <[GrantRequest; 1]>::try_from(requested)
+            .map_err(|_| anyhow::anyhow!("An endpoint of a scale set covers nothing else"))?;
+        return Ok(vec![set_grant(app, request)?]);
+    }
     let mut out: Vec<Grant> = Vec::new();
     for request in requested {
+        if request.scopes.contains(&Scope::Scale) {
+            bail!("The scale scope is for an endpoint of a scale set");
+        }
         let container = app
             .container(&request.container_id)
             .map_err(|_| anyhow::anyhow!("Container not found: {}", request.container_id))?;
@@ -239,17 +275,11 @@ pub(crate) fn grants(app: &App, requested: Vec<GrantRequest>) -> anyhow::Result<
                 scopes.push(scope);
             }
         }
-        if let Servers::Named(names) = &request.servers {
-            if names.len() > 64 {
-                bail!("An endpoint names at most 64 servers of a container");
-            }
-            for name in names {
-                server_name(name)?;
-            }
-        }
-        let excluded_tools = excluded(&request.excluded_tools, &scopes)?;
+        servers_named(&request.servers)?;
+        let excluded_tools = excluded(&request.excluded_tools, &scopes, false)?;
         out.push(Grant {
             container_id: request.container_id,
+            set: None,
             alias,
             scopes,
             servers: request.servers,
@@ -259,13 +289,53 @@ pub(crate) fn grants(app: &App, requested: Vec<GrantRequest>) -> anyhow::Result<
     Ok(out)
 }
 
+/// A grant of the scale set a request names, which must exist.
+fn set_grant(app: &App, request: GrantRequest) -> anyhow::Result<Grant> {
+    let set = request.set.unwrap_or_default();
+    if !request.container_id.is_empty() {
+        bail!("A grant names a container or a scale set, not both");
+    }
+    if !app.db.contains(crate::scale::SETS, &set)? {
+        bail!("Scale set not found: {set}");
+    }
+    let mut scopes = Vec::new();
+    for scope in request.scopes {
+        if !scopes.contains(&scope) {
+            scopes.push(scope);
+        }
+    }
+    servers_named(&request.servers)?;
+    let excluded_tools = excluded(&request.excluded_tools, &scopes, true)?;
+    Ok(Grant {
+        container_id: String::new(),
+        alias: slug_of(&set, 24, "set"),
+        set: Some(set),
+        scopes,
+        servers: request.servers,
+        excluded_tools,
+    })
+}
+
+/// Check the servers a grant names.
+fn servers_named(servers: &Servers) -> anyhow::Result<()> {
+    if let Servers::Named(names) = servers {
+        if names.len() > 64 {
+            bail!("An endpoint names at most 64 servers of a container");
+        }
+        for name in names {
+            server_name(name)?;
+        }
+    }
+    Ok(())
+}
+
 /// A grant's deny list, checked: names in the characters exposed tool names have, each once. A
 /// name without `__` is a container tool's and must belong to the granted scopes, or be `get_job`
 /// with a scope that returns jobs, so a typo is refused instead of leaving the tool in. A name
 /// with `__` is a desktop server's tool, `SERVER__TOOL`; the server's part must be a server name,
 /// and the tool is kept whether or not the server is known now: it may be stopped, or declared
 /// later.
-fn excluded(names: &[String], scopes: &[Scope]) -> anyhow::Result<Vec<String>> {
+fn excluded(names: &[String], scopes: &[Scope], set: bool) -> anyhow::Result<Vec<String>> {
     if names.len() > EXCLUSION_LIMIT {
         bail!("A grant leaves out at most {EXCLUSION_LIMIT} tools");
     }
@@ -291,6 +361,7 @@ fn excluded(names: &[String], scopes: &[Scope]) -> anyhow::Result<Vec<String>> {
             None => {
                 if !scopes.iter().any(|scope| scope.offers(name))
                     && !(name == "get_job" && scopes.iter().any(|scope| scope.has_jobs()))
+                    && !(set && name == super::scopes::LIST_INSTANCES)
                 {
                     bail!("{name} is not a tool of the granted scopes, so it cannot be left out");
                 }
@@ -314,6 +385,7 @@ pub(crate) fn summary(app: &App, endpoint: &Endpoint) -> Value {
         "created_at": endpoint.created_at,
         "grants": endpoint.grants.iter().map(|grant| json!({
             "container_id": grant.container_id,
+            "set": grant.set,
             "container_name": app.container(&grant.container_id).map(|c| c.spec.name).unwrap_or_default(),
             "alias": grant.alias,
             "scopes": grant.scopes,
@@ -332,12 +404,24 @@ fn load(app: &App, name: &str) -> Result<Endpoint> {
 /// desktops what their servers are now.
 pub(crate) fn announce(app: &App, container_id: &str) {
     app.desktop_mcp.report_changes();
+    let sets = crate::scale::all(app).unwrap_or_default();
     for endpoint in app.db.list::<Endpoint>(ENDPOINTS).unwrap_or_default() {
         if endpoint
             .grants
             .iter()
-            .any(|grant| grant.container_id == container_id)
+            .any(|grant| grant.covers(&sets, container_id))
         {
+            let _ = app.desktop_mcp.changes.send(endpoint.name);
+        }
+    }
+}
+
+/// Tell the agents of the endpoints of the scale set `set` that its instances changed, which
+/// changes their tools when the first instance brings its desktop servers or the last takes them.
+pub(crate) fn announce_set(app: &App, set: &str) {
+    app.desktop_mcp.report_changes();
+    for endpoint in app.db.list::<Endpoint>(ENDPOINTS).unwrap_or_default() {
+        if endpoint.set().is_some_and(|(_, name)| name == set) {
             let _ = app.desktop_mcp.changes.send(endpoint.name);
         }
     }
@@ -484,7 +568,12 @@ pub async fn endpoint_tools(
                     }),
                     Value::Null,
                 ),
-                super::scopes::Target::Job { .. } => ("thoric", Value::Null, Value::Null),
+                super::scopes::Target::Job { .. }
+                | super::scopes::Target::Instance { .. }
+                | super::scopes::Target::Set { .. } => ("thoric", Value::Null, Value::Null),
+                super::scopes::Target::InstanceServer { server, .. } => {
+                    ("server", Value::Null, json!(server))
+                }
             };
             json!({
                 "name": entry.tool.name,
@@ -517,6 +606,7 @@ pub(crate) async fn automatic_endpoint(app: &App, container: &Container) -> anyh
         automatic: true,
         grants: vec![Grant {
             container_id: container.id.clone(),
+            set: None,
             alias: slug_of(&container.spec.name, 24, "desktop"),
             scopes: Scope::DEFAULT.to_vec(),
             servers: Servers::All,
@@ -529,6 +619,56 @@ pub(crate) async fn automatic_endpoint(app: &App, container: &Container) -> anyh
     app.db.put(ENDPOINTS, &name, &endpoint)?;
     app.desktop_mcp.report_changes();
     Ok(name)
+}
+
+/// Give a scale set an endpoint of its own, named after it, with the default scopes, `scale`,
+/// all its instances' desktop servers and no token yet. Returns its name.
+pub(crate) async fn set_endpoint(app: &App, set: &str) -> anyhow::Result<String> {
+    let lock = app.resource_lock("mcp-endpoints");
+    let _guard = lock.lock().await;
+    let taken = app.db.ids(ENDPOINTS)?;
+    let name = unique(&slug_of(set, 48, "set"), 48, |n| {
+        taken.iter().any(|t| t == n)
+    });
+    let mut scopes = Scope::DEFAULT.to_vec();
+    scopes.push(Scope::Scale);
+    let endpoint = Endpoint {
+        name: name.clone(),
+        automatic: true,
+        grants: vec![Grant {
+            container_id: String::new(),
+            set: Some(set.into()),
+            alias: slug_of(set, 24, "set"),
+            scopes,
+            servers: Servers::All,
+            excluded_tools: Vec::new(),
+        }],
+        token_hash: None,
+        token_created_at: None,
+        created_at: now(),
+    };
+    app.db.put(ENDPOINTS, &name, &endpoint)?;
+    app.desktop_mcp.report_changes();
+    Ok(name)
+}
+
+/// Remove a deleted scale set from every endpoint, and its own endpoint with it.
+pub(crate) fn forget_set(app: &App, set: &str) -> anyhow::Result<()> {
+    for mut endpoint in app.db.list::<Endpoint>(ENDPOINTS)? {
+        if !endpoint.set().is_some_and(|(_, name)| name == set) {
+            continue;
+        }
+        endpoint.grants.clear();
+        if endpoint.automatic {
+            app.db.remove(ENDPOINTS, &endpoint.name)?;
+            forget(app, &endpoint.name)?;
+        } else {
+            // An endpoint left without its set keeps its name and token for new grants.
+            app.db.put(ENDPOINTS, &endpoint.name, &endpoint)?;
+        }
+        release(app, &endpoint.name);
+    }
+    Ok(())
 }
 
 /// Remove a deleted container from every endpoint, and its own endpoint with it.
