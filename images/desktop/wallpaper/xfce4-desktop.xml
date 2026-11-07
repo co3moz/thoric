@@ -8,9 +8,9 @@
         <property name="workspace0" type="empty">
           <property name="color-style" type="int" value="0"/>
           <property name="rgba1" type="array">
-            <value type="double" value="0.321569"/>
-            <value type="double" value="0.321569"/>
-            <value type="double" value="0.321569"/>
+            <value type="double" value="0.133333"/>
+            <value type="double" value="0.133333"/>
+            <value type="double" value="0.133333"/>
             <value type="double" value="1"/>
           </property>
           <property name="image-style" type="int" value="1"/>
@@ -19,9 +19,9 @@
         <property name="workspace1" type="empty">
           <property name="color-style" type="int" value="0"/>
           <property name="rgba1" type="array">
-            <value type="double" value="0.321569"/>
-            <value type="double" value="0.321569"/>
-            <value type="double" value="0.321569"/>
+            <value type="double" value="0.133333"/>
+            <value type="double" value="0.133333"/>
+            <value type="double" value="0.133333"/>
             <value type="double" value="1"/>
           </property>
           <property name="image-style" type="int" value="1"/>
@@ -30,9 +30,9 @@
         <property name="workspace2" type="empty">
           <property name="color-style" type="int" value="0"/>
           <property name="rgba1" type="array">
-            <value type="double" value="0.321569"/>
-            <value type="double" value="0.321569"/>
-            <value type="double" value="0.321569"/>
+            <value type="double" value="0.133333"/>
+            <value type="double" value="0.133333"/>
+            <value type="double" value="0.133333"/>
             <value type="double" value="1"/>
           </property>
           <property name="image-style" type="int" value="1"/>
@@ -41,9 +41,9 @@
         <property name="workspace3" type="empty">
           <property name="color-style" type="int" value="0"/>
           <property name="rgba1" type="array">
-            <value type="double" value="0.321569"/>
-            <value type="double" value="0.321569"/>
-            <value type="double" value="0.321569"/>
+            <value type="double" value="0.133333"/>
+            <value type="double" value="0.133333"/>
+            <value type="double" value="0.133333"/>
             <value type="double" value="1"/>
           </property>
           <property name="image-style" type="int" value="1"/>
