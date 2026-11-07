@@ -1236,6 +1236,15 @@ try:
     loaders = docker("exec", container, "sh", "-c", "cat /usr/lib/*/gdk-pixbuf-2.0/2.10.0/loaders.cache")
     assert b'"image/svg+xml"' in loaders, loaders
     print("PASS SVG images load in the desktop", flush=True)
+    # Thoric's wallpaper is every workspace's backdrop, from the system's xfconf channel, and draws.
+    session = docker("exec", "--user", "desktop", container, "sh", "-c", "tr '\\0' '\\n' < /proc/$(pgrep -x xfdesktop)/environ").decode()
+    bus = next(line for line in session.splitlines() if line.startswith("DBUS_SESSION_BUS_ADDRESS="))
+    for workspace in range(4):
+        backdrop = docker("exec", "--user", "desktop", "--env", bus, container, "xfconf-query", "-c", "xfce4-desktop", "-p", f"/backdrop/screen0/monitorVNC-0/workspace{workspace}/last-image")
+        assert backdrop == b"/usr/share/backgrounds/xfce/thoric.svg\n", (workspace, backdrop)
+    drawn = docker("exec", "--user", "desktop", container, "python3", "-c", "import gi; gi.require_version('GdkPixbuf', '2.0'); from gi.repository import GdkPixbuf; p = GdkPixbuf.Pixbuf.new_from_file('/usr/share/backgrounds/xfce/thoric.svg'); print(p.get_width(), p.get_height())")
+    assert drawn == b"192 192\n", drawn
+    print("PASS Thoric's wallpaper is the XFCE backdrop and draws", flush=True)
     default_exec = mcp_job(stdio_tool("exec_container", {"container_id":env_id,"script":"id -u\nprintf agent-install > /home/desktop/agent-marker"}))
     assert "1001" in default_exec["log"] and default_exec["result"]["user"] == "1001:1001"
     root_exec = mcp_job(tool("exec_container", {"container_id":env_id,"root":True,"script":"id -u\ninstall -m 644 /home/desktop/agent-marker /opt/agent-install"}))
@@ -2325,6 +2334,7 @@ try:
     assert b"GNOME Shell 46" in docker("exec",gnome_container,"gnome-shell","--version")
     assert subprocess.run(["docker","exec",gnome_container,"pgrep","-x","gnome-shell"],capture_output=True).returncode==0
     assert subprocess.run(["docker","exec",gnome_container,"pgrep","-f","^/usr/libexec/gnome-session-failed"],capture_output=True).returncode!=0
+    assert docker("exec","--user","desktop",gnome_container,"gsettings","get","org.gnome.desktop.background","picture-uri") == b"'file:///usr/share/backgrounds/thoric.svg'\n"
     # A browser GNOME Shell starts gets the Chromium check too.
     shell_env = docker("exec","--user","desktop",gnome_container,"sh","-c","tr '\\0' '\\n' < /proc/$(pgrep -x gnome-shell)/environ")
     assert any(line.startswith(b"LD_PRELOAD=") and b"/chromium-gpu.so" in line for line in shell_env.splitlines()), shell_env
@@ -2341,7 +2351,7 @@ try:
     assert subprocess.run(["docker","exec",f"thoric-{gnome_clone_id}","pgrep","-f","^/usr/libexec/gnome-session-failed"],capture_output=True).returncode!=0
     docker("exec","-d","--user","desktop",f"thoric-{gnome_clone_id}","bash","-c","exec -a /usr/libexec/gnome-session-failed sleep 30")
     assert subprocess.run(["docker","exec",f"thoric-{gnome_clone_id}","/usr/local/bin/desktop-healthcheck"],capture_output=True).returncode!=0
-    print("PASS GNOME Shell GPU desktop, preview, snapshot metadata and CPU clone",flush=True)
+    print("PASS GNOME Shell GPU desktop with Thoric's wallpaper, preview, snapshot metadata and CPU clone",flush=True)
     # An OCI start failure leaves a discoverable container/intent that retry can repair in place.
     broken_reference=f"thoric/test-broken:{tag}"
     fixture_container=f"thoric-test-image-{tag}"

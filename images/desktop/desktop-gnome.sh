@@ -31,10 +31,6 @@ if [[ ! -f "$HOME/.config/thoric-gnome-initialized" ]]; then
     gsettings set org.gnome.desktop.interface gtk-theme Yaru
     gsettings set org.gnome.desktop.interface icon-theme Yaru
     gsettings set org.gnome.shell enabled-extensions "['ubuntu-dock@ubuntu.com', 'ubuntu-appindicators@ubuntu.com']"
-    if [[ -f /usr/share/backgrounds/warty-final-ubuntu.png ]]; then
-        gsettings set org.gnome.desktop.background picture-uri file:///usr/share/backgrounds/warty-final-ubuntu.png
-        gsettings set org.gnome.desktop.background picture-uri-dark file:///usr/share/backgrounds/warty-final-ubuntu.png
-    fi
     touch "$HOME/.config/thoric-gnome-initialized"
 fi
 exec gnome-session --session=thoric-ubuntu --disable-acceleration-check

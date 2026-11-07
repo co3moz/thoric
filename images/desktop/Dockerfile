@@ -56,6 +56,9 @@ COPY thoric-mcp-tray.py /usr/local/bin/thoric-mcp-tray
 COPY mcp-tray/thoric-mcp.desktop /usr/local/share/applications/
 COPY mcp-tray/icons/ /usr/local/share/icons/hicolor/
 COPY mcp-tray/thoric-mcp-tray.desktop /etc/xdg/autostart/
+# The wallpaper of both sessions, Thoric's mark in white centered on gray, with what makes it the
+# default of each; the final stages copy them where their session looks.
+COPY wallpaper/ /usr/local/share/thoric/wallpaper/
 # What the Thoric programs above are licensed under, beside every Ubuntu package's copyright.
 COPY copyright /usr/share/doc/thoric/copyright
 # NVIDIA's EGL library for GPU desktops on a Linux host. The NVIDIA Container Toolkit's hook adds
@@ -67,7 +70,8 @@ RUN chmod +x /usr/local/bin/desktop-* /usr/local/bin/gpu-run /usr/local/bin/thor
         /usr/local/bin/thoric-mcp-tray \
     && chmod -R u=rwX,go=rX /usr/local/share/icons/hicolor \
     && chmod 644 /usr/local/share/applications/thoric-mcp.desktop \
-        /etc/xdg/autostart/thoric-mcp-tray.desktop /usr/share/doc/thoric/copyright
+        /etc/xdg/autostart/thoric-mcp-tray.desktop /usr/share/doc/thoric/copyright \
+        /usr/local/share/thoric/wallpaper/*
 
 FROM common AS xfce-packages
 # librsvg2-common is GdkPixbuf's SVG loader; without it XFCE's default wallpaper and every icon
@@ -88,6 +92,11 @@ COPY --from=scripts /usr/share/doc/thoric/ /usr/share/doc/thoric/
 COPY --from=scripts /usr/share/glvnd/egl_vendor.d/10_nvidia.json /usr/share/glvnd/egl_vendor.d/
 COPY --from=chromium-gpu /out/chromium-gpu.so /usr/local/lib/thoric/chromium-gpu.so
 COPY gpu-terminal.desktop /usr/share/applications/gpu-terminal.desktop
+# xfdesktop reads the backdrop of the VNC screen's one output, VNC-0, and of each of XFCE's four
+# workspaces from the system's channel until the desktop user picks another, and lists the
+# wallpaper beside XFCE's own.
+COPY --from=scripts /usr/local/share/thoric/wallpaper/thoric.svg /usr/share/backgrounds/xfce/thoric.svg
+COPY --from=scripts /usr/local/share/thoric/wallpaper/xfce4-desktop.xml /etc/xdg/xfce4/xfconf/xfce-perchannel-xml/
 ENV DESKTOP_SESSION=xfce
 # thoric.desktop-level, the same in both images, is DESKTOP_LEVEL in core/manager/src/catalog.rs.
 # Raise both together when this image changes in a way an older manager cannot handle, such as a
@@ -121,6 +130,11 @@ COPY --from=scripts /usr/share/doc/thoric/ /usr/share/doc/thoric/
 COPY --from=scripts /usr/share/glvnd/egl_vendor.d/10_nvidia.json /usr/share/glvnd/egl_vendor.d/
 COPY --from=chromium-gpu /out/chromium-gpu.so /usr/local/lib/thoric/chromium-gpu.so
 COPY gnome-container.session /usr/share/gnome-session/sessions/thoric-ubuntu.session
+# The wallpaper is the schema's default and one of the backgrounds GNOME Settings offers.
+COPY --from=scripts /usr/local/share/thoric/wallpaper/thoric.svg /usr/share/backgrounds/thoric.svg
+COPY --from=scripts /usr/local/share/thoric/wallpaper/gnome-wallpapers.xml /usr/share/gnome-background-properties/thoric.xml
+COPY --from=scripts /usr/local/share/thoric/wallpaper/90_thoric.gschema.override /usr/share/glib-2.0/schemas/
+RUN glib-compile-schemas /usr/share/glib-2.0/schemas
 ENV DESKTOP_SESSION=gnome
 LABEL thoric.desktop-level=1
 LABEL thoric.profile=ubuntu-gnome thoric.session=gnome \

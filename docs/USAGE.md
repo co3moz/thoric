@@ -24,7 +24,7 @@ The GPU option is available only when the installation enables `WSL_GPU` or `NVI
 
 ## Choose XFCE or GNOME
 
-Both catalog images are Ubuntu 24.04. XFCE uses fewer resources and is a good starting point for application work. GNOME provides the Ubuntu shell and Yaru theme when you prefer that desktop.
+Both catalog images are Ubuntu 24.04. XFCE uses fewer resources and is a good starting point for application work. GNOME provides the Ubuntu shell and Yaru theme when you prefer that desktop. Both start on a plain gray desktop with Thoric's mark in white at its center; another wallpaper is chosen in the desktop's own settings, XFCE's **Desktop** or GNOME's **Appearance**, which keep Thoric's among the ones they list.
 
 The GNOME image runs an X11 session in the container. It does not include GDM, a Wayland login session or host power and USB management. Screen locking is disabled; access goes through the manager's login.
 

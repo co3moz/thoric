@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE wallpapers SYSTEM "gnome-wp-list.dtd">
+<!-- Thoric's wallpaper in GNOME Settings' Appearance, so it can be chosen again after another. -->
+<wallpapers>
+  <wallpaper deleted="false">
+    <name>Thoric</name>
+    <filename>/usr/share/backgrounds/thoric.svg</filename>
+    <filename-dark>/usr/share/backgrounds/thoric.svg</filename-dark>
+    <options>centered</options>
+    <shade_type>solid</shade_type>
+    <pcolor>#525252</pcolor>
+    <scolor>#525252</scolor>
+  </wallpaper>
+</wallpapers>
