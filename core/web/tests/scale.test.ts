@@ -5,7 +5,9 @@ import { staleKeys } from "../src/lib/events"
 import { pendingContainers } from "../src/lib/pending"
 import {
   bySet,
+  entryCount,
   room,
+  runningEntries,
   scalingBody,
   scalingDraft,
   scalingError,
@@ -111,4 +113,27 @@ test("an instance's creation is a pending container and its end refreshes the se
     assert.ok(
       staleKeys({ kind, resource: "container:c9", status: "completed" }).includes("scale-sets")
     )
+})
+
+test("the sidebar lists running containers first to last, a set's instances under it", () => {
+  const item = (id: string, created_at: number, scale?: { set: string; number: number }) =>
+    ({ id, created_at, spec: { name: id }, scale: scale ?? null }) as unknown as ContainerItem
+  const entries = runningEntries([
+    item("re-4", 40, { set: "re", number: 4 }),
+    item("late", 50),
+    item("re-2", 20, { set: "re", number: 2 }),
+    item("re", 10, { set: "re", number: 1 }),
+    item("early", 5),
+    item("other-1", 30, { set: "other", number: 1 }),
+  ])
+  assert.deepEqual(
+    entries.map((entry) =>
+      entry.kind === "set"
+        ? `${entry.set}: ${entry.instances.map((instance) => instance.id).join(" ")}`
+        : entry.item.id
+    ),
+    ["early", "re: re re-2 re-4", "other: other-1", "late"]
+  )
+  assert.equal(entryCount(entries), 6)
+  assert.equal(entryCount(entries.slice(0, 2)), 4)
 })

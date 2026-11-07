@@ -1002,6 +1002,7 @@ export const de: Messages = {
   "nav.running": "Laufende Container",
   "nav.noneRunning": "Kein Container läuft.",
   "nav.more": "{count} weitere",
+  "nav.instancesRunning": "{count} laufen",
   "nav.toggleSidebar": "Seitenleiste umschalten",
   "nav.sidebar": "Seitenleiste",
   "nav.sidebarHint": "Zeigt die mobile Seitenleiste an.",

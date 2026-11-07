@@ -988,6 +988,7 @@ export const tr: Messages = {
   "nav.running": "Çalışan konteynerler",
   "nav.noneRunning": "Çalışan konteyner yok.",
   "nav.more": "{count} tane daha",
+  "nav.instancesRunning": "{count} çalışıyor",
   "nav.toggleSidebar": "Kenar çubuğunu aç/kapat",
   "nav.sidebar": "Kenar çubuğu",
   "nav.sidebarHint": "Mobil kenar çubuğunu gösterir.",

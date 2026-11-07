@@ -1003,6 +1003,7 @@ export const en = {
   "nav.running": "Running containers",
   "nav.noneRunning": "No container is running.",
   "nav.more": "{count} more",
+  "nav.instancesRunning": "{count} running",
   "nav.toggleSidebar": "Toggle Sidebar",
   "nav.sidebar": "Sidebar",
   "nav.sidebarHint": "Displays the mobile sidebar.",
