@@ -53,11 +53,13 @@ describe("reading events", () => {
     expect(staleKeys({ kind: "create", resource: "container:a", status: "running" })).toEqual([
       "jobs",
     ])
+    // A creation may be a scalable container's first instance, whose set the list shows.
     expect(staleKeys({ kind: "create", resource: "container:a", status: "completed" })).toEqual([
       "jobs",
       "containers",
       "volumes",
       "mcp",
+      "scale-sets",
     ])
     // A duplicate's container starts from a snapshot, with copied volumes and an endpoint.
     expect(staleKeys({ kind: "duplicate", resource: "container:b", status: "failed" })).toEqual([

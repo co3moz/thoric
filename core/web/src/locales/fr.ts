@@ -402,6 +402,7 @@ export const fr: Messages = {
   "restart.field.mac_address": "l'adresse MAC",
   "restart.field.machine_id": "l'identifiant de machine",
   "restart.field.shm_mb": "la mémoire partagée",
+  "restart.field.tmp_mb": "la taille de /tmp",
   "restart.field.mounts": "le montage des volumes",
   "restart.field.cpus": "la suppression de la limite CPU",
   "restart.field.memory_mb": "la suppression de la limite de mémoire",
@@ -1424,6 +1425,9 @@ export const fr: Messages = {
   "spec.resolution.height": "Hauteur",
   "spec.resolution.customHint": "Toute taille de {min} à {max}.",
   "spec.sharedMemory": "Mémoire partagée (MB)",
+  "spec.tmpSize": "Taille de /tmp (MB)",
+  "spec.inMemoryHint":
+    "La mémoire partagée et /tmp résident en mémoire vive et comptent dans la limite de mémoire.",
   "spec.cpuLimit": "Limite CPU",
   "spec.unlimited": "Illimité",
   "spec.memoryLimit": "Limite de mémoire (MB)",
@@ -2183,4 +2187,64 @@ export const fr: Messages = {
   "completion.parameter": "Valeur du compose · {type}",
   "completion.parameterSecret": "Secret : le journal de la tâche le masque.",
   "completion.volumeName": "Le nom du volume à ${name}, vide sans volume",
+  "job.scale-up": "Créer une instance",
+  "job.scale-down": "Supprimer une instance",
+  "job.scale-set-delete": "Supprimer un groupe évolutif",
+  "job.idle-delete": "Suppression pour inactivité",
+  "mcp.scope.scale": "Mise à l'échelle",
+  "mcp.scope.scale.description":
+    "Créer et supprimer les instances du groupe, depuis son modèle et dans ses limites.",
+  "scale.title": "Mise à l'échelle",
+  "scale.enable": "Évolutif",
+  "scale.enableHint":
+    "L'instance 1 d'un groupe évolutif dont les agents et vous créez d'autres à la demande. Chaque instance est un nouveau conteneur issu de cette même requête, jamais une copie des fichiers d'une autre, et le point d'accès MCP du groupe prend l'instance par son numéro.",
+  "scale.setName": "Nom du groupe",
+  "scale.setNamePattern":
+    "Lettres minuscules, chiffres et tirets, 40 au plus, sans tiret au début ni à la fin",
+  "scale.setNameHint":
+    "Les instances s'appellent {name}-1, {name}-2 et ainsi de suite, et le point d'accès du groupe est /mcp/{name}.",
+  "scale.min": "Garder",
+  "scale.max": "Au plus",
+  "scale.idleDelete": "Supprimer inactive après (minutes)",
+  "scale.limitsHint":
+    "Le groupe garde ses instances aux numéros les plus bas, autant que Garder l'indique : elles sont créées avec lui, et ni un agent ni la suppression pour inactivité ne les retire. 0 minute ne supprime jamais une instance inactive.",
+  "scale.volumes": "Volumes des nouvelles instances",
+  "scale.volumesHint":
+    "Partagé monte le même volume dans chaque instance, si bien que chacune voit ce que les autres y écrivent. Nouveau par instance donne à chacune un volume vide à elle, supprimé avec elle. Première garde le volume pour l'instance 1 et en donne de nouveaux aux autres.",
+  "scale.noVolumes": "Le conteneur ne monte aucun volume, ses instances ne partagent donc rien.",
+  "scale.policyOf": "Ce que les nouvelles instances reçoivent à {target}",
+  "scale.policy.shared": "Partagé",
+  "scale.policy.new": "Nouveau par instance",
+  "scale.policy.first": "La première le garde, les autres nouveau",
+  "scale.summary": "Évolutif, jusqu'à {max}",
+  "scale.error.min": "Garder doit être un nombre entier qui ne dépasse pas Au plus.",
+  "scale.error.max": "Au plus doit être entre 1 et 16.",
+  "scale.error.idle":
+    "Supprimer inactive après est un nombre entier de minutes, une semaine au plus.",
+  "scale.make": "Rendre évolutif",
+  "scale.makeTitle": "Rendre {name} évolutif",
+  "scale.makeDescription":
+    "Le conteneur devient l'instance 1 d'un nouveau groupe évolutif et garde son nom et ses fichiers. Les nouvelles instances sont créées depuis l'image et les réglages avec lesquels il a été créé, jamais depuis ses fichiers.",
+  "scale.made": "{name} est maintenant évolutif.",
+  "scale.endpoint": "Point d'accès MCP du groupe",
+  "scale.endpointHint":
+    "Créer /mcp/GROUPE, dont les outils prennent l'instance par son numéro et peuvent créer et supprimer des instances. Le point d'accès du conteneur reste.",
+  "scale.settingsTitle": "Réglages de {name}",
+  "scale.settingsDescription":
+    "Les limites et les volumes valent pour les instances créées à partir de maintenant ; celles qui existent gardent les leurs.",
+  "scale.saved": "{name} enregistré.",
+  "scale.newInstanceTitle": "Nouvelle instance de {name}",
+  "scale.newInstanceDescription":
+    "Le groupe a {count} instances sur {max} au plus. La nouvelle part de l'image et lance sa configuration elle-même.",
+  "scale.full": "Le groupe a atteint son maximum de {max} instances.",
+  "scale.note": "Note",
+  "scale.notePlaceholder": "À quoi elle sert, par exemple l'agent qui y travaille",
+  "scale.setPolicy": "Choix du groupe : {policy}",
+  "scale.addInstance": "Ajouter une instance",
+  "scale.deleteTitle": "Supprimer le groupe évolutif {name} ?",
+  "scale.deleteDescription":
+    "Ses {count} instances sont supprimées avec les volumes créés pour elles, ainsi que son point d'accès MCP. Les volumes qu'elles partagent restent.",
+  "scale.instanceOf": "Instance {number} de {set}",
+  "scale.setOf": "Groupe évolutif {name}",
+  "scale.count": "{count} sur {max}",
 }

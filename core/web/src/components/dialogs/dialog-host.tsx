@@ -24,6 +24,12 @@ import { ActivityDrawer } from "./activity-drawer"
 import { ContainerDrawer } from "./container-drawer"
 import { CreateContainerDialog, SettingsDialog } from "./container-dialogs"
 import { DuplicateDialog } from "./duplicate-dialog"
+import {
+  MakeScalableDialog,
+  NewInstanceDialog,
+  ScaleSetDeleteDialog,
+  ScaleSetDialog,
+} from "./scale-dialogs"
 import { GroupConnectDialog } from "./group-dialog"
 import { JobDrawer } from "./job-drawer"
 import { LogDialog } from "./log-dialog"
@@ -124,6 +130,14 @@ function render(dialog: Dialog, open: boolean) {
       return <SnapshotDialog {...props} id={dialog.id} />
     case "duplicate":
       return <DuplicateDialog {...props} id={dialog.id} />
+    case "make-scalable":
+      return <MakeScalableDialog {...props} id={dialog.id} />
+    case "scale-set":
+      return <ScaleSetDialog {...props} name={dialog.name} />
+    case "scale-instance":
+      return <NewInstanceDialog {...props} name={dialog.name} />
+    case "scale-set-delete":
+      return <ScaleSetDeleteDialog {...props} name={dialog.name} />
     case "delete":
       return <DeleteDialog {...props} id={dialog.id} />
     case "reset":

@@ -83,16 +83,54 @@ async fn a_round_finds_the_running_desktops_idle_for_their_time() {
     let up = running(&["thoric-idle", "thoric-never", "thoric-patient"]);
     let reaper = Reaper::default();
     let now = crate::model::now();
-    assert!(reaper.due(&app, &records, &up, now).is_empty());
+    assert!(reaper.due(&app, &records, &[], &up, now).is_empty());
     tokio::time::advance(MINUTE).await;
-    assert_eq!(reaper.due(&app, &records, &up, now), ["idle"]);
+    assert_eq!(reaper.due(&app, &records, &[], &up, now), ["idle"]);
     // A use that lasts, such as an open viewer, keeps it.
     let viewer = app.lifecycle.open("idle");
     tokio::time::advance(10 * MINUTE).await;
-    assert!(reaper.due(&app, &records, &up, now).is_empty());
+    assert!(reaper.due(&app, &records, &[], &up, now).is_empty());
     drop(viewer);
     tokio::time::advance(MINUTE).await;
-    assert_eq!(reaper.due(&app, &records, &up, now), ["idle"]);
+    assert_eq!(reaper.due(&app, &records, &[], &up, now), ["idle"]);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_scale_sets_idle_instances_go_highest_first_and_its_kept_ones_stay() {
+    let app = crate::test_support::app(false);
+    let records = [
+        record("one", Lifecycle::default()),
+        record("two", Lifecycle::default()),
+        record("three", Lifecycle::default()),
+        record("alone", Lifecycle::default()),
+    ];
+    let mut set: crate::scale::ScaleSet = serde_json::from_value(serde_json::json!({
+        "name": "re", "created_at": 1, "template": crate::test_support::spec(),
+        "min": 1, "max": 4, "idle_delete_minutes": 5,
+        "instances": {
+            "1": {"container_id": "one"},
+            "2": {"container_id": "two"},
+            "3": {"container_id": "three"},
+        },
+    }))
+    .unwrap();
+    // Instance 3 is stopped, which an idle delete takes too; "alone" is no instance at all.
+    let up = running(&["thoric-one", "thoric-two", "thoric-alone"]);
+    let reaper = Reaper::default();
+    let now = crate::model::now();
+    let sets = [set.clone()];
+    assert!(reaper.due(&app, &records, &sets, &up, now).is_empty());
+    tokio::time::advance(5 * MINUTE).await;
+    assert_eq!(
+        reaper.due(&app, &records, &sets, &up, now),
+        ["three", "two"]
+    );
+    // An instance in use stays, and without an idle delete none goes.
+    let using = app.lifecycle.open("two");
+    assert_eq!(reaper.due(&app, &records, &sets, &up, now), ["three"]);
+    drop(using);
+    set.idle_delete_minutes = 0;
+    assert!(reaper.due(&app, &records, &[set], &up, now).is_empty());
 }
 
 #[tokio::test(start_paused = true)]
@@ -105,7 +143,7 @@ async fn a_busy_cpu_counts_as_use_until_it_calms_down() {
     tokio::time::advance(5 * MINUTE).await;
     assert!(
         reaper
-            .due(&app, &records, &up, crate::model::now())
+            .due(&app, &records, &[], &up, crate::model::now())
             .is_empty()
     );
     // A desktop at rest uses a few hundredths of a core.
@@ -113,7 +151,7 @@ async fn a_busy_cpu_counts_as_use_until_it_calms_down() {
     cpu(&calm, "build", 0.03);
     tokio::time::advance(5 * MINUTE).await;
     assert_eq!(
-        reaper.due(&calm, &records, &up, crate::model::now()),
+        reaper.due(&calm, &records, &[], &up, crate::model::now()),
         ["build"]
     );
     // The round that found it busy noted the use, so its idle time starts there.
@@ -133,13 +171,13 @@ async fn an_expiry_is_due_running_or_not_unless_its_action_failed_lately() {
     ];
     let mut reaper = Reaper::default();
     assert_eq!(
-        reaper.due(&app, &records, &running(&[]), crate::model::now()),
+        reaper.due(&app, &records, &[], &running(&[]), crate::model::now()),
         ["gone"]
     );
     reaper.failed.insert("gone".into(), Instant::now());
     assert!(
         reaper
-            .due(&app, &records, &running(&[]), crate::model::now())
+            .due(&app, &records, &[], &running(&[]), crate::model::now())
             .is_empty()
     );
 }
@@ -212,7 +250,7 @@ async fn a_job_that_outlasted_the_wait_is_settled_by_a_later_round() {
     // While its job runs, the container is not looked at again.
     assert!(
         reaper
-            .due(&app, &records, &up, crate::model::now())
+            .due(&app, &records, &[], &up, crate::model::now())
             .is_empty()
     );
     reaper.collect();
@@ -224,7 +262,7 @@ async fn a_job_that_outlasted_the_wait_is_settled_by_a_later_round() {
     assert!(reaper.failed.contains_key("slow"));
     assert!(
         reaper
-            .due(&app, &records, &up, crate::model::now())
+            .due(&app, &records, &[], &up, crate::model::now())
             .is_empty()
     );
 }

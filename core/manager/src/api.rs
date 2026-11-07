@@ -4,6 +4,7 @@
 //! with it; `main.rs` is the route table.
 mod containers;
 mod images;
+mod scale;
 
 #[cfg(test)]
 pub(crate) use containers::creation_request;
@@ -15,6 +16,10 @@ pub(crate) use containers::{
 pub(crate) use images::{
     BuildImage, RegisterImage, Snapshot, build, build_catalog, image_config, image_list,
     image_summary, images, pull_catalog, register_image, snapshot,
+};
+pub(crate) use scale::{
+    MakeScalable, NewInstance, UpdateSet, create_instance, delete_instance, delete_set,
+    list_instances, make_scalable, set, sets, update_set,
 };
 
 use crate::{App, error::Result, jobs, model::*};

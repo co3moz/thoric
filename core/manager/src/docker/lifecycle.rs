@@ -73,7 +73,28 @@ impl App {
         parameters: std::collections::BTreeMap<String, String>,
         job_id: &str,
     ) -> Result<Value> {
+        self.create_from(id, spec, Creation::from_image(parameters), job_id)
+            .await
+    }
+    /// Create a container as [`Self::create_container`] does, with its compose and the volumes
+    /// made for it as `creation` says.
+    pub(crate) async fn create_from(
+        &self,
+        id: &str,
+        spec: ContainerSpec,
+        creation: Creation,
+        job_id: &str,
+    ) -> Result<Value> {
         spec.validate()?;
+        let Creation { compose, own } = creation;
+        // A volume made for the container is not one a request chose.
+        let chosen_own = |mount: &&Mount| !own.iter().any(|(_, volume)| *volume == mount.volume);
+        let spec_chosen = spec
+            .mounts
+            .iter()
+            .filter(chosen_own)
+            .cloned()
+            .collect::<Vec<_>>();
         self.installation_allows(&spec)?;
         let manager = self
             .config
@@ -87,7 +108,7 @@ impl App {
         // Cheap checks come before a catalog image download that can take minutes. The volumes
         // are checked again under their locks before the record is saved.
         crate::volumes::refuse_manager_volumes(&manager_info, &spec.mounts)?;
-        self.chosen_volumes(&spec.mounts, &[]).await?;
+        self.chosen_volumes(&spec_chosen, &[]).await?;
         self.ensure_catalog_image(&spec.image, job_id).await?;
         let image = self
             .inspect("image", &spec.image)
@@ -98,7 +119,12 @@ impl App {
         }
         crate::catalog::check_level(&image["Config"]["Labels"])?;
         let image_id = image["Id"].as_str().context("Missing image ID")?;
-        let compose = self.pin_compose(id, &spec.image, image_id, &parameters)?;
+        let compose = match compose {
+            ComposeChoice::Image(parameters) => {
+                self.pin_compose(id, &spec.image, image_id, &parameters)?
+            }
+            ComposeChoice::Pinned(image, pinned) => Some((image, pinned)),
+        };
         let compose_mounts = compose
             .as_ref()
             .map(|(_, pinned)| pinned.mounts())
@@ -107,10 +133,15 @@ impl App {
         // An image's compose names its default volume; it cannot hand a desktop the manager's
         // database either.
         crate::volumes::refuse_manager_volumes(&manager_info, &compose_mounts)?;
-        let own_volumes = compose
+        let mut own_volumes = compose
             .as_ref()
             .map(|(_, pinned)| pinned.new_volumes(id))
             .unwrap_or_default();
+        for (made_for, volume) in &own {
+            if !own_volumes.iter().any(|(_, known)| known == volume) {
+                own_volumes.push((made_for.clone(), volume.as_str()));
+            }
+        }
         let chosen = compose_mounts
             .iter()
             .filter(|mount| !own_volumes.iter().any(|(_, own)| *own == mount.volume))
@@ -127,7 +158,7 @@ impl App {
         let volumes = self
             .lock_volumes(all_mounts.iter().map(|mount| mount.volume.as_str()))
             .await;
-        self.chosen_volumes(&spec.mounts, &chosen).await?;
+        self.chosen_volumes(&spec_chosen, &chosen).await?;
         image_volumes_mounted(&image, &all_mounts)?;
         let container = format!("thoric-{id}");
         let mut spec = spec;
@@ -525,6 +556,7 @@ impl App {
         self.forget_proxy_password(&env.id)?;
         self.db.remove(CONTAINERS, &env.id)?;
         crate::desktop_mcp::forget_container(self, &env.id)?;
+        crate::scale::forget_container(self, &env.id).await?;
         self.human.end_container(&env.id, &self.events);
         self.append_log(
             job_id,
@@ -616,6 +648,31 @@ impl App {
         self.provisioned_ready(&env, job_id).await?;
         self.run_setup(id, job_id).await?;
         Ok(json!({"container_id": id, "volumes_preserved": true, "images_preserved": true}))
+    }
+}
+
+/// The compose a new container runs.
+pub(crate) enum ComposeChoice {
+    /// The compose of its image's record, if any, with these values.
+    Image(std::collections::BTreeMap<String, String>),
+    /// This compose of the image record named first, with its values, as an instance of a scale
+    /// set is created with the compose its set pinned.
+    Pinned(String, crate::compose::Pinned),
+}
+
+/// How a new container is created beyond its settings.
+pub(crate) struct Creation {
+    pub compose: ComposeChoice,
+    /// Volumes made for it beside those its compose's parameters make, each with what it was made
+    /// for: they carry its owner's labels and go with it when its volumes are deleted.
+    pub own: Vec<(String, String)>,
+}
+impl Creation {
+    pub(crate) fn from_image(parameters: std::collections::BTreeMap<String, String>) -> Self {
+        Self {
+            compose: ComposeChoice::Image(parameters),
+            own: Vec::new(),
+        }
     }
 }
 

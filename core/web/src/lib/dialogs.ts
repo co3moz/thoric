@@ -10,6 +10,11 @@ export type Dialog =
   | { kind: "settings"; id: string }
   | { kind: "snapshot"; id: string }
   | { kind: "duplicate"; id: string }
+  /** Make an existing container instance 1 of a new scale set. */
+  | { kind: "make-scalable"; id: string }
+  | { kind: "scale-set"; name: string }
+  | { kind: "scale-instance"; name: string }
+  | { kind: "scale-set-delete"; name: string }
   | { kind: "delete"; id: string }
   | { kind: "reset"; id: string }
   /** Containers to connect to a network group: `group`, or a new one named in the dialog. */

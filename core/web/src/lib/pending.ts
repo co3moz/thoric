@@ -4,8 +4,11 @@ import type { ContainerItem, ImageItem, Job } from "./types"
 /** A container or an image a job is still making, under the name it will have. */
 export type Pending = { id: string; name: string; job: Job }
 
-/** The jobs that make a container: a creation, and a duplicate of another container. */
-const containerJobs = new Set(["create", "duplicate"])
+/**
+ * The jobs that make a container: a creation, a duplicate of another container and an instance of
+ * a scale set.
+ */
+const containerJobs = new Set(["create", "duplicate", "scale-up"])
 
 /**
  * The jobs that make a saved image, and the kind its record will have. A duplicate starts its

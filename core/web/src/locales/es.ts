@@ -400,6 +400,7 @@ export const es: Messages = {
   "restart.field.mac_address": "la dirección MAC",
   "restart.field.machine_id": "el ID de máquina",
   "restart.field.shm_mb": "la memoria compartida",
+  "restart.field.tmp_mb": "el tamaño de /tmp",
   "restart.field.mounts": "los volúmenes",
   "restart.field.cpus": "quitar el límite de CPU",
   "restart.field.memory_mb": "quitar el límite de memoria",
@@ -1416,6 +1417,9 @@ export const es: Messages = {
   "spec.resolution.height": "Alto",
   "spec.resolution.customHint": "Cualquier tamaño de {min} a {max}.",
   "spec.sharedMemory": "Memoria compartida (MB)",
+  "spec.tmpSize": "Tamaño de /tmp (MB)",
+  "spec.inMemoryHint":
+    "La memoria compartida y /tmp están en la RAM y cuentan para el límite de memoria.",
   "spec.cpuLimit": "Límite de CPU",
   "spec.unlimited": "Ilimitado",
   "spec.memoryLimit": "Límite de memoria (MB)",
@@ -2172,4 +2176,65 @@ export const es: Messages = {
   "completion.parameter": "Valor del compose · {type}",
   "completion.parameterSecret": "Secreto: el registro del trabajo lo oculta.",
   "completion.volumeName": "El nombre del volumen en ${name}, vacío sin uno",
+  "job.scale-up": "Crear una instancia",
+  "job.scale-down": "Eliminar una instancia",
+  "job.scale-set-delete": "Eliminar un grupo escalable",
+  "job.idle-delete": "Eliminar por inactividad",
+  "mcp.scope.scale": "Escalar",
+  "mcp.scope.scale.description":
+    "Crear y eliminar las instancias del grupo, desde su plantilla y dentro de sus límites.",
+  "scale.title": "Escalado",
+  "scale.enable": "Escalable",
+  "scale.enableHint":
+    "Instancia 1 de un grupo escalable del que los agentes y usted crean más cuando hace falta. Cada instancia es un contenedor nuevo de esta misma solicitud, nunca una copia de los archivos de otra, y el endpoint MCP del grupo toma la instancia por su número.",
+  "scale.setName": "Nombre del grupo",
+  "scale.setNamePattern":
+    "Minúsculas, dígitos y guiones, como máximo 40, sin guion al principio ni al final",
+  "scale.setNameHint":
+    "Las instancias se llaman {name}-1, {name}-2 y así, y el endpoint del grupo es /mcp/{name}.",
+  "scale.min": "Mantener",
+  "scale.max": "Como máximo",
+  "scale.idleDelete": "Eliminar inactivas tras (minutos)",
+  "scale.limitsHint":
+    "El grupo mantiene sus instancias de número más bajo, tantas como diga Mantener: se crean con él, y ni un agente ni la eliminación por inactividad las quitan. 0 minutos nunca elimina una instancia inactiva.",
+  "scale.volumes": "Volúmenes de las instancias nuevas",
+  "scale.volumesHint":
+    "Compartido monta el mismo volumen en cada instancia, así que cada una ve lo que las otras escriben ahí. Nuevo por instancia da a cada una un volumen vacío propio, que se elimina con ella. Primera mantiene el volumen para la instancia 1 y da volúmenes nuevos a las demás.",
+  "scale.noVolumes":
+    "El contenedor no monta ningún volumen, así que sus instancias no comparten nada.",
+  "scale.policyOf": "Lo que reciben las instancias nuevas en {target}",
+  "scale.policy.shared": "Compartido",
+  "scale.policy.new": "Nuevo por instancia",
+  "scale.policy.first": "La primera lo mantiene, las demás nuevo",
+  "scale.summary": "Escalable, hasta {max}",
+  "scale.error.min": "Mantener debe ser un número entero no mayor que Como máximo.",
+  "scale.error.max": "Como máximo debe estar entre 1 y 16.",
+  "scale.error.idle":
+    "Eliminar inactivas tras es un número entero de minutos, como máximo una semana.",
+  "scale.make": "Hacer escalable",
+  "scale.makeTitle": "Hacer escalable {name}",
+  "scale.makeDescription":
+    "El contenedor pasa a ser la instancia 1 de un grupo escalable nuevo y conserva su nombre y sus archivos. Las instancias nuevas se crean con la imagen y la configuración con las que se creó, nunca con sus archivos.",
+  "scale.made": "{name} ya es escalable.",
+  "scale.endpoint": "Endpoint MCP para el grupo",
+  "scale.endpointHint":
+    "Crear /mcp/GRUPO, cuyas herramientas toman la instancia por su número y pueden crear y eliminar instancias. El endpoint propio del contenedor se mantiene.",
+  "scale.settingsTitle": "Configuración de {name}",
+  "scale.settingsDescription":
+    "Los límites y los volúmenes valen para las instancias creadas a partir de ahora; las que existen conservan los suyos.",
+  "scale.saved": "{name} guardado.",
+  "scale.newInstanceTitle": "Instancia nueva de {name}",
+  "scale.newInstanceDescription":
+    "El grupo tiene {count} de como máximo {max} instancias. La nueva parte de la imagen y ejecuta su configuración ella misma.",
+  "scale.full": "El grupo tiene su máximo de {max} instancias.",
+  "scale.note": "Nota",
+  "scale.notePlaceholder": "Para qué es, como el agente que trabaja en ella",
+  "scale.setPolicy": "Elección del grupo: {policy}",
+  "scale.addInstance": "Añadir instancia",
+  "scale.deleteTitle": "¿Eliminar el grupo escalable {name}?",
+  "scale.deleteDescription":
+    "Sus {count} instancias se eliminan con los volúmenes creados para ellas, y su endpoint MCP con ellas. Los volúmenes que comparten se mantienen.",
+  "scale.instanceOf": "Instancia {number} de {set}",
+  "scale.setOf": "Grupo escalable {name}",
+  "scale.count": "{count} de {max}",
 }

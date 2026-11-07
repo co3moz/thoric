@@ -178,10 +178,12 @@ const columns: DataColumn<Row>[] = [
       return (
         <ul className="flex min-w-56 flex-col gap-1.5 text-xs whitespace-normal">
           {grants.map((grant) => (
-            <li key={grant.container_id} className="flex flex-col gap-0.5">
+            <li key={grant.set ?? grant.container_id} className="flex flex-col gap-0.5">
               <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
                 <ConceptIcon concept="container" className="size-3.5 shrink-0" />
-                {present.has(grant.container_id) ? (
+                {grant.set ? (
+                  <span className="font-medium">{t("scale.setOf", { name: grant.set })}</span>
+                ) : present.has(grant.container_id) ? (
                   <button
                     type="button"
                     className="font-medium hover:underline"
@@ -193,7 +195,7 @@ const columns: DataColumn<Row>[] = [
                   <span className="font-medium">{grant.container_name}</span>
                 )}
                 <code className="font-mono text-muted-foreground">{grant.alias}</code>
-                {!present.has(grant.container_id) && (
+                {!grant.set && !present.has(grant.container_id) && (
                   <Badge variant="outline" className="text-warning">
                     {t("mcp.grant.deleted")}
                   </Badge>

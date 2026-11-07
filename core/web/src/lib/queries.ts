@@ -10,6 +10,7 @@ import { fetchTemplateList } from "./templates"
 import { followLog, jobReadPath, logWentBack, type JobRead } from "./job-log"
 import { endpointApi } from "./mcp"
 import { creationEnded } from "./pending"
+import type { ScaleSet } from "./scale"
 import type {
   Configuration,
   ContainerItem,
@@ -119,6 +120,13 @@ export const useContainers = (poll = true) => useList<ContainerItem[]>("containe
 export const useImages = (poll = true) => useList<ImageItem[]>("images", poll)
 export const useVolumes = (poll = true) => useList<Volume[]>("volumes", poll)
 export const useSystem = (poll = true) => useList<SystemInfo>("system", poll)
+/** The scale sets with their instances, which the containers page groups its cards by. */
+export const useScaleSets = (poll = true) =>
+  useQuery({
+    queryKey: ["scale-sets"],
+    queryFn: async () => (await api<{ items: ScaleSet[] }>("scale-sets")).items,
+    refetchInterval: () => watchedInterval(poll),
+  })
 
 /**
  * The newest release, which the manager looks up every six hours, and a running update, which is

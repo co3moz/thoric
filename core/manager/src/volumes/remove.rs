@@ -57,6 +57,19 @@ impl App {
         if let Some(container) = mounted_by(name, &containers) {
             return Err(Error(StatusCode::CONFLICT, mounted(name, container)));
         }
+        // A scale set mounts it in the instances it creates from now on.
+        let sets = self
+            .db
+            .list_complete::<crate::scale::ScaleSet>(crate::scale::SETS)?;
+        if let Some(set) = crate::scale::mounting(&sets, &crate::scale::templates(self)?, name) {
+            return Err(Error(
+                StatusCode::CONFLICT,
+                format!(
+                    "The scale set {} mounts this volume in its instances; delete that set first",
+                    set.name
+                ),
+            ));
+        }
         self.docker(&["volume", "rm", name])
             .await
             .map_err(refused)?;

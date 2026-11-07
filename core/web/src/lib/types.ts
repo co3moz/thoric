@@ -45,6 +45,8 @@ export type ContainerSpec = {
   cpus: number | null
   memory_mb: number | null
   shm_mb: number
+  /** The size of /tmp, a tmpfs kept in memory. */
+  tmp_mb: number
   mounts: Mount[]
   /** When Thoric stops or deletes the container by itself; absent before a container exists. */
   lifecycle?: Lifecycle
@@ -185,6 +187,8 @@ export type ContainerItem = Container & {
    * ahead while it is in use; `null` without one or while it is stopped.
    */
   idle_stop_at?: number | null
+  /** The scale set it is an instance of, with its number; `null` for a container of none. */
+  scale?: { set: string; number: number } | null
 }
 
 /**
@@ -611,7 +615,15 @@ export type SettingsPreview = { container_id: string; live: string[]; restart: s
 
 /** What an MCP endpoint lets an agent do in one container, beside its desktop MCP servers. */
 export type McpScope =
-  "view" | "input" | "applications" | "files_read" | "files_write" | "commands" | "media" | "power"
+  | "view"
+  | "input"
+  | "applications"
+  | "files_read"
+  | "files_write"
+  | "commands"
+  | "media"
+  | "power"
+  | "scale"
 
 export type McpTool = { name: string; description: string }
 
@@ -665,7 +677,10 @@ export type ServerDeclaration = ServerRequest
 
 /** One container an MCP endpoint reaches, and what it may do there. */
 export type McpGrant = {
+  /** Empty for a grant of a scale set. */
   container_id: string
+  /** The scale set the grant covers instead of a container, whose tools take `instance`. */
+  set?: string | null
   container_name: string
   alias: string
   scopes: McpScope[]

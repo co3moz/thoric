@@ -230,6 +230,8 @@ pub(crate) fn restored(lifecycle: &mut Lifecycle, now: u64) -> bool {
 pub(crate) enum Due {
     /// The running desktop went unused for this many minutes.
     IdleStop(u32),
+    /// The instance of a scale set went unused for this many minutes, its set's idle delete.
+    IdleDelete(u32),
     /// The container expired.
     Expiry(OnExpiry),
 }
@@ -250,6 +252,26 @@ pub(crate) fn due(
     let limit = Duration::from_secs(u64::from(minutes) * 60);
     (running && minutes > 0 && idle.is_some_and(|idle| idle >= limit))
         .then_some(Due::IdleStop(minutes))
+}
+
+/// What is due for the container `record` at `now`, its own policy and its scale set's idle
+/// delete together: an expiry first, then the idle delete, which makes a stop pointless, then the
+/// idle stop.
+pub(crate) fn due_for(
+    app: &App,
+    record: &Container,
+    sets: &[crate::scale::ScaleSet],
+    running: bool,
+    now: u64,
+) -> Option<Due> {
+    let idle = idle(app, &record.id, running);
+    match due(&record.spec.lifecycle, running, idle, now) {
+        Some(Due::Expiry(on_expiry)) => Some(Due::Expiry(on_expiry)),
+        stop => crate::scale::instance_of(sets, &record.id)
+            .and_then(|(set, number)| crate::scale::idle_delete_due(set, number, idle))
+            .map(Due::IdleDelete)
+            .or(stop),
+    }
 }
 
 /// Whether the container's processes keep a CPU busy, which counts as use.

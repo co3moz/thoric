@@ -68,6 +68,7 @@ pub(super) static TOOLS: LazyLock<Vec<Tool>> = LazyLock::new(|| {
     let text = json!({"type":"string"});
     let id = json!({"type":"string","minLength":1,"description":"Thoric container ID, not a Docker container ID."});
     let env = || json!({"container_id": id});
+    let set_name = json!({"type":"string","minLength":1,"maxLength":40,"description":"The scale set's name, which list_containers shows as scale.set on its instances."});
     let catalog_id = json!({"type":"string","minLength":1,"description":"A catalog image's id from list_images, such as ubuntu-xfce."});
     let mut tools = vec![
         tool(
@@ -151,8 +152,10 @@ pub(super) static TOOLS: LazyLock<Vec<Tool>> = LazyLock::new(|| {
                 "mcp_endpoint":{"type":"boolean","default":true,"description":"Create an MCP endpoint at /mcp/NAME for the new container, named after it, with every scope but commands and all its desktop MCP servers, without a token of its own yet (create_mcp_endpoint_token)."},
                 "cpus":{"type":["number","null"],"exclusiveMinimum":0},"memory_mb":{"type":["integer","null"],"minimum":256},
                 "shm_mb":{"type":"integer","minimum":64,"default":512},
+                "tmp_mb":{"type":"integer","minimum":64,"default":512,"description":"Size of /tmp in MiB. It is a tmpfs that keeps its files in memory, counted against memory_mb, so large or growing files such as logs belong in a volume or the home folder instead."},
                 "mounts":{"type":"array","default":[],"items":schema(json!({"volume":text,"target":text,"readonly":{"type":"boolean","default":false}}), &["volume","target"])},
-                "lifecycle":lifecycle_schema()
+                "lifecycle":lifecycle_schema(),
+                "scaling":scaling_schema()
             }),
             &["name", "image"],
             false,
@@ -179,7 +182,7 @@ pub(super) static TOOLS: LazyLock<Vec<Tool>> = LazyLock::new(|| {
         ),
         tool(
             "update_container",
-            "Change an existing container's settings; pass only the fields to change. name, internet, ports, groups, aliases and a new or changed cpus/memory_mb limit apply in place, as do proxy_password, changes to a proxy the container has and lifecycle, which Thoric alone reads. resolution changes the running desktop's screen in place, so applications keep running but see the new size, and the desktop gets it again whenever it starts. gpu, audio, microphone, sudo, gamepad, vpn, debugger, realtime, profiler, kvm, turning proxy on or off, hostname, mac_address, machine_id, shm_mb, mounts and removing a limit (null) recreate the container: the desktop restarts and running applications close, while the files in its container layer are kept, and the previous container is restored when the new desktop is not ready. A feature the installation switched off (get_settings, such as internet_enabled false) can be turned off but not on. dry_run=true returns the live and restart lists without changing anything. Returns job_id otherwise; get_job lists the stages of a change that recreates the container.",
+            "Change an existing container's settings; pass only the fields to change. name, internet, ports, groups, aliases and a new or changed cpus/memory_mb limit apply in place, as do proxy_password, changes to a proxy the container has and lifecycle, which Thoric alone reads. resolution changes the running desktop's screen in place, so applications keep running but see the new size, and the desktop gets it again whenever it starts. gpu, audio, microphone, sudo, gamepad, vpn, debugger, realtime, profiler, kvm, turning proxy on or off, hostname, mac_address, machine_id, shm_mb, tmp_mb, mounts and removing a limit (null) recreate the container: the desktop restarts and running applications close, while the files in its container layer are kept, and the previous container is restored when the new desktop is not ready. A feature the installation switched off (get_settings, such as internet_enabled false) can be turned off but not on. dry_run=true returns the live and restart lists without changing anything. Returns job_id otherwise; get_job lists the stages of a change that recreates the container.",
             json!({
                 "container_id":id,"dry_run":{"type":"boolean","default":false},
                 "name":{"type":"string","minLength":1,"maxLength":100},
@@ -191,7 +194,7 @@ pub(super) static TOOLS: LazyLock<Vec<Tool>> = LazyLock::new(|| {
                 "groups":group_schemas().0,"aliases":group_schemas().1,
                 "hostname":{"type":"string","maxLength":63},"mac_address":{"type":"string"},"machine_id":{"type":"string"},
                 "cpus":{"type":["number","null"],"exclusiveMinimum":0},"memory_mb":{"type":["integer","null"],"minimum":256},
-                "shm_mb":{"type":"integer","minimum":64},
+                "shm_mb":{"type":"integer","minimum":64},"tmp_mb":{"type":"integer","minimum":64},
                 "mounts":{"type":"array","items":schema(json!({"volume":text,"target":text,"readonly":{"type":"boolean","default":false}}), &["volume","target"])},
                 "lifecycle":lifecycle_schema()
             }),
@@ -312,6 +315,40 @@ pub(super) static TOOLS: LazyLock<Vec<Tool>> = LazyLock::new(|| {
             &["container_id", "name"],
             false,
             false,
+            false,
+        ),
+        tool(
+            "list_instances",
+            "List the instances of a scale set, a container made scalable with create_container's scaling: each instance's number, name, state and note, which instances the set keeps, and every volume they mount with sharing shared, mounted by another instance too, or own. slots are the template's volumes with the policy that says what a new instance gets for each.",
+            json!({"set":set_name.clone()}),
+            &["set"],
+            true,
+            false,
+            false,
+        ),
+        tool(
+            "create_instance",
+            "Create a new instance of a scale set, for a task of its own such as a subagent's: a container made from the set's image and settings as its first one was, which runs the compose setup itself and starts with none of the other instances' files. Answers the instance's number and name at once with job_id; wait for get_job to report completed before using it. It mounts the volumes the set shares and empty ones of its own as the set's policy says; volumes changes that for this instance. Refused once the set has its most instances.",
+            json!({
+                "set":set_name.clone(),
+                "volumes":{"type":"object","additionalProperties":{"type":"string","enum":["shared","new"]},"default":{},"description":"By the folder a volume of the set is mounted at (list_instances slots): shared for the set's volume, new for an empty one of this instance's own, which goes with it."},
+                "note":{"type":"string","maxLength":crate::scale::NOTE_LIMIT,"default":"","description":"What the instance is for, such as the agent that works in it; list_instances shows it."}
+            }),
+            &["set"],
+            false,
+            false,
+            false,
+        ),
+        tool(
+            "delete_instance",
+            "Delete an instance of a scale set with the volumes made for it, once its work is done; the volumes it shares stay. Returns job_id. The instances the set keeps, its lowest numbers, are refused.",
+            json!({
+                "set":set_name.clone(),
+                "instance":{"type":"integer","minimum":1,"maximum":crate::scale::MAX_INSTANCES,"description":"The instance's number, from list_instances."}
+            }),
+            &["set", "instance"],
+            false,
+            true,
             false,
         ),
         tool(
@@ -785,6 +822,16 @@ fn transfer_tool(id: Value) -> Tool {
         true,
         false,
     )
+}
+/// `scaling`, which makes a new container scalable.
+fn scaling_schema() -> Value {
+    json!({"type":"object","additionalProperties":false,"description":"Make the container scalable: instance 1 of a scale set that create_instance makes more of on demand, each a container of its own from this same request, never a copy of another's files. The set gets an MCP endpoint /mcp/SET (unless mcp_endpoint is false) whose tools take instance, and its instances none of their own. The job created is instance 1's; it is named SET-1.","properties":{
+        "set":{"type":"string","pattern":"^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$","description":"The set's name; the container's name in lowercase with dashes when left out."},
+        "min":{"type":"integer","minimum":0,"maximum":crate::scale::MAX_INSTANCES,"default":1,"description":"How many instances the set keeps, its lowest numbers: created now, and never deleted by delete_instance or for being idle."},
+        "max":{"type":"integer","minimum":1,"maximum":crate::scale::MAX_INSTANCES,"default":4,"description":"The most instances the set may have."},
+        "idle_delete_minutes":{"type":"integer","minimum":0,"maximum":crate::lifecycle::MAX_IDLE_MINUTES,"default":0,"description":"Delete an instance beyond min, with the volumes made for it, once nothing used it for this many minutes; 0 never."},
+        "volumes":{"type":"object","additionalProperties":{"type":"string","enum":["shared","new","first"]},"default":{},"description":"What each volume becomes in an instance, by the folder it is mounted at, from mounts or a compose volume parameter: shared, the default, mounts the same volume in every instance; new gives every instance an empty one of its own; first keeps the chosen volume for instance 1 and gives the others empty ones."}
+    }})
 }
 /// A container's `lifecycle`, as `create_container` and `update_container` take it.
 fn lifecycle_schema() -> Value {
