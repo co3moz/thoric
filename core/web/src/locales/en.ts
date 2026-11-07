@@ -2193,9 +2193,11 @@ export const en = {
     "Instances are named {name}-1, {name}-2 and on, and the set's endpoint is /mcp/{name}.",
   "scale.min": "Keep",
   "scale.max": "At most",
-  "scale.idleDelete": "Delete idle after (minutes)",
+  "scale.idleDelete": "Delete idle instances after",
   "scale.limitsHint":
-    "The set keeps its lowest-numbered instances, as many as Keep says: they are made with it, and neither an agent nor the idle delete removes them. 0 minutes never deletes an idle instance.",
+    "The set keeps its lowest-numbered instances, as many as Keep says: they are made with it, and neither an agent nor the idle delete removes them.",
+  "scale.idleDeleteHint":
+    "An instance beyond those the set keeps that nothing used for this long is deleted with the volumes made for it.",
   "scale.volumes": "Volumes of new instances",
   "scale.volumesHint":
     "Shared mounts the same volume in every instance, so each sees what the others write there. New per instance gives each its own empty volume, deleted with it. First keeps the volume for instance 1 and gives the others new ones.",

@@ -2212,9 +2212,11 @@ export const de: Messages = {
     "Instanzen heißen {name}-1, {name}-2 und so weiter, und der Endpunkt der Gruppe ist /mcp/{name}.",
   "scale.min": "Behalten",
   "scale.max": "Höchstens",
-  "scale.idleDelete": "Im Leerlauf löschen nach (Minuten)",
+  "scale.idleDelete": "Instanzen im Leerlauf löschen nach",
   "scale.limitsHint":
-    "Die Gruppe behält ihre Instanzen mit den niedrigsten Nummern, so viele wie Behalten sagt: Sie entstehen mit ihr, und weder ein Agent noch das Löschen im Leerlauf entfernt sie. 0 Minuten löscht nie eine Instanz im Leerlauf.",
+    "Die Gruppe behält ihre Instanzen mit den niedrigsten Nummern, so viele wie Behalten sagt: Sie entstehen mit ihr, und weder ein Agent noch das Löschen im Leerlauf entfernt sie.",
+  "scale.idleDeleteHint":
+    "Eine Instanz über die behaltenen hinaus, die so lange niemand benutzt hat, wird mit den für sie erstellten Volumes gelöscht.",
   "scale.volumes": "Volumes neuer Instanzen",
   "scale.volumesHint":
     "Gemeinsam bindet in jeder Instanz dasselbe Volume ein, sodass jede sieht, was die anderen dort schreiben. Neu je Instanz gibt jeder ein eigenes leeres Volume, das mit ihr gelöscht wird. Erste behält das Volume für Instanz 1 und gibt den anderen neue.",
