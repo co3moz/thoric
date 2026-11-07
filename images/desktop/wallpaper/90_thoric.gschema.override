@@ -1,0 +1,8 @@
+# Thoric's wallpaper on a new GNOME desktop: its mark in white, centered on gray.
+[org.gnome.desktop.background]
+picture-uri='file:///usr/share/backgrounds/thoric.svg'
+picture-uri-dark='file:///usr/share/backgrounds/thoric.svg'
+picture-options='centered'
+color-shading-type='solid'
+primary-color='#222222'
+secondary-color='#222222'

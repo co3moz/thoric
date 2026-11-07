@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 64 64">
+  <!-- Thoric's mark in white for the desktops' wallpaper, which the session centers on gray at
+       this size. The band and the gem are cut out, so they show the gray around the mark. -->
+  <defs>
+    <mask id="cut" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64">
+      <rect width="64" height="64" fill="#fff"/>
+      <path d="M8.5 17.5c9-2 16.5-5.5 23.5-9.5 7 4 14.5 7.5 23.5 9.5v5h-47v-5Z" fill="none" stroke="#000" stroke-width="1.2" stroke-linejoin="round"/>
+      <circle cx="32" cy="14" r="2.6" fill="#000"/>
+    </mask>
+  </defs>
+  <path mask="url(#cut)" d="M4 15C15 13 24 8 32 3c8 5 17 10 28 12v12H42l-5 25c4 0 7 2 7 5s-3 4-6 4H26c-3 0-6-1-6-4s3-5 7-5l-5-25H4V15Z" fill="#fff" stroke="#fff" stroke-width="2.4" stroke-linejoin="round"/>
+</svg>

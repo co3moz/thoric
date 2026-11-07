@@ -1,8 +1,8 @@
 Thoric desktop image
 
 The Thoric programs in this image are free software: the desktop-* scripts, gpu-run,
-thoric-mcp and thoric-mcp-tray in /usr/local/bin, /usr/local/lib/thoric/chromium-gpu.so
-and the tray's menu entries and icons.
+thoric-mcp and thoric-mcp-tray in /usr/local/bin, /usr/local/lib/thoric/chromium-gpu.so,
+the tray's menu entries and icons, and the wallpaper, thoric.svg under /usr/share/backgrounds.
 
 Copyright (C) 2026 Thoric contributors
 
