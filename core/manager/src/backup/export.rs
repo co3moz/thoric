@@ -5,7 +5,10 @@ use super::{
     RESOURCE, file_name,
     format::{CHUNK, END, MANIFEST, RECORDS, Writer, chunk_name, part_end_name},
     installation,
-    manifest::{Ending, Included, Installation, Manifest, PartEnd, PartKind, VolumeFacts, plan},
+    manifest::{
+        Ending, Included, Installation, Manifest, PartEnd, PartKind, VolumeFacts, plan,
+        template_volumes,
+    },
 };
 use crate::{
     App,
@@ -18,6 +21,7 @@ use crate::{
     model::{CONTAINERS, Container, ImageRecord, LABEL, now},
     outbound::{CREDENTIALS, Credentials},
     process::{self, Overflow},
+    scale::{SETS, ScaleSet, TEMPLATES, Template},
 };
 use anyhow::{Context, anyhow, bail};
 use axum::{
@@ -406,6 +410,7 @@ impl App {
             "images": manifest.images.len(),
             "volumes": manifest.volumes.iter().filter(|v| v.included).count(),
             "endpoints": manifest.endpoints.len(),
+            "scale_sets": manifest.scale_sets.len(),
             "parts": manifest.parts.len(),
             "secrets": manifest.included.secrets,
         }))
@@ -421,6 +426,8 @@ impl App {
         let composes: Vec<(String, Pinned)> = self.db.entries_complete(PINNED)?;
         let endpoints: Vec<Endpoint> = self.db.list_complete(ENDPOINTS)?;
         let proxy_passwords: Vec<(String, Credentials)> = self.db.entries_complete(CREDENTIALS)?;
+        let scale_sets: Vec<ScaleSet> = self.db.list_complete(SETS)?;
+        let scale_set_templates: Vec<(String, Template)> = self.db.entries_complete(TEMPLATES)?;
         let image_ids = lines(
             &self
                 .docker(&["image", "ls", "-a", "--no-trunc", "--format", "{{.ID}}"])
@@ -448,24 +455,37 @@ impl App {
             .filter(|record| image_ids.contains(&record.image_id))
             .map(|record| record.id.clone())
             .collect();
-        let volumes = self.backup_volumes(&containers).await?;
+        let set_volumes = scale_sets
+            .iter()
+            .flat_map(|set| {
+                let template = scale_set_templates
+                    .iter()
+                    .find(|(name, _)| *name == set.name);
+                template_volumes(set, template.map(|(_, template)| template))
+            })
+            .collect();
+        let volumes = self.backup_volumes(&containers, set_volumes).await?;
         Ok(Installation {
             containers,
             images,
             composes,
             endpoints,
             proxy_passwords,
+            scale_sets,
+            scale_set_templates,
             available_images,
             with_files,
             volumes,
         })
     }
 
-    /// The volumes a backup may carry: those the containers mount, also one `VOLUME_FILTER`
-    /// leaves out, and those Thoric created that the volume list shows; never the manager's.
+    /// The volumes a backup may carry: those the containers mount and `set_volumes`, those the
+    /// scale sets' templates mount, also one `VOLUME_FILTER` leaves out, and those Thoric created
+    /// that the volume list shows; never the manager's.
     async fn backup_volumes(
         &self,
         containers: &[Container],
+        set_volumes: BTreeSet<String>,
     ) -> anyhow::Result<BTreeMap<String, VolumeFacts>> {
         let all = lines(
             &self
@@ -499,6 +519,7 @@ impl App {
             .iter()
             .flat_map(Container::mounts)
             .map(|mount| mount.volume)
+            .chain(set_volumes)
             .collect();
         let manager = self.listing_manager().await.map_err(|e| anyhow!(e.1))?;
         let mut volumes = BTreeMap::new();
@@ -535,10 +556,11 @@ fn describe(manifest: &Manifest) -> String {
     let images = manifest.images.iter().filter(|i| i.image).count();
     let volumes = manifest.volumes.iter().filter(|v| v.included).count();
     format!(
-        "The backup holds {} containers, the files of {files} of them, {} saved image records, {images} of them with their images, {volumes} volumes and {} MCP endpoints. {}",
+        "The backup holds {} containers, the files of {files} of them, {} saved image records, {images} of them with their images, {volumes} volumes, {} MCP endpoints and {} scale sets. {}",
         manifest.containers.len(),
         manifest.images.len(),
         manifest.endpoints.len(),
+        manifest.scale_sets.len(),
         if manifest.included.secrets {
             "It includes the values of secret parameters and proxy passwords: keep the file where only you can read it."
         } else {

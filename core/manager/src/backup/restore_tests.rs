@@ -1,24 +1,30 @@
 //! Pins down a restore from end to end against a fake Docker: a backup another installation made
 //! is checked before anything is created, its images load through the import filter and get
 //! Thoric's own tags, its volume is unpacked into a new volume, its records are saved with the
-//! IDs Docker gave the images here, and its container is created from its files with its machine
-//! identity and left stopped. A name already in use refuses it, and a damaged part takes back
-//! everything the restore had created.
+//! IDs Docker gave the images here, its scale set comes back with its instance, template and
+//! endpoint, and its container is created from its files with its machine identity and left
+//! stopped. A name already in use refuses it, and a damaged part takes back everything the restore
+//! had created.
 use super::*;
 use crate::{
     backup::{
         format::{END, Item, Reader, Writer},
         manifest::{Included, PartEnd},
-        tests::{SECRET, calls, container, endpoint, fake_docker, image, job, pinned, saved_image},
+        tests::{
+            SECRET, SET_PROXY_SECRET, calls, container, endpoint, fake_docker, image, job, pinned,
+            saved_image, scale_set, set_endpoint, set_template,
+        },
     },
     desktop_mcp::Endpoint,
     model::ImageRecord,
     model::WorkingImage,
+    scale::{ScaleSet, Template},
 };
 use axum::body::Bytes;
 
 /// A backup of an installation with a container, its files and volume, a saved image it starts
-/// from, its compose and its endpoint, made by the backup job against a fake Docker.
+/// from, its compose and its endpoint, and the scale set it is instance 1 of with the set's
+/// template and endpoint, made by the backup job against a fake Docker.
 #[cfg(unix)]
 async fn backup() -> Vec<u8> {
     let (app, dir) = fake_docker(
@@ -66,6 +72,17 @@ async fn backup() -> Vec<u8> {
     app.db
         .put(ENDPOINTS, "desk", &endpoint("desk", &["c1"]))
         .unwrap();
+    app.db
+        .put(
+            SETS,
+            "re",
+            &scale_set("re", "thoric/build:i1", &[(1, "c1")]),
+        )
+        .unwrap();
+    app.db.put(TEMPLATES, "re", &set_template()).unwrap();
+    app.db
+        .put(ENDPOINTS, "re", &set_endpoint("re", "re"))
+        .unwrap();
     job(&app, "backup-job", "backup");
     let (body, mut chunks) = tokio::sync::mpsc::channel::<std::io::Result<Bytes>>(4);
     let received = tokio::spawn(async move {
@@ -106,6 +123,7 @@ fn fresh() -> (Arc<App>, std::path::PathBuf) {
   'image ls --format {{.Repository}}:{{.Tag}}') cat tags 2>/dev/null; true ;;
   'load --quiet') n=$(( $(cat count 2>/dev/null || echo 0) + 1 )); echo $n > count; cat > load-$n; echo "Loaded image ID: sha256:loaded-$n" ;;
   'image inspect sha256:loaded-'*) echo "[{\"Id\":\"$3\",\"Config\":{\"Labels\":{\"thoric.desktop\":\"true\"}},\"RepoTags\":[]}]" ;;
+  'image inspect thoric/'*) grep -qx "$3" tags 2>/dev/null && echo "[{\"Id\":\"$3\"}]" || exit 1 ;;
   'image tag '*) echo "$4" >> tags ;;
   'image rm '*) echo "$3" >> removed ;;
   'volume inspect projects') [ -f vol-projects ] && echo '[{"Name":"projects","Labels":{"thoric.managed":"true"}}]' || exit 1 ;;
@@ -176,7 +194,11 @@ async fn a_backup_comes_back_with_its_files_and_identity_but_no_tokens() {
     assert_eq!(result["created"], json!(["c1"]));
     assert_eq!(result["volumes"], json!(["projects"]));
     assert_eq!(result["secrets_left_out"], json!(["c1"]));
-    assert_eq!(result["endpoints_without_tokens"], json!(["desk"]));
+    assert_eq!(result["endpoints_without_tokens"], json!(["desk", "re"]));
+    assert_eq!(result["scale_sets"], json!(["re"]));
+    assert_eq!(result["scale_sets_secrets_left_out"], json!(["re"]));
+    // The volume the set's template shares was not on the backup's host, and is not here.
+    assert_eq!(result["missing_volumes"], json!(["shared"]));
 
     // The image and the files loaded without the names their archives carried, and took
     // Thoric's own tags.
@@ -226,6 +248,33 @@ async fn a_backup_comes_back_with_its_files_and_identity_but_no_tokens() {
     let desk_endpoint: Endpoint = app.db.get(ENDPOINTS, "desk").unwrap();
     assert_eq!(desk_endpoint.token_hash, None);
 
+    // The set comes back with its instance, its template on the image as it is tagged here and
+    // its endpoint, which still covers it; without the secret values the backup left out.
+    let set: ScaleSet = app.db.get(SETS, "re").unwrap();
+    assert_eq!(set.instances[&1].container_id, "c1");
+    assert_eq!(set.template.image, "thoric/custom:i1");
+    assert_eq!(set.endpoint.as_deref(), Some("re"));
+    assert!(matches!(
+        set.template.proxy,
+        Some(ProxyChoice::Custom {
+            password: false,
+            ..
+        })
+    ));
+    let template: Template = app.db.get(TEMPLATES, "re").unwrap();
+    assert_eq!(
+        template.parameters.get("EMAIL").map(String::as_str),
+        Some("a@example.com")
+    );
+    assert!(!template.parameters.contains_key("PASSWORD"));
+    assert_eq!(template.proxy_password, None);
+    let (record, pinned) = template.pinned.unwrap();
+    assert_eq!(record, "i1");
+    assert!(!pinned.values.contains_key("PASSWORD"));
+    let set_endpoint: Endpoint = app.db.get(ENDPOINTS, "re").unwrap();
+    assert_eq!(set_endpoint.set().map(|(_, set)| set), Some("re"));
+    assert_eq!(set_endpoint.token_hash, None);
+
     // Created from its files with its identity, and not started.
     let calls = calls(&dir);
     let created = calls
@@ -246,7 +295,13 @@ async fn a_backup_comes_back_with_its_files_and_identity_but_no_tokens() {
         "{calls}"
     );
     let job: crate::model::Job = app.db.job("restore-job").unwrap();
-    assert!(!job.log.contains(SECRET));
+    assert!(!job.log.contains(SECRET) && !job.log.contains(SET_PROXY_SECRET));
+    // The set's image came along under Thoric's tag, so it can create instances at once.
+    assert!(
+        !job.log.contains("is not on this installation"),
+        "{}",
+        job.log
+    );
     let stages = job
         .stages
         .iter()
@@ -291,6 +346,25 @@ async fn a_name_already_in_use_refuses_the_restore_before_anything_is_created() 
 
 #[cfg(unix)]
 #[tokio::test]
+async fn a_scale_set_of_the_same_name_refuses_the_restore() {
+    let archive = backup().await;
+    let (app, dir) = fresh();
+    // Its template alone is the set's name taken.
+    app.db.put(TEMPLATES, "re", &set_template()).unwrap();
+    let (accepted, outcome) = restore(&app, archive).await;
+    let Some(Err(refused)) = accepted else {
+        panic!("{accepted:?}");
+    };
+    assert_eq!(refused.0, StatusCode::CONFLICT);
+    assert!(refused.1.contains("scale set re"), "{}", refused.1);
+    assert!(outcome.is_err());
+    assert!(app.db.list::<Container>(CONTAINERS).unwrap().is_empty());
+    assert!(app.db.list::<ScaleSet>(SETS).unwrap().is_empty());
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[cfg(unix)]
+#[tokio::test]
 async fn a_damaged_part_takes_back_what_the_restore_created() {
     let archive = backup().await;
     // The volume's digest no longer matches its data.
@@ -315,6 +389,7 @@ async fn a_damaged_part_takes_back_what_the_restore_created() {
     assert!(!dir.join("vol-projects").exists());
     assert!(app.db.list::<Container>(CONTAINERS).unwrap().is_empty());
     assert!(app.db.list::<ImageRecord>("image").unwrap().is_empty());
+    assert!(app.db.list::<ScaleSet>(SETS).unwrap().is_empty());
     std::fs::remove_dir_all(dir).unwrap();
 
     // A backup cut before its end is refused the same way.

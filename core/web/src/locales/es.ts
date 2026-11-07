@@ -670,6 +670,7 @@ export const es: Messages = {
   "backup.list.recordsOnly": "Registros de imágenes sin sus imágenes",
   "backup.list.volumes": "Volúmenes",
   "backup.list.endpoints": "Puntos de acceso MCP",
+  "backup.list.scaleSets": "Grupos escalables",
   "backup.withoutFilesHint":
     "Un contenedor sin sus archivos espera a que Reintentar configuración lo cree desde su imagen y vuelva a ejecutar su configuración.",
   "backup.secretsLeftOut":
@@ -683,6 +684,7 @@ export const es: Messages = {
   "backup.conflict.image": "Imagen guardada {name}",
   "backup.conflict.endpoint": "Punto de acceso MCP {name}",
   "backup.conflict.volume": "Volumen {name}",
+  "backup.conflict.scaleSet": "Grupo escalable {name}",
   "backup.restoreAction": "Restaurar",
   "files.name.empty": "Escribe un nombre.",
   "files.name.dots": "Elige otro nombre.",

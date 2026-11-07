@@ -681,6 +681,7 @@ export const en = {
   "backup.list.recordsOnly": "Image records without their images",
   "backup.list.volumes": "Volumes",
   "backup.list.endpoints": "MCP endpoints",
+  "backup.list.scaleSets": "Scale sets",
   "backup.withoutFilesHint":
     "A container without its files waits until Retry setup creates it from its image and runs its setup again.",
   "backup.secretsLeftOut":
@@ -693,6 +694,7 @@ export const en = {
   "backup.conflict.image": "Saved image {name}",
   "backup.conflict.endpoint": "MCP endpoint {name}",
   "backup.conflict.volume": "Volume {name}",
+  "backup.conflict.scaleSet": "Scale set {name}",
   "backup.restoreAction": "Restore",
 
   "files.name.empty": "Enter a name.",

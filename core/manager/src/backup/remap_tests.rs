@@ -1,10 +1,11 @@
 //! Pins down how a backup's records are moved to this installation: image IDs to the ones Docker
-//! gave the loaded images here, tags to Thoric's own, Docker names made from the ids again,
-//! the machine identity kept, and a reset still finding the image a container started from.
+//! gave the loaded images here, tags to Thoric's own, also in a scale set's template, Docker names
+//! made from the ids again, the machine identity kept, and a reset still finding the image a
+//! container started from.
 use super::*;
 use crate::backup::{
     manifest::Records,
-    tests::{container, image},
+    tests::{container, image, scale_set, set_template},
 };
 
 const CATALOG: &str = "ghcr.io/co3moz/thoric/ubuntu-xfce:24.04";
@@ -33,9 +34,7 @@ fn records() -> Records {
     Records {
         containers: vec![from_snapshot, from_catalog, same_image, by_id],
         images: vec![built, snapshot, registered],
-        composes: Vec::new(),
-        endpoints: Vec::new(),
-        proxy_passwords: Vec::new(),
+        ..Records::default()
     }
 }
 
@@ -147,6 +146,48 @@ fn a_container_waits_without_its_files_or_a_volume_it_mounts() {
 }
 
 #[test]
+fn a_scale_sets_template_finds_its_image_here_as_its_instances_do() {
+    let mut records = records();
+    records.scale_sets = vec![
+        // By the other host's tag of an image the backup restored, by the backup's image ID, and
+        // by a catalog reference, which stays.
+        scale_set("tagged", "registry.example/team/tool:1", &[(1, "c1")]),
+        scale_set("by-id", "sha256:image-i1", &[]),
+        scale_set("catalog", CATALOG, &[]),
+    ];
+    records.scale_set_templates = vec![crate::backup::manifest::SetTemplate {
+        set: "tagged".into(),
+        template: set_template(),
+    }];
+    records.endpoints = vec![
+        crate::backup::tests::set_endpoint("tagged", "tagged"),
+        crate::backup::tests::endpoint("catalog", &["c1"]),
+    ];
+    let records = remap(records, &loaded());
+    let [tagged, by_id, catalog] = &records.scale_sets[..] else {
+        panic!("{:?}", records.scale_sets);
+    };
+    assert_eq!(tagged.template.image, "thoric/imported:i3");
+    assert_eq!(by_id.template.image, "sha256:new-i1");
+    assert_eq!(catalog.template.image, CATALOG);
+    // The compose the instances run names its image record by id, which the restore keeps.
+    assert_eq!(
+        records.scale_set_templates[0]
+            .template
+            .pinned
+            .as_ref()
+            .map(|(id, _)| id.as_str()),
+        Some("i1")
+    );
+    // Its own endpoint stays the set's; one the backup does not carry is not, nor one of that
+    // name that covers something else.
+    assert_eq!(tagged.endpoint.as_deref(), Some("tagged"));
+    assert_eq!(by_id.endpoint, None);
+    assert_eq!(catalog.endpoint, None);
+    assert_eq!(tagged.instances[&1].container_id, "c1");
+}
+
+#[test]
 fn restored_endpoints_come_without_their_tokens() {
     let mut records = records();
     records.endpoints = vec![crate::backup::tests::endpoint("desk", &["c1"])];
@@ -252,4 +293,23 @@ fn volumes_volume_filter_hides_are_left_out_and_missing_ones_waited_for() {
         .collect::<Vec<_>>();
     assert_eq!(volumes, ["listed", "missing"]);
     assert!(not_created(&desk, &present).is_some_and(|reason| reason.contains("missing")));
+
+    // A set's template leaves them out too, since an instance's creation would refuse them.
+    let mut template = container(
+        "c2",
+        "re",
+        CATALOG,
+        &["hidden", "listed", "missing", "hidden"],
+    )
+    .spec;
+    assert_eq!(
+        leave_out_unlisted_of_template(&mut template, &present, &listed),
+        ["hidden"]
+    );
+    let volumes = template
+        .mounts
+        .iter()
+        .map(|mount| mount.volume.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(volumes, ["listed", "missing"]);
 }

@@ -46,6 +46,7 @@ const conflictKeys = {
   image: "backup.conflict.image",
   endpoint: "backup.conflict.endpoint",
   volume: "backup.conflict.volume",
+  "scale-set": "backup.conflict.scaleSet",
 } as const
 
 function conflictLabel(conflict: BackupConflict) {
@@ -85,7 +86,8 @@ export function RestoreDialog({
     !plan.images.length &&
     !plan.recordsOnly.length &&
     !plan.volumes.length &&
-    !plan.endpoints.length
+    !plan.endpoints.length &&
+    !plan.scaleSets.length
   return (
     <AlertDialog {...props}>
       <AlertDialogContent className="sm:max-w-lg">
@@ -119,6 +121,7 @@ export function RestoreDialog({
                 <Names title={t("backup.list.recordsOnly")} names={plan.recordsOnly} />
                 <Names title={t("backup.list.volumes")} names={plan.volumes} mono />
                 <Names title={t("backup.list.endpoints")} names={plan.endpoints} mono />
+                <Names title={t("backup.list.scaleSets")} names={plan.scaleSets} mono />
               </dl>
             )}
             {plan.withoutFiles.length > 0 && (

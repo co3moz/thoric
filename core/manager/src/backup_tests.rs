@@ -6,8 +6,10 @@ use crate::{
     compose::Pinned,
     desktop_mcp::Endpoint,
     model::{Container, ImageRecord},
+    scale::{ScaleSet, Template},
 };
 use serde_json::json;
+use std::collections::BTreeMap;
 
 /// A container record as the manager saves one, mounting `volumes` at folders of its home.
 pub(super) fn container(id: &str, name: &str, image: &str, volumes: &[&str]) -> Container {
@@ -75,6 +77,58 @@ pub(super) fn endpoint(name: &str, containers: &[&str]) -> Endpoint {
         "token_hash": "ab".repeat(32),
         "token_created_at": 3,
         "created_at": 1,
+    }))
+    .unwrap()
+}
+
+/// The password of a scale set's own proxy, which no file may carry without being asked.
+pub(super) const SET_PROXY_SECRET: &str = "proxy-password-of-the-set";
+
+/// A scale set whose template starts from `image` with the volume `shared`, whose instances are
+/// `instances` by number and whose endpoint is named after it.
+pub(super) fn scale_set(name: &str, image: &str, instances: &[(u32, &str)]) -> ScaleSet {
+    serde_json::from_value(json!({
+        "name": name,
+        "created_at": 20,
+        "template": {
+            "name": name,
+            "image": image,
+            "mounts": [{"volume": "shared", "target": "/home/desktop/shared"}],
+            "proxy": {"mode": "custom", "url": "http://proxy.example:3128", "username": "agent", "password": true},
+        },
+        "min": 1,
+        "max": 4,
+        "volumes": {"/home/desktop/shared": "first"},
+        "instances": instances
+            .iter()
+            .map(|(number, id)| (number.to_string(), json!({"container_id": id, "note": "an agent's"})))
+            .collect::<serde_json::Map<_, _>>(),
+        "endpoint": name,
+    }))
+    .unwrap()
+}
+
+/// A set's template: the fixtures' compose pinned for the image record `i1`, the values a request
+/// gave it, secret ones too, and the password of its own proxy.
+pub(super) fn set_template() -> Template {
+    Template {
+        parameters: BTreeMap::from([
+            ("EMAIL".into(), "a@example.com".into()),
+            ("PASSWORD".into(), SECRET.into()),
+        ]),
+        pinned: Some(("i1".into(), pinned())),
+        proxy_password: Some(SET_PROXY_SECRET.into()),
+    }
+}
+
+/// The endpoint made for the scale set `set`, with a token hash.
+pub(super) fn set_endpoint(name: &str, set: &str) -> Endpoint {
+    serde_json::from_value(json!({
+        "name": name,
+        "automatic": true,
+        "grants": [{"set": set, "alias": set, "scopes": ["view", "scale"], "servers": "all"}],
+        "token_hash": "cd".repeat(32),
+        "created_at": 2,
     }))
     .unwrap()
 }

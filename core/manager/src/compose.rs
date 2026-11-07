@@ -282,6 +282,13 @@ impl Compose {
         Ok(())
     }
 
+    /// Whether a value given as `name` may go to a secret parameter: by the name the value goes
+    /// by, or by the parameter's own name, which a step of several also takes alone.
+    pub fn takes_secret(&self, name: &str) -> bool {
+        self.entries()
+            .any(|(_, parameter, key)| parameter.secret && (key == name || parameter.name == name))
+    }
+
     /// The volumes a container with these values mounts: each volume parameter's volume at its
     /// path, for those given one.
     pub fn mounts(&self, values: &BTreeMap<String, String>) -> Vec<Mount> {

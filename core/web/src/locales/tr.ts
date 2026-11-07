@@ -668,6 +668,7 @@ export const tr: Messages = {
   "backup.list.recordsOnly": "İmajı olmayan imaj kayıtları",
   "backup.list.volumes": "Volume'ler",
   "backup.list.endpoints": "MCP uç noktaları",
+  "backup.list.scaleSets": "Ölçeklenebilir gruplar",
   "backup.withoutFilesHint":
     "Dosyaları olmayan bir konteyner, Kurulumu yeniden deneme onu imajından oluşturup kurulumunu yeniden çalıştırana kadar bekler.",
   "backup.secretsLeftOut":
@@ -681,6 +682,7 @@ export const tr: Messages = {
   "backup.conflict.image": "Kayıtlı imaj {name}",
   "backup.conflict.endpoint": "MCP uç noktası {name}",
   "backup.conflict.volume": "Volume {name}",
+  "backup.conflict.scaleSet": "Ölçeklenebilir grup {name}",
   "backup.restoreAction": "Geri yükle",
   "files.name.empty": "Bir ad girin.",
   "files.name.dots": "Başka bir ad seçin.",

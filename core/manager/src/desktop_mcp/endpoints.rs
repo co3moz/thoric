@@ -113,6 +113,10 @@ impl Grant {
     pub fn excludes(&self, name: &str) -> bool {
         self.excluded_tools.iter().any(|excluded| excluded == name)
     }
+    /// Whether the grant has the `scale` scope, which only a grant of a scale set may have.
+    pub fn scales(&self) -> bool {
+        self.scopes.contains(&Scope::Scale)
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
