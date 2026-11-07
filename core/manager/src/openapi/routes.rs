@@ -7,7 +7,8 @@ use super::{
 use crate::{
     activity, api, apps, archives, audio, auth, backup, capture, changes, clipboard, compose,
     config, desktop_input, desktop_mcp, duplicate, exec, files, gamepad, human, icons, jobs, model,
-    notify, ocr, recordings, terminal, transfers, uploads, usage, volumes, waits, windows,
+    notify, ocr, processes, recordings, terminal, transfers, uploads, usage, volumes, waits,
+    windows,
 };
 
 const GZIP: &str = "application/gzip";
@@ -371,6 +372,20 @@ pub(super) fn all() -> Vec<Route> {
             "An application's CPU and memory, sampled over `duration_ms`.",
         )
         .query::<apps::Metrics>(),
+        get(
+            "/api/containers/{id}/processes",
+            DESKTOP,
+            "Every process of the desktop, whatever started it, with its CPU and memory use.",
+        )
+        .query::<processes::ListProcesses>()
+        .returns::<processes::ProcessList>(),
+        post(
+            "/api/containers/{id}/processes/{pid}/kill",
+            DESKTOP,
+            "Signal a process, and with `tree` its descendants, as the desktop user unless `root`.",
+        )
+        .optional_json::<processes::Kill>()
+        .returns::<processes::Signalled>(),
         post(
             "/api/containers/{id}/wait",
             DESKTOP,

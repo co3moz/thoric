@@ -33,6 +33,8 @@ export type Dialog =
   | { kind: "volume-copy"; name: string }
   | { kind: "volume-delete"; name: string }
   | { kind: "job"; id: string }
+  /** The processes of a running container. */
+  | { kind: "processes"; id: string }
   | { kind: "log"; title: string; text: string; status?: string }
   | { kind: "mcp-endpoint"; name?: string }
   | { kind: "mcp-token"; token: EndpointToken }

@@ -287,6 +287,20 @@ pub(super) fn policy(tool: &str) -> Option<&'static [Rule]> {
             ("grace_seconds", Text, false),
         ],
         "sample_metrics" => &[("application_id", Text, true), ("duration_ms", Text, false)],
+        // A search is the agent's own words about the desktop, short and bounded.
+        "list_processes" => &[
+            ("sort", Text, false),
+            ("limit", Text, false),
+            ("query", Text, true),
+            ("interval_ms", Text, false),
+        ],
+        "kill_process" => &[
+            ("pid", Text, true),
+            ("signal", Text, true),
+            ("tree", Text, false),
+            ("root", Text, true),
+            ("wait_ms", Text, false),
+        ],
         "focus_window" => &[("window_id", Text, true)],
         "set_window_geometry" => &[
             ("window_id", Text, true),

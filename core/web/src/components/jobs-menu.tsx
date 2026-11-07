@@ -33,7 +33,7 @@ import type { Job } from "@/lib/types"
 const LIMIT = 6
 
 // The button's word shows from this width on; below it the tooltip names the button instead.
-const labels = {
+export const buttonLabels = {
   sm: { label: "hidden sm:inline", tooltip: "sm:hidden" },
   xl: { label: "hidden xl:inline", tooltip: "xl:hidden" },
 }
@@ -96,7 +96,7 @@ export function ActiveJobsBadge() {
  * The jobs at the top right of every page: the number in progress on the button, the latest jobs
  * in its menu with their logs a click away, and the whole list on the jobs page.
  */
-export function JobsMenu({ labelFrom = "sm" }: { labelFrom?: keyof typeof labels }) {
+export function JobsMenu({ labelFrom = "sm" }: { labelFrom?: keyof typeof buttonLabels }) {
   const jobs = useJobs()
   const containers = useContainers(false).data
   const images = useImages(false).data
@@ -124,12 +124,12 @@ export function JobsMenu({ labelFrom = "sm" }: { labelFrom?: keyof typeof labels
               aria-label={progress ? `${t("nav.jobs")}, ${progress}` : t("nav.jobs")}
             >
               <RiListCheck3 />
-              <span className={labels[labelFrom].label}>{t("nav.jobs")}</span>
+              <span className={buttonLabels[labelFrom].label}>{t("nav.jobs")}</span>
               <CountBadge count={active} />
             </Button>
           </DropdownMenuTrigger>
         </TooltipTrigger>
-        <TooltipContent className={labels[labelFrom].tooltip}>
+        <TooltipContent className={buttonLabels[labelFrom].tooltip}>
           {progress ?? t("nav.jobs")}
         </TooltipContent>
       </Tooltip>

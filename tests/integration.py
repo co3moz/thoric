@@ -1502,6 +1502,43 @@ try:
     healthy = wait_for(lambda: (c if (c := api(f"containers/{env_id}"))["health"] == "healthy" else None), 60)
     assert healthy["health_detail"] is None, healthy
     print("PASS a display a program holds is named in window tools, screenshots and the health check", flush=True)
+    # Every process of the desktop, whatever started it: the application runner the manager
+    # started through docker exec, the program it runs and that program's own child, the desktop's
+    # screen, and a process of root's the desktop user may not signal.
+    tree_app = tool("launch_application", {"container_id":env_id,"command":"bash","args":["-c","sleep 6007 & exec sleep 6008"],"name":"process tree test"})["structuredContent"]["application_id"]
+    def sleeps():
+        listed = tool("list_processes", {"container_id":env_id,"query":"sleep 600","sort":"pid"})["structuredContent"]
+        commands = {p["command"]: p for p in listed["processes"]}
+        return (listed, commands) if {"sleep 6007","sleep 6008"} <= set(commands) else None
+    listed, commands = wait_for(sleeps, 30)
+    parent, child = commands["sleep 6008"], commands["sleep 6007"]
+    runner = next(p for p in listed["processes"] if p["pid"] == parent["ppid"])
+    assert child["ppid"] == parent["pid"] and parent["user"] == "desktop" and parent["role"] == "program", listed
+    assert runner["role"] == "thoric" and runner["ppid"] == 0 and runner["name"] == "python3", runner
+    assert listed["total"] > listed["matched"] >= 3 and listed["cpus"] > 0, listed
+    everything = tool("list_processes", {"container_id":env_id,"limit":1000})["structuredContent"]
+    by_pid = {p["pid"]: p for p in everything["processes"]}
+    assert by_pid[1]["role"] == "desktop" and any(p["name"] == "Xtigervnc" and p["role"] == "desktop" for p in by_pid.values()), everything
+    assert all(p["rss_bytes"] >= 0 and p["cpu_percent"] >= 0 and p["command"] for p in by_pid.values()), everything
+    first = tool("kill_process", {"container_id":env_id,"pid":1}, allow_error=True)
+    assert first.get("isError") and "stop or restart the container" in first["content"][0]["text"], first
+    docker("exec","-d","--user","0:0",container,"sleep","6009")
+    rooted = wait_for(lambda: next(iter(tool("list_processes", {"container_id":env_id,"query":"sleep 6009"})["structuredContent"]["processes"]), None), 30)
+    assert rooted["user"] == "root" and rooted["uid"] == 0 and rooted["role"] == "thoric", rooted
+    denied = tool("kill_process", {"container_id":env_id,"pid":rooted["pid"]}, allow_error=True)
+    assert denied.get("isError") and "runs as root" in denied["content"][0]["text"], denied
+    as_root = tool("kill_process", {"container_id":env_id,"pid":rooted["pid"],"root":True})["structuredContent"]
+    assert as_root["ended"] == [rooted["pid"]] and not as_root["running"], as_root
+    # A tree goes parents first and ends whole; the application records the signal it ended by.
+    tree_ended = api(f"containers/{env_id}/processes/{parent['pid']}/kill", {"signal":"term","tree":True})
+    assert tree_ended["signalled"] == [parent["pid"], child["pid"]] and not tree_ended["running"], tree_ended
+    assert sorted(tree_ended["ended"]) == sorted(tree_ended["signalled"]) and tree_ended["refused"] == [], tree_ended
+    wait_for(lambda: tool("list_processes", {"container_id":env_id,"query":"sleep 600"})["structuredContent"]["matched"] == 0 or None, 30)
+    exited = wait_for(lambda: (a if (a := tool("get_application", {"container_id":env_id,"application_id":tree_app})["structuredContent"])["state"] == "exited" else None), 30)
+    assert exited["signal"] == 15, exited
+    missing = tool("kill_process", {"container_id":env_id,"pid":parent["pid"]}, allow_error=True)
+    assert missing.get("isError") and f"No process {parent['pid']}" in missing["content"][0]["text"], missing
+    print("PASS processes are listed with their roles and signalled as the desktop user or as root", flush=True)
     second = tool("launch_application", {"container_id":env_id,"command":"bash","args":["-c","echo READY_MARKER; exec xlogo -title 'Thoric wait test'"]})["structuredContent"]["application_id"]
     waited = tool("wait_for_condition", {"container_id":env_id,"window_title":"Thoric wait test","application_id":second,"application_state":"running","log_contains":"READY_MARKER","timeout_ms":15000})["structuredContent"]
     assert waited["satisfied"] and waited["window"]["title"] == "Thoric wait test" and waited["log_found"], waited

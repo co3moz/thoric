@@ -77,6 +77,7 @@ impl Scope {
                 "container_logs",
                 "container_diagnostics",
                 "get_usage",
+                "list_processes",
                 "screenshot",
                 "list_windows",
                 "inspect_ui",
@@ -103,6 +104,7 @@ impl Scope {
                 "stop_application",
                 "application_diagnostics",
                 "sample_metrics",
+                "kill_process",
             ],
             Scope::FilesRead => &["list_files", "read_file", "download_file", "get_changes"],
             Scope::FilesWrite => &[
@@ -142,12 +144,12 @@ impl Scope {
     }
 }
 /// Arguments an endpoint never passes on: the desktop user is as far as a scope reaches.
-const ROOT_TOOLS: [&str; 2] = ["exec_container", "open_terminal"];
+const ROOT_TOOLS: [&str; 3] = ["exec_container", "open_terminal", "kill_process"];
 
 /// Sentences of the administrator's descriptions that do not hold on an endpoint, which takes
 /// neither root nor container_id and offers neither create_transfer nor the dashboard's routes,
 /// with what the endpoint says instead. Each sentence must be in its tool's description.
-pub(super) const ENDPOINT_WORDING: [(&str, &str, &str); 5] = [
+pub(super) const ENDPOINT_WORDING: [(&str, &str, &str); 6] = [
     (
         "exec_container",
         "Defaults to desktop UID/GID 1001:1001; set root=true explicitly to install packages.",
@@ -157,6 +159,11 @@ pub(super) const ENDPOINT_WORDING: [(&str, &str, &str); 5] = [
         "open_terminal",
         " root=true runs the shell as root.",
         " The shell runs as the desktop user, never as root.",
+    ),
+    (
+        "kill_process",
+        "Runs as the desktop user, which may signal only its own processes; root=true signals a process of any user as root.",
+        "Runs as the desktop user, never as root, so it signals only the desktop user's own processes.",
     ),
     (
         "download_file",

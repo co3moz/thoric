@@ -1,5 +1,6 @@
 import {
   RiCameraLine,
+  RiCpuLine,
   RiPlayCircleLine,
   RiStopCircleLine,
   RiMore2Line,
@@ -137,6 +138,12 @@ export function ContainerMenu({ item }: { item: ContainerItem }) {
           <RiFileTextLine />
           {t("containers.logs")}
         </DropdownMenuItem>
+        {running && (
+          <DropdownMenuItem tone="info" onSelect={() => openDialog({ kind: "processes", id })}>
+            <RiCpuLine />
+            {t("nav.processes")}
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem
           tone="info"
           onSelect={() =>

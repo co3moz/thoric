@@ -1,0 +1,57 @@
+{
+  "processes": [
+    {
+      "pid": 412,
+      "ppid": 87,
+      "uid": 1001,
+      "user": "desktop",
+      "state": "S",
+      "name": "chrome",
+      "command": "/opt/google/chrome/chrome --no-first-run",
+      "role": "program",
+      "threads": 31,
+      "rss_bytes": 268435456,
+      "cpu_percent": 12.5,
+      "cpu_seconds": 41.73,
+      "started_at": 1793876400
+    },
+    {
+      "pid": 9,
+      "ppid": 1,
+      "uid": 1001,
+      "user": "desktop",
+      "state": "S",
+      "name": "Xtigervnc",
+      "command": "Xtigervnc :0 -geometry 1920x1080 -depth 24 -rfbport 5900",
+      "role": "desktop",
+      "threads": 3,
+      "rss_bytes": 104857600,
+      "cpu_percent": 1.2,
+      "cpu_seconds": 120.4,
+      "started_at": 1793872800
+    },
+    {
+      "pid": 530,
+      "ppid": 0,
+      "uid": 1001,
+      "user": "desktop",
+      "state": "S",
+      "name": "python3",
+      "command": "python3 -c \"\"\"Run a desktop application in the background. … /tmp/thoric-apps/3f2a",
+      "role": "thoric",
+      "threads": 1,
+      "rss_bytes": 9437184,
+      "cpu_percent": 0.0,
+      "cpu_seconds": 0.08,
+      "started_at": null
+    }
+  ],
+  "total": 64,
+  "matched": 64,
+  "cpu_percent": 15.3,
+  "rss_bytes": 1073741824,
+  "memory_bytes": 1395864371,
+  "memory_limit_bytes": null,
+  "cpus": 8.0,
+  "interval_ms": 503
+}

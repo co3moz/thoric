@@ -20,6 +20,7 @@ import { cn } from "cn"
 
 import { HumanRequestStrip } from "@/components/human-requests"
 import { JobsMenu } from "@/components/jobs-menu"
+import { ProcessesMenu } from "@/components/processes-menu"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -403,6 +404,7 @@ export function DesktopPage({ id }: { id: string }) {
               />
             </>
           )}
+          <ProcessesMenu container={id} labelFrom="xl" />
           <JobsMenu labelFrom="xl" />
           <ToolButton
             label={fullscreen ? t("desktop.exitFullscreen") : t("desktop.fullscreen")}

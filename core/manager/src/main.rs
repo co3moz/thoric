@@ -48,6 +48,7 @@ mod outbound;
 mod package_requests;
 mod permissions;
 mod process;
+mod processes;
 mod proxy;
 mod pulls;
 mod reconfigure;
@@ -251,6 +252,11 @@ fn router(app: Arc<App>) -> Router {
         .route(
             "/api/containers/{id}/applications/{application}/metrics",
             get(apps::metrics),
+        )
+        .route("/api/containers/{id}/processes", get(processes::list))
+        .route(
+            "/api/containers/{id}/processes/{pid}/kill",
+            post(processes::kill),
         )
         .route("/api/containers/{id}/wait", post(waits::wait))
         .route(

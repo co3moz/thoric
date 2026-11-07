@@ -33,6 +33,7 @@ import {
 import { GroupConnectDialog } from "./group-dialog"
 import { JobDrawer } from "./job-drawer"
 import { LogDialog } from "./log-dialog"
+import { ProcessesDrawer } from "./processes-drawer"
 import { ImportImageDialog } from "./import-dialog"
 import {
   DeleteDialog,
@@ -172,6 +173,8 @@ function render(dialog: Dialog, open: boolean) {
       return <VolumeDeleteDialog {...props} name={dialog.name} />
     case "job":
       return <JobDrawer {...props} id={dialog.id} />
+    case "processes":
+      return <ProcessesDrawer {...props} id={dialog.id} />
     case "log":
       return <LogDialog {...props} title={dialog.title} text={dialog.text} status={dialog.status} />
     case "mcp-endpoint":
