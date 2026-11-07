@@ -506,6 +506,69 @@ async fn mcp_replies_are_chunked_on_the_wire() {
     }
 }
 
+/// `docs/skills/thoric-scale-sets/SKILL.md` tells agents which tools and arguments to call before
+/// they see the catalog, so every one it names in code is one the catalog has: a renamed tool or
+/// argument fails here instead of leaving the skill wrong.
+#[test]
+fn the_scale_set_skill_names_tools_and_arguments_that_exist() {
+    fn arguments(value: &serde_json::Value, known: &mut std::collections::BTreeSet<String>) {
+        match value {
+            serde_json::Value::Object(object) => {
+                for (key, inner) in object {
+                    if key == "properties"
+                        && let Some(properties) = inner.as_object()
+                    {
+                        known.extend(properties.keys().cloned());
+                    }
+                    arguments(inner, known);
+                }
+            }
+            serde_json::Value::Array(items) => {
+                items.iter().for_each(|item| arguments(item, known));
+            }
+            _ => {}
+        }
+    }
+    let mut known = std::collections::BTreeSet::new();
+    for tool in super::tools::TOOLS.iter() {
+        known.insert(tool.name.to_string());
+        arguments(
+            &serde_json::Value::Object((*tool.input_schema).clone()),
+            &mut known,
+        );
+    }
+    // What the skill names that no schema has: a field of list_instances' answer, the argument
+    // a set's endpoint gives a desktop server's tool with an `instance` of its own, and
+    // create_instance as OpenCode and Claude Code prefix it.
+    known.extend(
+        [
+            "in_use",
+            "thoric_instance",
+            "re_create_instance",
+            "mcp__re__create_instance",
+        ]
+        .map(String::from),
+    );
+    let skill = include_str!("../../../docs/skills/thoric-scale-sets/SKILL.md");
+    let named = regex::Regex::new(r"`([a-z]+(?:_+[a-z]+)+)`|\b([a-z]+(?:_[a-z]+)+)\(").unwrap();
+    let unknown = named
+        .captures_iter(skill)
+        .filter_map(|names| names.get(1).or_else(|| names.get(2)))
+        .map(|name| name.as_str())
+        .filter(|name| !known.contains(*name))
+        .collect::<Vec<_>>();
+    assert!(
+        unknown.is_empty(),
+        "the scale set skill names {unknown:?}, which no tool has"
+    );
+    for tool in ["list_instances", "create_instance", "delete_instance"] {
+        assert!(
+            skill.contains(&format!("`{tool}`")),
+            "the scale set skill must explain {tool}"
+        );
+    }
+}
+
 fn build_image_tool() -> &'static rmcp::model::Tool {
     super::tools::TOOLS
         .iter()

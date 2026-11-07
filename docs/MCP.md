@@ -392,6 +392,8 @@ The set gets one endpoint, `/mcp/SET`, in place of an endpoint for each instance
 
 A parent agent gives each subagent an instance of its own: it calls `create_instance` with a note, waits for the job and hands the number on, and the subagent passes it as `instance` to every call. The administrator's `/mcp` has the same three tools, which take the set's name as `set`.
 
+[`docs/skills/thoric-scale-sets`](skills/thoric-scale-sets/SKILL.md) is a skill that teaches an agent this work: when to create instances and how many, what to tell a subagent, how workers write a shared volume without overwriting each other's files, and what to keep before it deletes the instances it made. Copy the folder, under its own name, into the agent's skills folder: `~/.claude/skills/` serves both Claude Code and OpenCode, which also reads `~/.config/opencode/skills/`, and a project's `.claude/skills/` or `.opencode/skills/` gives the skill to that project alone.
+
 ## Agent activity
 
 The manager records every tool call an agent makes, on `/mcp` and on every endpoint, and every transfer link that is used. The dashboard's **Activity** page shows them, and `GET /api/activity` lists them, as [the API guide](API.md#agent-activity) describes. A call is recorded when it answers, with:
