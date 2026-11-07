@@ -199,6 +199,24 @@ async fn mcp_negotiates_and_lists_tools_with_useful_results() {
             "{text}"
         );
     }
+    // An agent ran glxinfo through launch_application without gpu=true, read llvmpipe, found no
+    // /dev/dri and concluded that a desktop with the WSL GPU had none. The instructions and the
+    // tools that start programs must say that only gpu-run reaches the GPU.
+    assert!(instructions.contains("/dev/dxg"), "{instructions}");
+    for text in
+        [instructions.as_str()]
+            .into_iter()
+            .chain(["exec_container", "launch_application"].map(|name| {
+                tools.iter().find(|t| t["name"] == name).unwrap()["description"]
+                    .as_str()
+                    .unwrap()
+            }))
+    {
+        assert!(
+            text.contains("gpu-run") && text.contains("llvmpipe"),
+            "{text}"
+        );
+    }
     let guide = include_str!("../../../docs/MCP.md");
     for tool in tools {
         let name = tool["name"].as_str().unwrap();

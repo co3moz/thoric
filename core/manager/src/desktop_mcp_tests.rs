@@ -1104,6 +1104,60 @@ async fn open_session(app: &Arc<App>, path: &str, token: &str) -> String {
 }
 
 #[tokio::test]
+async fn an_endpoint_tells_its_agents_that_only_gpu_run_reaches_the_gpu() {
+    // An agent on an endpoint ran glxinfo without gpu-run, read llvmpipe and found no /dev/dri,
+    // and reported that a desktop with the WSL GPU had none.
+    let app = mcp_app();
+    app.db
+        .put(CONTAINERS, "c1", &container("c1", "Game"))
+        .unwrap();
+    let Json(created) = create_endpoint(
+        State(app.clone()),
+        Json(
+            serde_json::from_value(json!({"name":"game","grants":[{"container_id":"c1","scopes":["applications","commands"],"servers":"all"}]}))
+                .unwrap(),
+        ),
+    )
+    .await
+    .unwrap();
+    let token = created["token"].as_str().unwrap().to_owned();
+    let (status, _, body) = call(
+        app.clone(),
+        "/mcp/game",
+        Some(&token),
+        None,
+        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let instructions = body["result"]["instructions"].as_str().unwrap();
+    assert!(
+        instructions.contains("gpu-run")
+            && instructions.contains("llvmpipe")
+            && instructions.contains("/dev/dxg"),
+        "{instructions}"
+    );
+    let session = open_session(&app, "/mcp/game", &token).await;
+    let (_, _, body) = call(
+        app.clone(),
+        "/mcp/game",
+        Some(&token),
+        Some(&session),
+        json!({"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}),
+    )
+    .await;
+    let tools = body["result"]["tools"].as_array().unwrap();
+    for name in ["exec_container", "launch_application"] {
+        let tool = tools.iter().find(|t| t["name"] == name).unwrap();
+        let description = tool["description"].as_str().unwrap();
+        assert!(
+            description.contains("gpu-run") && description.contains("llvmpipe"),
+            "{description}"
+        );
+    }
+}
+
+#[tokio::test]
 async fn an_endpoint_token_opens_its_endpoint_and_nothing_else() {
     let app = mcp_app();
     app.db
