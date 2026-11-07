@@ -21,11 +21,16 @@ export type BackupManifest = {
   images: { id: string; name: string; image: boolean }[]
   volumes: { name: string; included: boolean; owner?: string; parameter?: string }[]
   endpoints: string[]
+  scale_sets: string[]
   parts: { kind: "image" | "files" | "volume"; target: string }[]
   secrets_left_out: string[]
+  scale_sets_secrets_left_out: string[]
 }
 
-export type BackupConflict = { kind: "container" | "image" | "endpoint" | "volume"; name: string }
+export type BackupConflict = {
+  kind: "container" | "image" | "endpoint" | "volume" | "scale-set"
+  name: string
+}
 
 /** What `POST /api/backup/check` says a restore would meet here. */
 export type BackupReview = { conflicts: BackupConflict[]; missing_volumes: string[] }
@@ -72,7 +77,12 @@ export function parseManifest(tar: Uint8Array): BackupManifest | null {
       Array.isArray(manifest.volumes) &&
       Array.isArray(manifest.endpoints) &&
       Array.isArray(manifest.parts)
-      ? ({ secrets_left_out: [], ...manifest } as BackupManifest)
+      ? ({
+          secrets_left_out: [],
+          scale_sets: [],
+          scale_sets_secrets_left_out: [],
+          ...manifest,
+        } as BackupManifest)
       : null
   } catch {
     return null
@@ -127,6 +137,7 @@ export function restorePlan(manifest: BackupManifest) {
     recordsOnly: names(manifest.images.filter((image) => !image.image)),
     volumes: names(manifest.volumes.filter((volume) => volume.included)),
     endpoints: manifest.endpoints,
+    scaleSets: manifest.scale_sets,
     secretsLeftOut: names(manifest.containers.filter((container) => left.has(container.id))),
   }
 }

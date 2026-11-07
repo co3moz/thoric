@@ -2,28 +2,31 @@
 //! the parts that were asked for and that Docker still has, and the secret values only when they
 //! were asked for. Every kind of record the manager writes has to be on one of the two lists.
 use super::*;
-use crate::backup::tests::{SECRET, container, endpoint, image, pinned};
+use crate::backup::tests::{
+    SECRET, SET_PROXY_SECRET, container, endpoint, image, pinned, scale_set, set_endpoint,
+    set_template,
+};
 
 /// The database kinds a backup carries, one for each field of `Records`.
-const INCLUDED_KINDS: [&str; 5] = [
+const INCLUDED_KINDS: [&str; 7] = [
     crate::model::CONTAINERS,
     "image",
     crate::compose::PINNED,
     crate::desktop_mcp::ENDPOINTS,
     crate::outbound::CREDENTIALS,
+    crate::scale::SETS,
+    crate::scale::TEMPLATES,
 ];
 /// The kinds a backup leaves out on purpose: history with the requests kept to retry it, the
 /// processes of running desktops, and the tool lists the manager reads again from a desktop once
 /// it runs.
-const EXCLUDED_KINDS: [&str; 8] = [
+const EXCLUDED_KINDS: [&str; 6] = [
     "job",
     crate::jobs::retry::REQUESTS,
     "application",
     "terminal",
     "recording",
     crate::desktop_mcp::SERVERS,
-    crate::scale::SETS,
-    crate::scale::TEMPLATES,
 ];
 
 /// The password of a container's own proxy.
@@ -55,11 +58,22 @@ fn installation() -> Installation {
             // A compose whose container is gone is not the installation's any more.
             ("orphan".into(), pinned()),
         ],
-        endpoints: vec![endpoint("desk", &["c1"])],
+        endpoints: vec![endpoint("desk", &["c1"]), set_endpoint("re", "re")],
         proxy_passwords: vec![
             ("c1".into(), proxy_password()),
             // A password whose container is gone is not the installation's any more.
             ("orphan".into(), proxy_password()),
+        ],
+        // Instance 2 is still being created: its number is taken, its record not saved yet.
+        scale_sets: vec![scale_set(
+            "re",
+            "thoric/snapshot:i1",
+            &[(1, "c1"), (2, "creating")],
+        )],
+        scale_set_templates: vec![
+            ("re".into(), set_template()),
+            // A template whose set is gone is not the installation's any more.
+            ("gone".into(), set_template()),
         ],
         available_images: HashSet::from(["i1".into()]),
         with_files: HashSet::from(["c1".into()]),
@@ -102,7 +116,7 @@ fn a_backup_carries_every_record_and_the_parts_docker_still_has() {
     };
     assert_eq!(ids(&records), ["c1", "c2"]);
     assert_eq!(records.images.len(), 2);
-    assert_eq!(records.endpoints.len(), 1);
+    assert_eq!(records.endpoints.len(), 2);
     assert_eq!(
         records
             .composes
@@ -168,23 +182,156 @@ fn a_backup_carries_every_record_and_the_parts_docker_still_has() {
             ("thoric-c1-cache", true, Some("c1")),
         ]
     );
-    assert_eq!(manifest.endpoints, ["desk"]);
+    assert_eq!(manifest.endpoints, ["desk", "re"]);
+    assert_eq!(manifest.scale_sets, ["re"]);
     crate::backup::review::check_manifest(&manifest).unwrap();
     crate::backup::review::check_records(&manifest, &records).unwrap();
 }
 
 #[test]
-fn an_endpoint_of_a_scale_set_stays_out_with_the_set() {
+fn a_backup_carries_the_scale_sets_with_their_templates_and_endpoints() {
+    let (manifest, records) = plan(
+        installation(),
+        Included {
+            secrets: true,
+            ..EVERYTHING
+        },
+        "0.9.3",
+        99,
+    );
+    let [set] = &records.scale_sets[..] else {
+        panic!("{:?}", records.scale_sets);
+    };
+    // The instance still being created has no record to restore; its number is given up.
+    assert_eq!(set.instances.keys().copied().collect::<Vec<_>>(), [1]);
+    assert_eq!(set.instances[&1].container_id, "c1");
+    assert_eq!(set.instances[&1].note, "an agent's");
+    assert_eq!(set.template.image, "thoric/snapshot:i1");
+    assert_eq!(set.endpoint.as_deref(), Some("re"));
+    // Only the template of a set the backup holds, with everything it keeps when asked for.
+    let [template] = &records.scale_set_templates[..] else {
+        panic!("{:?}", records.scale_set_templates);
+    };
+    assert_eq!(template.set, "re");
+    assert_eq!(template.template.parameters["PASSWORD"], SECRET);
+    assert_eq!(
+        template.template.pinned.as_ref().unwrap().1.values["PASSWORD"],
+        SECRET
+    );
+    assert_eq!(
+        template.template.proxy_password.as_deref(),
+        Some(SET_PROXY_SECRET)
+    );
+    assert!(manifest.scale_sets_secrets_left_out.is_empty());
+    // The set's endpoint comes along with its grant and token hash.
+    let re = records.endpoints.iter().find(|e| e.name == "re").unwrap();
+    assert_eq!(re.set().map(|(_, set)| set), Some("re"));
+    assert_eq!(re.token_hash.as_deref(), Some("cd".repeat(32).as_str()));
+    crate::backup::review::check_records(&manifest, &records).unwrap();
+}
+
+#[test]
+fn a_volume_only_a_sets_template_mounts_is_named_and_carried() {
     let mut installation = installation();
-    let set_endpoint: crate::desktop_mcp::Endpoint = serde_json::from_value(serde_json::json!({
-        "name": "re", "automatic": true, "created_at": 1,
-        "grants": [{"set": "re", "alias": "re", "scopes": ["view", "scale"], "servers": "all"}],
-    }))
-    .unwrap();
-    installation.endpoints.push(set_endpoint);
+    // No instance is left, but the next one mounts the template's volume.
+    let mut idle = scale_set("idle", "thoric/snapshot:i1", &[]);
+    idle.template.mounts[0].volume = "set-only".into();
+    // A volume each instance gets anew is no volume of the template's.
+    let mut fresh = scale_set("fresh", "thoric/snapshot:i1", &[]);
+    fresh.template.mounts[0].volume = "never-mounted".into();
+    fresh.volumes = BTreeMap::from([(
+        "/home/desktop/shared".into(),
+        crate::scale::VolumePolicy::New,
+    )]);
+    installation.scale_sets.extend([idle, fresh]);
+    installation
+        .volumes
+        .insert("set-only".into(), VolumeFacts::default());
+    let (manifest, _) = plan(installation, EVERYTHING, "0.9.3", 99);
+    let named = manifest
+        .volumes
+        .iter()
+        .map(|v| (v.name.as_str(), v.included))
+        .collect::<Vec<_>>();
+    assert!(named.contains(&("set-only", true)), "{named:?}");
+    assert!(!named.iter().any(|(name, _)| *name == "never-mounted"));
+}
+
+#[test]
+fn an_endpoint_keeps_no_grant_of_a_set_the_backup_does_not_hold() {
+    let mut installation = installation();
+    // Grants of a set that is gone: its own endpoint goes, another one stays without the grant.
+    installation.endpoints.push(set_endpoint("old", "old"));
+    let mut kept = set_endpoint("kept", "old");
+    kept.automatic = false;
+    installation.endpoints.push(kept);
     let (manifest, records) = plan(installation, EVERYTHING, "0.9.3", 99);
-    assert_eq!(manifest.endpoints, ["desk"]);
-    assert_eq!(records.endpoints.len(), 1);
+    assert_eq!(manifest.endpoints, ["desk", "kept", "re"]);
+    let kept = records.endpoints.iter().find(|e| e.name == "kept").unwrap();
+    assert!(kept.grants.is_empty());
+    crate::backup::review::check_records(&manifest, &records).unwrap();
+}
+
+#[test]
+fn a_sets_secret_values_leave_only_when_asked_for() {
+    let (manifest, records) = plan(installation(), EVERYTHING, "0.9.3", 1);
+    assert_eq!(manifest.scale_sets_secrets_left_out, ["re"]);
+    let template = &records.scale_set_templates[0].template;
+    assert_eq!(
+        template.parameters,
+        BTreeMap::from([("EMAIL".into(), "a@example.com".into())])
+    );
+    let pinned = &template.pinned.as_ref().unwrap().1;
+    assert!(!pinned.values.contains_key("PASSWORD"));
+    assert_eq!(template.proxy_password, None);
+    let written = serde_json::to_string(&(&manifest, &records)).unwrap();
+    assert!(!written.contains(SECRET) && !written.contains(SET_PROXY_SECRET));
+
+    // A template no instance pinned yet is judged by the compose of its image's record, which
+    // goes with the images part or not, and also takes a parameter of a step of several by its
+    // name alone.
+    let mut unpinned = installation();
+    let mut tools = image("i1", "Tools", "build");
+    tools.reference = "thoric/snapshot:i1".into();
+    tools.compose = Some(
+        serde_json::from_value(serde_json::json!({"steps": [
+            {"id": "mail", "parameters": [{"name": "EMAIL"}], "script": "echo mail"},
+            {"id": "vault", "parameters": [{"name": "TOKEN", "secret": true}], "script": "echo vault"},
+        ]}))
+        .unwrap(),
+    );
+    unpinned.images = vec![tools];
+    unpinned.scale_set_templates = vec![(
+        "re".into(),
+        crate::scale::Template {
+            parameters: BTreeMap::from([
+                ("mail.EMAIL".into(), "a@example.com".into()),
+                ("TOKEN".into(), SECRET.into()),
+            ]),
+            pinned: None,
+            proxy_password: None,
+        },
+    )];
+    let (manifest, records) = plan(unpinned, Included::default(), "0.9.3", 1);
+    assert!(records.images.is_empty());
+    assert_eq!(manifest.scale_sets_secrets_left_out, ["re"]);
+    assert_eq!(
+        records.scale_set_templates[0].template.parameters,
+        BTreeMap::from([("mail.EMAIL".into(), "a@example.com".into())])
+    );
+
+    // Values for a compose neither the template nor its image names cannot be told apart.
+    let mut unknown = installation();
+    unknown.images.clear();
+    unknown.scale_set_templates[0].1.pinned = None;
+    let (manifest, records) = plan(unknown, EVERYTHING, "0.9.3", 1);
+    assert_eq!(manifest.scale_sets_secrets_left_out, ["re"]);
+    assert!(
+        records.scale_set_templates[0]
+            .template
+            .parameters
+            .is_empty()
+    );
 }
 
 #[test]
@@ -297,7 +444,9 @@ fn the_included_kinds_are_the_fields_of_the_records() {
             "containers",
             "endpoints",
             "images",
-            "proxy_passwords"
+            "proxy_passwords",
+            "scale_set_templates",
+            "scale_sets"
         ]
     );
     assert_eq!(INCLUDED_KINDS.len(), fields.len());

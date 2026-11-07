@@ -94,6 +94,13 @@ pub(crate) fn check_manifest(manifest: &Manifest) -> Result<()> {
             bail!("The backup names the endpoint {name} twice");
         }
     }
+    let mut sets = HashSet::new();
+    for name in &manifest.scale_sets {
+        crate::scale::set_name(name)?;
+        if !sets.insert(name.as_str()) {
+            bail!("The backup names the scale set {name} twice");
+        }
+    }
     let mut volumes = HashSet::new();
     for volume in &manifest.volumes {
         volume_name(&volume.name)?;
@@ -142,6 +149,13 @@ pub(crate) fn check_manifest(manifest: &Manifest) -> Result<()> {
     {
         bail!("The backup's manifest names an unknown container");
     }
+    if manifest
+        .scale_sets_secrets_left_out
+        .iter()
+        .any(|name| !sets.contains(name.as_str()))
+    {
+        bail!("The backup's manifest names an unknown scale set");
+    }
     Ok(())
 }
 
@@ -169,9 +183,15 @@ pub(crate) fn check_records(manifest: &Manifest, records: &Records) -> Result<()
         manifest.endpoints.iter().map(String::as_str).collect(),
         "endpoints",
     )?;
+    same(
+        records.scale_sets.iter().map(|s| s.name.as_str()).collect(),
+        manifest.scale_sets.iter().map(String::as_str).collect(),
+        "scale sets",
+    )?;
     if records.containers.len() != manifest.containers.len()
         || records.images.len() != manifest.images.len()
         || records.endpoints.len() != manifest.endpoints.len()
+        || records.scale_sets.len() != manifest.scale_sets.len()
     {
         bail!("The backup holds a record twice");
     }
@@ -233,13 +253,38 @@ pub(crate) fn check_records(manifest: &Manifest, records: &Records) -> Result<()
         }
         crate::outbound::password(&entry.credentials.password)?;
     }
+    check_scale_sets(manifest, records)?;
     for endpoint in &records.endpoints {
         let mut aliases = HashSet::new();
         for grant in &endpoint.grants {
-            if !manifest
-                .containers
-                .iter()
-                .any(|c| c.id == grant.container_id)
+            let held = match &grant.set {
+                // A set's grant is its endpoint's only one, as the endpoint routes make it.
+                Some(set) => {
+                    if !grant.container_id.is_empty()
+                        || endpoint.grants.len() != 1
+                        || !manifest.scale_sets.contains(set)
+                    {
+                        bail!(
+                            "The endpoint {} names a scale set the backup does not hold",
+                            endpoint.name
+                        );
+                    }
+                    true
+                }
+                None => {
+                    if grant.scales() {
+                        bail!(
+                            "The endpoint {} gives a container the scale scope, which is for a scale set",
+                            endpoint.name
+                        );
+                    }
+                    manifest
+                        .containers
+                        .iter()
+                        .any(|c| c.id == grant.container_id)
+                }
+            };
+            if !held
                 || !crate::desktop_mcp::slug(&grant.alias, 24)
                 || !aliases.insert(grant.alias.as_str())
             {
@@ -260,6 +305,61 @@ pub(crate) fn check_records(manifest: &Manifest, records: &Records) -> Result<()
     Ok(())
 }
 
+/// Check the scale sets and their templates: the limits and settings the set routes accept, and
+/// instances that are containers of the backup, each of one set under one number.
+fn check_scale_sets(manifest: &Manifest, records: &Records) -> Result<()> {
+    let mut instances = HashSet::new();
+    for set in &records.scale_sets {
+        let named = |error: anyhow::Error| error.context(format!("Scale set {}", set.name));
+        crate::scale::limits(set.min, set.max, set.idle_delete_minutes).map_err(named)?;
+        set.template.validate().map_err(named)?;
+        for target in set.volumes.keys() {
+            mount_target(target).map_err(named)?;
+        }
+        if let Some(endpoint) = &set.endpoint {
+            endpoint_name(endpoint).map_err(named)?;
+        }
+        for (number, instance) in &set.instances {
+            if !(1..=set.max).contains(number)
+                || !instances.insert(instance.container_id.as_str())
+                || !manifest
+                    .containers
+                    .iter()
+                    .any(|c| c.id == instance.container_id)
+            {
+                bail!(
+                    "The scale set {} names an instance the backup does not hold",
+                    set.name
+                );
+            }
+            if instance.note.chars().count() > crate::scale::NOTE_LIMIT
+                || instance.note.chars().any(char::is_control)
+            {
+                bail!("The scale set {} has an invalid instance note", set.name);
+            }
+        }
+    }
+    let mut templates = HashSet::new();
+    for entry in &records.scale_set_templates {
+        if !templates.insert(entry.set.as_str()) || !manifest.scale_sets.contains(&entry.set) {
+            bail!("The backup holds a template of an unknown scale set");
+        }
+        let named = |error: anyhow::Error| error.context(format!("Scale set {}", entry.set));
+        if let Some((_, pinned)) = &entry.template.pinned {
+            pinned.compose.validate().map_err(named)?;
+            for mount in pinned.mounts() {
+                volume_name(&mount.volume)
+                    .and_then(|_| mount_target(&mount.target))
+                    .map_err(named)?;
+            }
+        }
+        if let Some(password) = &entry.template.proxy_password {
+            crate::outbound::password(password).map_err(named)?;
+        }
+    }
+    Ok(())
+}
+
 /// What this installation has that a restore would collide with.
 #[derive(Debug, Default)]
 pub(crate) struct Present {
@@ -268,6 +368,8 @@ pub(crate) struct Present {
     pub images: HashSet<String>,
     pub composes: HashSet<String>,
     pub endpoints: HashSet<String>,
+    /// Scale sets, by the name of their record or their template's.
+    pub scale_sets: HashSet<String>,
     /// Names Docker has.
     pub docker_containers: HashSet<String>,
     pub networks: HashSet<String>,
@@ -279,7 +381,7 @@ pub(crate) struct Present {
 /// One name a restore would take that is taken already.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub(crate) struct Conflict {
-    /// `container`, `image`, `endpoint` or `volume`.
+    /// `container`, `image`, `endpoint`, `volume` or `scale-set`.
     pub kind: &'static str,
     /// What the backup calls it.
     pub name: String,
@@ -330,6 +432,14 @@ pub(crate) fn review(manifest: &Manifest, present: &Present) -> Review {
             });
         }
     }
+    for name in &manifest.scale_sets {
+        if present.scale_sets.contains(name) {
+            conflicts.insert(Conflict {
+                kind: "scale-set",
+                name: name.clone(),
+            });
+        }
+    }
     let mut missing_volumes = Vec::new();
     for volume in &manifest.volumes {
         let here = present.volumes.contains(&volume.name);
@@ -352,7 +462,7 @@ pub(crate) fn review(manifest: &Manifest, present: &Present) -> Review {
 pub(crate) fn conflict_message(conflicts: &[Conflict]) -> String {
     let names = conflicts
         .iter()
-        .map(|c| format!("{} {}", c.kind, c.name))
+        .map(|c| format!("{} {}", c.kind.replace('-', " "), c.name))
         .collect::<Vec<_>>()
         .join(", ");
     format!(

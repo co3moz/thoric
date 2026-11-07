@@ -679,6 +679,7 @@ export const de: Messages = {
   "backup.list.recordsOnly": "Image-Einträge ohne ihre Images",
   "backup.list.volumes": "Volumes",
   "backup.list.endpoints": "MCP-Endpunkte",
+  "backup.list.scaleSets": "Skalierungsgruppen",
   "backup.withoutFilesHint":
     "Ein Container ohne seine Dateien wartet, bis „Einrichtung wiederholen“ ihn aus seinem Image erstellt und seine Einrichtung erneut ausführt.",
   "backup.secretsLeftOut":
@@ -692,6 +693,7 @@ export const de: Messages = {
   "backup.conflict.image": "Gespeichertes Image {name}",
   "backup.conflict.endpoint": "MCP-Endpunkt {name}",
   "backup.conflict.volume": "Volume {name}",
+  "backup.conflict.scaleSet": "Skalierungsgruppe {name}",
   "backup.restoreAction": "Wiederherstellen",
   "files.name.empty": "Geben Sie einen Namen ein.",
   "files.name.dots": "Wählen Sie einen anderen Namen.",

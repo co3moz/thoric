@@ -62,13 +62,15 @@ const manifest: BackupManifest = {
     { name: "projects", included: true },
     { name: "elsewhere", included: false },
   ],
-  endpoints: ["unity"],
+  endpoints: ["unity", "re"],
+  scale_sets: ["re"],
   parts: [
     { kind: "image", target: "i1" },
     { kind: "files", target: "c1" },
     { kind: "volume", target: "projects" },
   ],
   secrets_left_out: ["c1"],
+  scale_sets_secrets_left_out: ["re"],
 }
 
 /** A backup as the manager streams one: the manifest, then records and a part that does not compress. */
@@ -117,6 +119,12 @@ test("only a backup's manifest is taken for one", async () => {
   const older: Partial<BackupManifest> = { ...manifest }
   delete older.secrets_left_out
   assert.deepEqual(parseManifest(entry("thoric-backup.json", json(older)))?.secrets_left_out, [])
+  // One from a release before scale sets reads as one that holds none.
+  const beforeSets: Partial<BackupManifest> = { ...manifest }
+  delete beforeSets.scale_sets
+  delete beforeSets.scale_sets_secrets_left_out
+  const read = parseManifest(entry("thoric-backup.json", json(beforeSets)))
+  assert.deepEqual([read?.scale_sets, read?.scale_sets_secrets_left_out], [[], []])
   assert.ok(readable(manifest))
   assert.ok(!readable({ ...manifest, format: BACKUP_FORMAT + 1 }))
 })
@@ -128,7 +136,8 @@ test("the confirmation names what a restore creates, and what it creates without
     images: ["Unity tools"],
     recordsOnly: ["Lost build"],
     volumes: ["projects"],
-    endpoints: ["unity"],
+    endpoints: ["unity", "re"],
+    scaleSets: ["re"],
     secretsLeftOut: ["Unity"],
   })
 })

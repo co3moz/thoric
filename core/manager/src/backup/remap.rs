@@ -53,16 +53,18 @@ pub(crate) fn remap(mut records: Records, loaded: &Loaded) -> Records {
             image.parent_image_id = Some(parent.clone());
         }
     }
+    // A restored image by its tag here, or by its ID here when the settings named it by ID.
+    let image_here = |image: &mut String| {
+        if let Some(here) = references.get(image).or_else(|| ids.get(image)) {
+            *image = here.clone();
+        }
+    };
     for container in &mut records.containers {
         let [name, _, private, egress] = docker_names(&container.id);
         container.container = name;
         container.private_network = private;
         container.egress_network = egress;
-        if let Some(reference) = references.get(&container.spec.image) {
-            container.spec.image = reference.clone();
-        } else if let Some(id) = ids.get(&container.spec.image) {
-            container.spec.image = id.clone();
-        }
+        image_here(&mut container.spec.image);
         // The same image here, the one the backup restored, or the one its settings name here.
         container.source_image_id = if loaded.resolved.contains_key(&container.source_image_id) {
             loaded.resolved[&container.source_image_id].clone()
@@ -84,6 +86,22 @@ pub(crate) fn remap(mut records: Records, loaded: &Loaded) -> Records {
     }
     for endpoint in &mut records.endpoints {
         endpoint.token_hash = None;
+    }
+    // A set's instances are created from its template's image, so it moves as the containers'
+    // does. The compose it pinned names its image record by id, which a restore keeps.
+    let endpoints = &records.endpoints;
+    for set in &mut records.scale_sets {
+        image_here(&mut set.template.image);
+        // Its endpoint is one the backup carries that covers it; an endpoint of that name here,
+        // or one that covers something else, is not the set's.
+        let covers = |name: &String| {
+            endpoints.iter().any(|endpoint| {
+                endpoint.name == *name && endpoint.set().is_some_and(|(_, of)| of == set.name)
+            })
+        };
+        if !set.endpoint.as_ref().is_some_and(covers) {
+            set.endpoint = None;
+        }
     }
     records
 }
@@ -141,6 +159,24 @@ pub(crate) fn leave_out_unlisted(
     if let Some(setup) = &mut container.setup {
         setup.mounts.retain(|mount| !hidden(&mount.volume));
     }
+    left_out
+}
+
+/// The same for a scale set's template, whose instances would mount them: an instance's creation
+/// would refuse a volume `VOLUME_FILTER` hides.
+pub(crate) fn leave_out_unlisted_of_template(
+    template: &mut ContainerSpec,
+    present: &HashSet<String>,
+    listed: &HashSet<String>,
+) -> Vec<String> {
+    let hidden = |volume: &str| present.contains(volume) && !listed.contains(volume);
+    let mut left_out = Vec::new();
+    for mount in &template.mounts {
+        if hidden(&mount.volume) && !left_out.contains(&mount.volume) {
+            left_out.push(mount.volume.clone());
+        }
+    }
+    template.mounts.retain(|mount| !hidden(&mount.volume));
     left_out
 }
 

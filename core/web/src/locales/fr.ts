@@ -677,6 +677,7 @@ export const fr: Messages = {
   "backup.list.recordsOnly": "Fiches d'images sans leurs images",
   "backup.list.volumes": "Volumes",
   "backup.list.endpoints": "Points d'accès MCP",
+  "backup.list.scaleSets": "Groupes évolutifs",
   "backup.withoutFilesHint":
     "Un conteneur sans ses fichiers attend que « Nouvelle tentative de configuration » le crée depuis son image et relance sa configuration.",
   "backup.secretsLeftOut":
@@ -690,6 +691,7 @@ export const fr: Messages = {
   "backup.conflict.image": "Image enregistrée {name}",
   "backup.conflict.endpoint": "Point d'accès MCP {name}",
   "backup.conflict.volume": "Volume {name}",
+  "backup.conflict.scaleSet": "Groupe évolutif {name}",
   "backup.restoreAction": "Restaurer",
   "files.name.empty": "Saisissez un nom.",
   "files.name.dots": "Choisissez un autre nom.",

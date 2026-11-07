@@ -7,7 +7,10 @@ use super::{
     format::{MANIFEST_LIMIT, Name, RECORDS_LIMIT, SMALL_LIMIT},
     installation,
     manifest::{Ending, Manifest, PartKind, Records},
-    remap::{Loaded, leave_out_unlisted, not_created, remap, switch_off_disabled},
+    remap::{
+        Loaded, leave_out_unlisted, leave_out_unlisted_of_template, not_created, remap,
+        switch_off_disabled,
+    },
     review::{
         Present, check_manifest, check_records, conflict_message, files_reference, image_reference,
         parse_manifest, review,
@@ -23,6 +26,7 @@ use crate::{
     jobs,
     model::{CONTAINERS, Container},
     outbound::{CREDENTIALS, ProxyChoice},
+    scale::{SETS, TEMPLATES},
 };
 use anyhow::{Context, anyhow, bail};
 use axum::{
@@ -134,12 +138,19 @@ impl App {
                 .collect()
         };
         // By id, so a record this release cannot read still counts as taken. A container, an
-        // image and a pinned compose are saved under their id, an endpoint under its name.
+        // image and a pinned compose are saved under their id, an endpoint, a scale set and its
+        // template under its name.
         Ok(Present {
             containers: self.db.ids(CONTAINERS)?.into_iter().collect(),
             images: self.db.ids("image")?.into_iter().collect(),
             composes: self.db.ids(PINNED)?.into_iter().collect(),
             endpoints: self.db.ids(ENDPOINTS)?.into_iter().collect(),
+            scale_sets: self
+                .db
+                .ids(SETS)?
+                .into_iter()
+                .chain(self.db.ids(TEMPLATES)?)
+                .collect(),
             docker_containers: names(self.docker(&["ps", "-a", "--format", "{{.Names}}"]).await?),
             networks: names(
                 self.docker(&["network", "ls", "--format", "{{.Name}}"])
@@ -268,7 +279,9 @@ impl App {
             "volumes": created.volumes,
             "endpoints": records.endpoints.iter().map(|e| &e.name).collect::<Vec<_>>(),
             "endpoints_without_tokens": tokens,
+            "scale_sets": records.scale_sets.iter().map(|s| &s.name).collect::<Vec<_>>(),
             "secrets_left_out": manifest.secrets_left_out,
+            "scale_sets_secrets_left_out": manifest.scale_sets_secrets_left_out,
             "missing_volumes": review.missing_volumes,
         }))
     }
@@ -487,6 +500,54 @@ impl App {
                 *password = false;
             }
         }
+        let template_passwords: HashSet<String> = records
+            .scale_set_templates
+            .iter()
+            .filter(|entry| entry.template.proxy_password.is_some())
+            .map(|entry| entry.set.clone())
+            .collect();
+        for set in &mut records.scale_sets {
+            // The template is held to what a request could ask here, as the containers are.
+            let name = set.name.clone();
+            let off = switch_off_disabled(&self.config, &mut set.template);
+            if !off.is_empty() {
+                self.append_log(
+                    job_id,
+                    &format!(
+                        "Scale set {name}: switched off {} in its template, which this installation disables.",
+                        off.join(", ")
+                    ),
+                )?;
+            }
+            let left_out = leave_out_unlisted_of_template(&mut set.template, &volumes, &listed);
+            if !left_out.is_empty() {
+                self.append_log(
+                    job_id,
+                    &format!(
+                        "Scale set {name}: left out of its template the volumes {}, which VOLUME_FILTER does not list here.",
+                        left_out.join(", ")
+                    ),
+                )?;
+            }
+            // New instances get no proxy password the backup left out.
+            if let Some(ProxyChoice::Custom { password, .. }) = &mut set.template.proxy
+                && !template_passwords.contains(&name)
+            {
+                *password = false;
+            }
+            // A catalog image is downloaded when an instance needs it; any other must be here.
+            let image = &set.template.image;
+            if !catalog.iter().any(|entry| entry.reference == *image)
+                && self.inspect("image", image).await.is_err()
+            {
+                self.append_log(
+                    job_id,
+                    &format!(
+                        "Scale set {name}: its image {image} is not on this installation, so it creates no instance until the image is here."
+                    ),
+                )?;
+            }
+        }
         let mut rows: Vec<(&str, &str, Value)> = Vec::new();
         for image in &records.images {
             rows.push(("image", &image.id, serde_json::to_value(image)?));
@@ -500,6 +561,17 @@ impl App {
         }
         for container in &records.containers {
             rows.push((CONTAINERS, &container.id, serde_json::to_value(container)?));
+        }
+        // After the containers that are their instances, before the endpoints that cover them.
+        for set in &records.scale_sets {
+            rows.push((SETS, &set.name, serde_json::to_value(set)?));
+        }
+        for entry in &records.scale_set_templates {
+            rows.push((
+                TEMPLATES,
+                &entry.set,
+                serde_json::to_value(&entry.template)?,
+            ));
         }
         for endpoint in &records.endpoints {
             rows.push((ENDPOINTS, &endpoint.name, serde_json::to_value(endpoint)?));
@@ -517,11 +589,12 @@ impl App {
         self.append_log(
             job_id,
             &format!(
-                "Saved {} containers, {} saved images, {} composes and {} MCP endpoints.",
+                "Saved {} containers, {} saved images, {} composes, {} MCP endpoints and {} scale sets.",
                 records.containers.len(),
                 records.images.len(),
                 records.composes.len(),
-                records.endpoints.len()
+                records.endpoints.len(),
+                records.scale_sets.len()
             ),
         )?;
         Ok((records, skipped))
@@ -584,13 +657,14 @@ impl App {
 /// What a restore brings, for its job log: counts and names, never a value.
 fn describe(manifest: &Manifest, missing: &[String]) -> String {
     let mut text = format!(
-        "The backup from Thoric {} holds {} containers, the files of {} of them, {} saved images, {} volumes and {} MCP endpoints.",
+        "The backup from Thoric {} holds {} containers, the files of {} of them, {} saved images, {} volumes, {} MCP endpoints and {} scale sets.",
         manifest.version,
         manifest.containers.len(),
         manifest.containers.iter().filter(|c| c.files).count(),
         manifest.images.len(),
         manifest.volumes.iter().filter(|v| v.included).count(),
         manifest.endpoints.len(),
+        manifest.scale_sets.len(),
     );
     if !manifest.secrets_left_out.is_empty() {
         let names = manifest
@@ -602,6 +676,12 @@ fn describe(manifest: &Manifest, missing: &[String]) -> String {
             .join(", ");
         text.push_str(&format!(
             " It left out the secret values of {names}: the values of their secret parameters, which a reset then runs their setup without, and the passwords of their own proxies, which their settings ask for again."
+        ));
+    }
+    if !manifest.scale_sets_secrets_left_out.is_empty() {
+        text.push_str(&format!(
+            " It left out the secret values of the templates of the scale sets {}, so their new instances run their setup without them and get no proxy password.",
+            manifest.scale_sets_secrets_left_out.join(", ")
         ));
     }
     if !missing.is_empty() {
