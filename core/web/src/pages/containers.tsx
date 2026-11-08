@@ -1,5 +1,5 @@
 import * as React from "react"
-import { RiAddLine, RiSearchLine } from "@remixicon/react"
+import { RiAddLine, RiRefreshLine, RiSearchLine } from "@remixicon/react"
 
 import { ViewTabs } from "@/components/data-table"
 import { ConceptMedia } from "@/components/concept"
@@ -16,12 +16,27 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { openDialog } from "@/lib/dialogs"
 import { needsAttention } from "@/lib/format"
 import { t } from "@/lib/i18n"
 import { pendingContainers } from "@/lib/pending"
+import {
+  PREVIEW_REFRESH,
+  setPreviewRefresh,
+  usePreviewRefresh,
+  type PreviewRefresh,
+} from "@/lib/preview-refresh"
 import { useContainers, useImages, useJobs, useScaleSets } from "@/lib/queries"
 import { bySet } from "@/lib/scale"
 import type { ContainerItem } from "@/lib/types"
@@ -33,6 +48,32 @@ const views = {
   attention: needsAttention,
 } satisfies Record<string, (item: ContainerItem) => boolean>
 type View = keyof typeof views
+
+/** How often the previews refresh, a choice this browser keeps for every preview. */
+function RefreshSelect() {
+  const every = usePreviewRefresh()
+  return (
+    <Select
+      value={String(every)}
+      onValueChange={(value) => setPreviewRefresh(Number(value) as PreviewRefresh)}
+    >
+      <SelectTrigger size="sm" aria-label={t("containers.refresh.label")}>
+        <RiRefreshLine className="text-muted-foreground" />
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent position="popper" align="end">
+        <SelectGroup>
+          <SelectLabel>{t("containers.refresh.label")}</SelectLabel>
+          {PREVIEW_REFRESH.map((seconds) => (
+            <SelectItem key={seconds} value={String(seconds)}>
+              {seconds ? t("containers.refresh.seconds", { seconds }) : t("common.off")}
+            </SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
+  )
+}
 
 /** Every container as a card with its live preview, and those still being created first. */
 export function ContainersPage() {
@@ -104,16 +145,19 @@ export function ContainersPage() {
                 },
               ]}
             />
-            <div className="relative">
-              <RiSearchLine className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                type="search"
-                aria-label={t("containers.filter")}
-                placeholder={t("containers.filterPlaceholder")}
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                className="h-8 w-48 pl-8 sm:w-56"
-              />
+            <div className="flex items-center gap-2">
+              <RefreshSelect />
+              <div className="relative">
+                <RiSearchLine className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  type="search"
+                  aria-label={t("containers.filter")}
+                  placeholder={t("containers.filterPlaceholder")}
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  className="h-8 w-48 pl-8 sm:w-56"
+                />
+              </div>
             </div>
           </div>
           <TabsContent value={view}>

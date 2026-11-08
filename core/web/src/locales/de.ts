@@ -295,6 +295,8 @@ export const de: Messages = {
     "Erstellen Sie einen Container aus einem Image. Ein Katalog-Image wird bei der ersten Verwendung heruntergeladen.",
   "containers.filter": "Container filtern",
   "containers.filterPlaceholder": "Nach Name filtern",
+  "containers.refresh.label": "Vorschauen aktualisieren",
+  "containers.refresh.seconds": "Alle {seconds} s",
   "containers.gone": "Dieser Container existiert nicht mehr",
   "containers.container": "Container",
   "containers.setupUnfinished": "Einrichtung wurde nicht abgeschlossen",

@@ -293,6 +293,8 @@ export const es: Messages = {
     "Crea un contenedor a partir de una imagen. Una imagen del catálogo se descarga la primera vez que la usas.",
   "containers.filter": "Filtrar contenedores",
   "containers.filterPlaceholder": "Filtrar por nombre",
+  "containers.refresh.label": "Actualizar vistas previas",
+  "containers.refresh.seconds": "Cada {seconds} s",
   "containers.gone": "Este contenedor ya no existe",
   "containers.container": "Contenedor",
   "containers.setupUnfinished": "La configuración no terminó",

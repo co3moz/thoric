@@ -296,6 +296,8 @@ export const en = {
     "Create a container from an image. A catalog image downloads the first time you use it.",
   "containers.filter": "Filter containers",
   "containers.filterPlaceholder": "Filter by name",
+  "containers.refresh.label": "Refresh previews",
+  "containers.refresh.seconds": "Every {seconds} s",
   "containers.gone": "This container no longer exists",
   "containers.container": "Container",
   "containers.setupUnfinished": "Setup did not finish",

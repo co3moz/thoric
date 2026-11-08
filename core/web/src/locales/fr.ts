@@ -295,6 +295,8 @@ export const fr: Messages = {
     "Créez un conteneur à partir d'une image. Une image du catalogue est téléchargée lors de sa première utilisation.",
   "containers.filter": "Filtrer les conteneurs",
   "containers.filterPlaceholder": "Filtrer par nom",
+  "containers.refresh.label": "Actualiser les aperçus",
+  "containers.refresh.seconds": "Toutes les {seconds} s",
   "containers.gone": "Ce conteneur n'existe plus",
   "containers.container": "Conteneur",
   "containers.setupUnfinished": "La configuration n'a pas abouti",
