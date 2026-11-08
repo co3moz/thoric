@@ -1094,6 +1094,14 @@ export const tr: Messages = {
   "update.finishing": "Yeni manager güncellemeyi tamamlıyor.",
   "update.showLog": "Logu göster",
   "update.done": "Thoric {version} sürümüne güncellendi.",
+  "update.edgeAvailable": "Daha yeni bir edge derlemesi çıktı",
+  "update.edgeCurrent": "Bu kurulum edge {commit} derlemesinde.",
+  "update.edgeManual":
+    "{image} imajını yeniden indirip manager'ı yeniden oluşturun ya da WSL'de thoric update çalıştırın.",
+  "update.edgeConfirmTitle": "Thoric en yeni edge derlemesine güncellensin mi?",
+  "update.edgeConfirmText":
+    "WSL dağıtımı thoric update komutunu çalıştırır: {image} imajını yeniden indirir, o derlemenin kurulum dosyalarını getirir ve manager'ı yeniden oluşturur. Konteynerler çalışmaya devam eder; yeni manager yanıt verince panel yeniden yüklenir.",
+  "update.edgeDone": "Thoric edge {commit} derlemesine güncellendi.",
 
   "settings.version": "Sürüm",
   "settings.versionHint": "Thoric yeni sürümü açılışta ve altı saatte bir kontrol eder.",
@@ -1115,6 +1123,12 @@ export const tr: Messages = {
   "settings.check": "Şimdi kontrol et",
   "settings.upToDate": "En yeni sürüm Thoric {version}.",
   "settings.updateTo": "{version} sürümüne güncelle",
+  "settings.edgeHint":
+    "Bu kurulum edge'i izler. Thoric daha yeni bir derlemeyi açılışta ve altı saatte bir kontrol eder.",
+  "settings.edgeImage": "İzlenen",
+  "settings.edgeCheckFailed": "Daha yeni derleme için son kontrol başarısız oldu: {error}",
+  "settings.upToDateEdge": "Bu, {image} için en yeni derleme.",
+  "settings.updateEdge": "En yeni derlemeye güncelle",
   "settings.configuration": "Yapılandırma",
   "settings.configurationHint":
     "Manager'ın açılışta ortamından okuduğu ve şu an kullandığı değerler. Parola ve token'lar hiçbir zaman gösterilmez.",

@@ -13,6 +13,7 @@ import {
   initialText,
   NOTIFY_EVENTS,
   notifyEvents,
+  offered,
   releaseState,
   SECTION_OF,
   sections,
@@ -67,7 +68,14 @@ test("a secret shows only whether it is set, and empty values read as not set", 
 })
 
 test("the release state follows the checks, a running update and the last answer", () => {
-  const status = { enabled: true, job_id: null, available: false, newest: null, error: null }
+  const status = {
+    enabled: true,
+    job_id: null,
+    available: false,
+    newest: null,
+    error: null,
+    edge: null,
+  }
   assert.equal(releaseState({ ...status, enabled: false, available: true }), "off")
   assert.equal(releaseState(status), "unchecked")
   assert.equal(releaseState({ ...status, error: "GitHub is unreachable" }), "failed")
@@ -79,6 +87,36 @@ test("the release state follows the checks, a running update and the last answer
     releaseState({ ...status, newest: "0.7.0", available: true, job_id: "j" }),
     "updating"
   )
+})
+
+test("an installation that follows edge is offered a newer build of it, not a release", () => {
+  const edge = {
+    image: "ghcr.io/co3moz/thoric:edge",
+    available: false,
+    error: null,
+    changes_url: null,
+  }
+  const status = {
+    enabled: true,
+    job_id: null,
+    available: false,
+    newest: "0.9.3",
+    error: null,
+    edge,
+  }
+  // thoric update downloads the tag again whatever the newest release is.
+  const newerRelease = { ...status, newest: "0.9.4", available: true }
+  assert.equal(offered(newerRelease), false)
+  assert.equal(releaseState(newerRelease), "current")
+  const newerBuild = { ...status, edge: { ...edge, available: true } }
+  assert.equal(offered(newerBuild), true)
+  assert.equal(releaseState(newerBuild), "available")
+  // A failed look at the tag keeps what the one before saw, and says it failed otherwise.
+  const failed = { ...status, edge: { ...edge, error: "the registry is unreachable" } }
+  assert.equal(releaseState(failed), "failed")
+  assert.equal(releaseState({ ...failed, edge: { ...failed.edge, available: true } }), "available")
+  // Without edge the release decides, as before.
+  assert.equal(offered({ ...newerRelease, edge: null }), true)
 })
 
 test("every control the page has is for a setting the manager lets it change", () => {

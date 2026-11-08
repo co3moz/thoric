@@ -1111,6 +1111,14 @@ export const de: Messages = {
   "update.finishing": "Der neue Manager schließt die Aktualisierung ab.",
   "update.showLog": "Protokoll anzeigen",
   "update.done": "Thoric wurde auf {version} aktualisiert.",
+  "update.edgeAvailable": "Ein neuerer Edge-Build ist verfügbar",
+  "update.edgeCurrent": "Diese Installation läuft mit edge {commit}.",
+  "update.edgeManual":
+    "Laden Sie {image} erneut herunter und erstellen Sie den Manager neu, oder führen Sie thoric update in WSL aus.",
+  "update.edgeConfirmTitle": "Thoric auf den neuesten Edge-Build aktualisieren?",
+  "update.edgeConfirmText":
+    "Die WSL-Distribution führt thoric update aus: Es lädt {image} erneut herunter, übernimmt die Installationsdateien dieses Builds und erstellt den Manager neu. Container laufen weiter, und das Dashboard lädt neu, sobald der neue Manager antwortet.",
+  "update.edgeDone": "Thoric wurde auf edge {commit} aktualisiert.",
 
   "settings.version": "Version",
   "settings.versionHint":
@@ -1134,6 +1142,13 @@ export const de: Messages = {
   "settings.check": "Jetzt prüfen",
   "settings.upToDate": "Thoric {version} ist die neueste Version.",
   "settings.updateTo": "Auf {version} aktualisieren",
+  "settings.edgeHint":
+    "Diese Installation folgt edge. Thoric sucht beim Start und alle sechs Stunden nach einem neueren Build.",
+  "settings.edgeImage": "Folgt",
+  "settings.edgeCheckFailed":
+    "Die letzte Suche nach einem neueren Build ist fehlgeschlagen: {error}",
+  "settings.upToDateEdge": "Dies ist der neueste Build von {image}.",
+  "settings.updateEdge": "Auf den neuesten Build aktualisieren",
   "settings.configuration": "Konfiguration",
   "settings.configurationHint":
     "Womit der Manager läuft, beim Start aus seiner Umgebung gelesen. Passwörter und Tokens werden nie angezeigt.",

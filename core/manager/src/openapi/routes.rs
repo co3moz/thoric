@@ -42,7 +42,7 @@ pub(super) fn all() -> Vec<Route> {
         get(
             "/api/update",
             INSTALLATION,
-            "This manager's release, the newest one and whether the installation can update.",
+            "This manager's release, the newest one, a newer `edge` build for a manager that follows it and whether the installation can update.",
         ),
         post(
             "/api/update",
@@ -52,7 +52,7 @@ pub(super) fn all() -> Vec<Route> {
         post(
             "/api/update/check",
             INSTALLATION,
-            "Ask GitHub for the newest release now.",
+            "Ask GitHub for the newest release, and Docker for a newer `edge` build, now.",
         ),
         post(
             "/api/settings/notify/test",

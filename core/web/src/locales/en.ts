@@ -1115,6 +1115,13 @@ export const en = {
   "update.finishing": "The new manager is finishing the update.",
   "update.showLog": "Show log",
   "update.done": "Thoric was updated to {version}.",
+  "update.edgeAvailable": "A newer edge build is available",
+  "update.edgeCurrent": "This installation runs edge {commit}.",
+  "update.edgeManual": "Pull {image} again and recreate the manager, or run thoric update in WSL.",
+  "update.edgeConfirmTitle": "Update Thoric to the newest edge build?",
+  "update.edgeConfirmText":
+    "The WSL distribution runs thoric update: it downloads {image} again, brings the installation files of that build and recreates the manager. Containers keep running, and the dashboard reloads once the new manager answers.",
+  "update.edgeDone": "Thoric was updated to edge {commit}.",
 
   "settings.version": "Version",
   "settings.versionHint": "Thoric looks for a new release when it starts and every six hours.",
@@ -1136,6 +1143,12 @@ export const en = {
   "settings.check": "Check now",
   "settings.upToDate": "Thoric {version} is the newest release.",
   "settings.updateTo": "Update to {version}",
+  "settings.edgeHint":
+    "This installation follows edge. Thoric looks for a newer build when it starts and every six hours.",
+  "settings.edgeImage": "Follows",
+  "settings.edgeCheckFailed": "The last look for a newer build failed: {error}",
+  "settings.upToDateEdge": "This is the newest build of {image}.",
+  "settings.updateEdge": "Update to the newest build",
   "settings.configuration": "Configuration",
   "settings.configurationHint":
     "What the manager runs with, read from its environment when it started. Passwords and tokens are never shown.",

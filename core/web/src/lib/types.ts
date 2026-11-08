@@ -515,6 +515,20 @@ export type UpdateStatus = {
   checked_at: number | null
   /** Why the last look at GitHub failed; `newest` is then the one seen before. */
   error: string | null
+  /**
+   * For a manager whose container was created from the `edge` tag, whether the tag names a newer
+   * build now, which `thoric update` downloads whatever the newest release is; `null` for any
+   * other manager.
+   */
+  edge: {
+    /** The reference the manager was created from, such as ghcr.io/co3moz/thoric:edge. */
+    image: string
+    available: boolean
+    /** Why the last look at the tag failed; `available` is then what the one before saw. */
+    error: string | null
+    /** The commits on master since this build, `null` without its commit. */
+    changes_url: string | null
+  } | null
   /** Whether the WSL package runs `thoric update` when the dashboard asks. */
   installable: boolean
   /** The running update job, which outlives the manager it replaces. */

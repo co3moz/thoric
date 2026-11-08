@@ -1,4 +1,6 @@
+import { t } from "./i18n"
 import { queryClient, quietWhileRestarting } from "./queries"
+import type { UpdateStatus } from "./types"
 
 /**
  * Following an update or a settings change across the manager's restart. `thoric update` and
@@ -7,15 +9,30 @@ import { queryClient, quietWhileRestarting } from "./queries"
  * the page reloads as soon as a new manager answers.
  */
 
+/**
+ * What tells one manager from another: the commit of an edge build, which carries the version of
+ * the release before it, so an update from one edge build to the next keeps the version, or else
+ * its release.
+ */
+export function build(update: Pick<UpdateStatus, "current" | "commit">) {
+  return update.commit ?? update.current
+}
+
+/** How the interface names a manager: its release, or `edge` and its commit for an edge build. */
+export function buildName(update: Pick<UpdateStatus, "current" | "commit">) {
+  return update.commit ? t("nav.edge", { commit: update.commit.slice(0, 7) }) : update.current
+}
+
 /** What one look at the manager found. */
 export type Answer =
   | { kind: "away" }
   /** Sessions live in the manager's memory, so a new manager knows none. */
   | { kind: "signed-out" }
+  /** `current` is the manager's {@link build}. */
   | { kind: "status"; current: string; running: boolean }
 
 /**
- * What follows a look, given the release the update started from and whether the manager was away
+ * What follows a look, given the build the update started from and whether the manager was away
  * since: keep following, reload into the new manager, or stop, as the update ended in the manager
  * that started it.
  */
@@ -38,16 +55,21 @@ async function look(restart: Restart, from: string): Promise<Answer> {
     const response = await fetch(path, { credentials: "same-origin", cache: "no-store" })
     if (response.status === 401) return { kind: "signed-out" }
     if (!response.ok) return { kind: "away" }
-    const status = (await response.json()) as { current?: string; job_id?: string | null }
+    const status = (await response.json()) as {
+      current?: string
+      commit?: string | null
+      job_id?: string | null
+    }
     // A settings change keeps the release, so only the manager being away tells it restarted.
-    return { kind: "status", current: status.current ?? from, running: !!status.job_id }
+    const current = status.current === undefined ? from : (status.commit ?? status.current)
+    return { kind: "status", current, running: !!status.job_id }
   } catch {
     return { kind: "away" }
   }
 }
 
 /**
- * Follow a restart from release `from` until a new manager answers, then reload into it: an
+ * Follow a restart from build `from` until a new manager answers, then reload into it: an
  * update's, or a settings change's, which keeps the release.
  */
 export function followRestart(restart: Restart, from: string, reloaded?: () => void) {
@@ -76,7 +98,7 @@ export function followRestart(restart: Restart, from: string, reloaded?: () => v
   window.setTimeout(tick, LOOK_EVERY)
 }
 
-/** Follow an update from release `from` until a new manager answers, then reload into it. */
+/** Follow an update from build `from` until a new manager answers, then reload into it. */
 export function followUpdate(from: string) {
   followRestart("update", from, () => {
     try {
@@ -87,7 +109,7 @@ export function followUpdate(from: string) {
   })
 }
 
-/** The release an update reloaded the page from, read once. */
+/** The build an update reloaded the page from, read once. */
 export function updatedFrom() {
   try {
     const from = sessionStorage.getItem(UPDATED_FROM)
