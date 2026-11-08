@@ -1112,6 +1112,14 @@ export const fr: Messages = {
   "update.finishing": "Le nouveau gestionnaire termine la mise à jour.",
   "update.showLog": "Voir le journal",
   "update.done": "Thoric a été mis à jour vers la {version}.",
+  "update.edgeAvailable": "Une version edge plus récente est disponible",
+  "update.edgeCurrent": "Cette installation utilise la version edge {commit}.",
+  "update.edgeManual":
+    "Téléchargez de nouveau {image} et recréez le gestionnaire, ou lancez thoric update dans WSL.",
+  "update.edgeConfirmTitle": "Mettre Thoric à jour vers la dernière version edge ?",
+  "update.edgeConfirmText":
+    "La distribution WSL lance thoric update : la commande télécharge de nouveau {image}, apporte les fichiers d'installation de cette version et recrée le gestionnaire. Les conteneurs continuent de tourner, et le tableau de bord se recharge dès que le nouveau gestionnaire répond.",
+  "update.edgeDone": "Thoric a été mis à jour vers la version edge {commit}.",
 
   "settings.version": "Version",
   "settings.versionHint":
@@ -1135,6 +1143,12 @@ export const fr: Messages = {
   "settings.check": "Vérifier",
   "settings.upToDate": "Thoric {version} est la dernière version.",
   "settings.updateTo": "Passer à la {version}",
+  "settings.edgeHint":
+    "Cette installation suit edge. Thoric cherche une version plus récente au démarrage puis toutes les six heures.",
+  "settings.edgeImage": "Suit",
+  "settings.edgeCheckFailed": "La dernière recherche d'une version plus récente a échoué : {error}",
+  "settings.upToDateEdge": "C'est la dernière version de {image}.",
+  "settings.updateEdge": "Passer à la dernière version",
   "settings.configuration": "Configuration",
   "settings.configurationHint":
     "Les valeurs du gestionnaire, lues dans son environnement au démarrage. Les mots de passe et les jetons ne sont jamais affichés.",

@@ -1,7 +1,7 @@
-//! What the manager makes of GitHub's answer, when the dashboard may start an update, and how an
-//! update job follows `thoric update` through the folder the WSL package watches, also once
-//! the update has replaced the manager that started it. An update first copies the database,
-//! keeps the newest copies, and does not start without one.
+//! What the manager makes of GitHub's answer, when the dashboard may start an update, also for a
+//! manager that follows `edge`, and how an update job follows `thoric update` through the folder
+//! the WSL package watches, also once the update has replaced the manager that started it. An
+//! update first copies the database, keeps the newest copies, and does not start without one.
 use super::*;
 use crate::package_requests::active;
 use axum::{body::Body, http::Request};
@@ -52,6 +52,15 @@ fn job(id: &str, kind: &str, status: &str) -> Job {
     }))
     .unwrap()
 }
+
+/// What a look at `edge` finds for a manager created from the tag.
+fn edge_seen(newer: bool) -> edge::Look {
+    edge::Look::Following {
+        image: EDGE.into(),
+        newer: Ok(newer),
+    }
+}
+const EDGE: &str = "ghcr.io/co3moz/thoric:edge";
 
 async fn call(app: Arc<App>, method: &str) -> (StatusCode, Value) {
     request(app, method, "/api/update").await
@@ -173,7 +182,11 @@ async fn a_check_asked_for_during_another_takes_its_answer() {
     let (answer, answered) = tokio::sync::oneshot::channel();
     let first = tokio::spawn({
         let (releases, ask) = (releases.clone(), ask("999.0.0", Some(answered)));
-        async move { releases.check(ask).await }
+        async move {
+            releases
+                .check(ask, async { edge::Look::NotFollowing })
+                .await
+        }
     });
     while asked.load(std::sync::atomic::Ordering::SeqCst) == 0 {
         tokio::task::yield_now().await;
@@ -181,7 +194,11 @@ async fn a_check_asked_for_during_another_takes_its_answer() {
     // A second click while GitHub has not answered the first waits for that answer.
     let second = tokio::spawn({
         let (releases, ask) = (releases.clone(), ask("1000.0.0", None));
-        async move { releases.check(ask).await }
+        async move {
+            releases
+                .check(ask, async { edge::Look::NotFollowing })
+                .await
+        }
     });
     for _ in 0..10 {
         tokio::task::yield_now().await;
@@ -194,13 +211,55 @@ async fn a_check_asked_for_during_another_takes_its_answer() {
     assert_eq!(releases.available().as_deref(), Some("999.0.0"));
     // One asked for afterwards asks again.
     assert_eq!(
-        releases.check(ask("1000.0.0", None)).await.as_deref(),
+        releases
+            .check(ask("1000.0.0", None), async { edge::Look::NotFollowing })
+            .await
+            .as_deref(),
         Some("1000.0.0")
     );
     assert_eq!(asked.load(std::sync::atomic::Ordering::SeqCst), 2);
     assert_eq!(releases.available().as_deref(), Some("1000.0.0"));
     // A release seen before is not announced again.
-    assert_eq!(releases.check(ask("1000.0.0", None)).await, None);
+    assert_eq!(
+        releases
+            .check(ask("1000.0.0", None), async { edge::Look::NotFollowing })
+            .await,
+        None
+    );
+}
+
+#[tokio::test]
+async fn a_look_asks_about_edge_beside_the_release() {
+    let releases = Releases::default();
+    let release = || async { anyhow::Ok("999.0.0".to_owned()) };
+    releases.check(release(), async { edge_seen(true) }).await;
+    assert_eq!(
+        releases.edge(),
+        Some(edge::Edge {
+            image: EDGE.into(),
+            newer: true,
+            error: None
+        })
+    );
+    // GitHub failing does not drop what Docker said, nor the other way round.
+    releases
+        .check(async { Err(anyhow::anyhow!("rate limited")) }, async {
+            edge::Look::Following {
+                image: EDGE.into(),
+                newer: Err(anyhow::anyhow!("the registry is unreachable")),
+            }
+        })
+        .await;
+    let check = releases.last.lock().unwrap().clone();
+    assert_eq!(check.newest.as_deref(), Some("999.0.0"));
+    assert_eq!(check.error.as_deref(), Some("rate limited"));
+    let edge = check.edge.unwrap();
+    assert!(edge.newer);
+    assert_eq!(edge.error.as_deref(), Some("the registry is unreachable"));
+    releases
+        .check(release(), async { edge::Look::NotFollowing })
+        .await;
+    assert_eq!(releases.edge(), None);
 }
 
 #[tokio::test]
@@ -281,6 +340,7 @@ async fn the_dashboard_updates_only_a_watched_package_to_a_newer_release() {
         (&json!(false), &json!(false), &json!(VERSION))
     );
     assert_eq!(body["commit"], json!(crate::catalog::edge_commit()));
+    assert_eq!(body["edge"], Value::Null);
     let (status, body) = call(off, "POST").await;
     assert_eq!(status, StatusCode::CONFLICT);
     assert!(
@@ -327,6 +387,72 @@ async fn the_dashboard_updates_only_a_watched_package_to_a_newer_release() {
     assert_eq!(status, StatusCode::CONFLICT);
     assert!(body["error"].as_str().unwrap().contains("running jobs"));
     assert!(!dir.join(REQUEST).exists());
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[tokio::test]
+async fn the_dashboard_updates_a_manager_that_follows_edge_to_a_newer_build_of_it() {
+    let dir = folder();
+    std::fs::write(dir.join(WATCHED), "").unwrap();
+    let app = app_in(&dir, true);
+    // A newer release does not count: thoric update downloads the tag again whatever it is.
+    app.releases.record(Ok("999.0.0".into()));
+    app.releases.record_edge(edge_seen(false));
+    let (_, body) = call(app.clone(), "GET").await;
+    assert_eq!(body["available"], true);
+    assert_eq!(
+        body["edge"],
+        json!({
+            "image": EDGE,
+            "available": false,
+            "error": null,
+            "changes_url": crate::catalog::edge_commit()
+                .map(|commit| format!("https://github.com/co3moz/thoric/compare/{commit}...master")),
+        })
+    );
+    let (status, body) = call(app.clone(), "POST").await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert!(
+        body["error"]
+            .as_str()
+            .unwrap()
+            .contains(&format!("the newest build of {EDGE}")),
+        "{body}"
+    );
+
+    // A newer build is offered without a newer release, and the update asks for it.
+    app.releases.record(Ok(VERSION.into()));
+    app.releases.record_edge(edge_seen(true));
+    let (_, body) = call(app.clone(), "GET").await;
+    assert_eq!(
+        (&body["available"], &body["edge"]["available"]),
+        (&json!(false), &json!(true))
+    );
+    let host = host(&dir, &["Pulling the manager\n"], "success 0");
+    let (status, body) = call(app.clone(), "POST").await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let id = body["job_id"].as_str().unwrap().to_owned();
+    assert_eq!(host.await.unwrap(), format!("{id}\n"));
+    let job = finished(&app, &id).await;
+    assert_eq!(job.status, "completed", "{}", job.log);
+    assert!(
+        job.log.contains(&format!(
+            "thoric update, which downloads {EDGE} again and recreates the manager"
+        )),
+        "{}",
+        job.log
+    );
+    // The copy is named after the tag, so the next update of edge keeps it beside its own.
+    let names = copies(&dir);
+    let copy = names
+        .iter()
+        .find(|name| name.ends_with("-to-edge.sqlite"))
+        .unwrap_or_else(|| panic!("{names:?}"));
+    assert!(
+        job.log.contains(&format!("Copied the database to {copy}")),
+        "{}",
+        job.log
+    );
     std::fs::remove_dir_all(&dir).unwrap();
 }
 

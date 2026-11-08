@@ -1099,6 +1099,14 @@ export const es: Messages = {
   "update.finishing": "El nuevo gestor está terminando la actualización.",
   "update.showLog": "Ver registro",
   "update.done": "Thoric se actualizó a la {version}.",
+  "update.edgeAvailable": "Hay una compilación edge más reciente",
+  "update.edgeCurrent": "Esta instalación usa la compilación edge {commit}.",
+  "update.edgeManual":
+    "Vuelva a descargar {image} y cree de nuevo el gestor, o ejecute thoric update en WSL.",
+  "update.edgeConfirmTitle": "¿Actualizar Thoric a la compilación edge más reciente?",
+  "update.edgeConfirmText":
+    "La distribución de WSL ejecuta thoric update: vuelve a descargar {image}, trae los archivos de instalación de esa compilación y vuelve a crear el gestor. Los contenedores siguen en marcha y el panel se recarga cuando responde el nuevo gestor.",
+  "update.edgeDone": "Thoric se actualizó a la compilación edge {commit}.",
 
   "settings.version": "Versión",
   "settings.versionHint": "Thoric busca una versión nueva al arrancar y cada seis horas.",
@@ -1121,6 +1129,12 @@ export const es: Messages = {
   "settings.check": "Comprobar ahora",
   "settings.upToDate": "Thoric {version} es la versión más reciente.",
   "settings.updateTo": "Actualizar a la {version}",
+  "settings.edgeHint":
+    "Esta instalación sigue edge. Thoric busca una compilación más reciente al arrancar y cada seis horas.",
+  "settings.edgeImage": "Sigue",
+  "settings.edgeCheckFailed": "La última búsqueda de una compilación más reciente falló: {error}",
+  "settings.upToDateEdge": "Esta es la compilación más reciente de {image}.",
+  "settings.updateEdge": "Actualizar a la compilación más reciente",
   "settings.configuration": "Configuración",
   "settings.configurationHint":
     "Los valores con los que funciona el gestor, leídos de su entorno al arrancar. Las contraseñas y los tokens nunca se muestran.",

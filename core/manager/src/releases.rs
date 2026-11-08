@@ -2,11 +2,14 @@
 //!
 //! Unless `UPDATE_CHECK=false`, the manager asks GitHub for the newest release when it starts and
 //! every six hours after, with the `curl` its image carries for the health check, and at once when
-//! the settings page asks. The dashboard offers a release that is newer than this manager.
+//! the settings page asks. The dashboard offers a release that is newer than this manager. A
+//! manager that follows `edge` looks for a newer build of it at the same times, and the
+//! dashboard offers that instead; see [`edge`].
 //!
 //! Only the WSL package updates from the dashboard, with the same `thoric update` a terminal
 //! runs: it moves `MANAGER_IMAGE` in `/opt/thoric/.env` to the release, brings that release's
-//! installation files and command, and recreates this container. None of that is reachable from
+//! installation files and command, and recreates this container. For `edge` it pulls the same
+//! `MANAGER_IMAGE` again and brings that build's installation files. None of that is reachable from
 //! inside the container, so the manager asks the package through the folder it mounts at
 //! [`UPDATE_DIR`], with a [`WATCHED`] file in it once the units below take requests; see
 //! [`crate::package_requests`]. The manager leaves a [`REQUEST`] naming its job there, and
@@ -17,6 +20,8 @@
 //! Before it leaves the request, the manager writes a copy of its database beside it, named after
 //! the two releases, since the next manager may migrate the database so that this one no longer
 //! opens it. The newest [`KEPT_COPIES`] stay; a copy that cannot be written stops the update.
+mod edge;
+
 use crate::{
     App,
     error::{Error, Result},
@@ -43,6 +48,8 @@ pub(crate) const VERSION: &str = env!("CARGO_PKG_VERSION");
 const RELEASES: &str = "https://api.github.com/repos/co3moz/thoric/releases/latest";
 /// Where a release's notes are, followed by its version.
 const RELEASE_PAGE: &str = "https://github.com/co3moz/thoric/releases/tag/v";
+/// The commits on `master` since an edge build, followed by its commit.
+const COMPARE_PAGE: &str = "https://github.com/co3moz/thoric/compare/";
 const CHECK_EVERY: Duration = Duration::from_secs(6 * 3600);
 /// curl gives up within its own limits below; the process is stopped here in any case.
 const CHECK_LIMIT: Duration = Duration::from_secs(30);
@@ -95,22 +102,43 @@ struct Check {
     error: Option<String>,
     /// How many looks have ended.
     looks: u64,
+    /// For a manager that follows `edge`, whether a newer build of it is out.
+    edge: Option<edge::Edge>,
 }
 
 impl Releases {
-    /// Ask GitHub with `ask`, unless a look that ended while this one waited for its turn already
-    /// did: a second click, or the six-hourly look, answers for this one too. Returns a release
-    /// newer than this manager that this look is the first to see.
+    /// Ask GitHub with `ask`, and Docker about `edge` with `edge`, unless a look that ended while
+    /// this one waited for its turn already did: a second click, or the six-hourly look, answers
+    /// for this one too. Returns a release newer than this manager that this look is the first to
+    /// see.
     pub(crate) async fn check(
         &self,
         ask: impl Future<Output = anyhow::Result<String>>,
+        edge: impl Future<Output = edge::Look>,
     ) -> Option<String> {
         let before = self.last.lock().unwrap().looks;
         let _turn = self.asking.lock().await;
         if self.last.lock().unwrap().looks == before {
-            return self.record(ask.await);
+            let (release, edge) = tokio::join!(ask, edge);
+            self.record_edge(edge);
+            return self.record(release);
         }
         None
+    }
+    /// Keep what a look at `edge` found.
+    fn record_edge(&self, look: edge::Look) {
+        let mut check = self.last.lock().unwrap();
+        let before = check.edge.take();
+        let was_newer = before.as_ref().is_some_and(|edge| edge.newer);
+        check.edge = look.apply(before);
+        if let Some(edge) = &check.edge {
+            if edge.newer && !was_newer {
+                tracing::info!("A newer build of {} is out", edge.image);
+            }
+            if let Some(error) = &edge.error {
+                tracing::debug!("Edge check: {error}");
+            }
+        }
     }
     fn record(&self, result: anyhow::Result<String>) -> Option<String> {
         let mut check = self.last.lock().unwrap();
@@ -139,6 +167,10 @@ impl Releases {
         let check = self.last.lock().unwrap();
         check.newest.clone().filter(|newest| newer(newest, VERSION))
     }
+    /// What the looks found about `edge`, for a manager that follows it.
+    fn edge(&self) -> Option<edge::Edge> {
+        self.last.lock().unwrap().edge.clone()
+    }
 }
 
 /// Look for new releases for as long as the manager runs, unless the installation turned it off.
@@ -148,7 +180,7 @@ pub(crate) fn spawn(app: Arc<App>) {
     }
     tokio::spawn(async move {
         loop {
-            let seen = app.releases.check(newest_release()).await;
+            let seen = app.releases.check(newest_release(), edge::look(&app)).await;
             announce(&app, seen).await;
             tokio::time::sleep(CHECK_EVERY).await;
         }
@@ -253,8 +285,9 @@ pub(crate) fn installable(dir: &Path) -> bool {
     dir.join(WATCHED).is_file()
 }
 
-/// `GET /api/update`: this release, the commit of a build of `master`, the newest release and
-/// whether the dashboard can update to it.
+/// `GET /api/update`: this release, the commit of a build of `master`, the newest release, for a
+/// manager that follows `edge` whether a newer build of it is out, and whether the dashboard can
+/// update.
 pub async fn status(State(app): State<Arc<App>>) -> Result<Json<Value>> {
     let check = app.releases.last.lock().unwrap().clone();
     let running = app
@@ -271,6 +304,13 @@ pub async fn status(State(app): State<Arc<App>>) -> Result<Json<Value>> {
         "release_url": check.newest.as_ref().map(|version| format!("{RELEASE_PAGE}{version}")),
         "checked_at": check.checked_at,
         "error": check.error,
+        "edge": check.edge.map(|edge| json!({
+            "image": edge.image,
+            "available": edge.newer,
+            "error": edge.error,
+            "changes_url": crate::catalog::edge_commit()
+                .map(|commit| format!("{COMPARE_PAGE}{commit}...master")),
+        })),
         "installable": app.config.update_check && installable(&app.config.update_dir),
         "job_id": running.map(|job| job.id),
     })))
@@ -285,12 +325,14 @@ pub async fn check(State(app): State<Arc<App>>) -> Result<Json<Value>> {
             "Release checks are turned off with UPDATE_CHECK=false".into(),
         ));
     }
-    let seen = app.releases.check(newest_release()).await;
+    let seen = app.releases.check(newest_release(), edge::look(&app)).await;
     announce(&app, seen).await;
     status(State(app)).await
 }
 
-/// `POST /api/update`: ask the WSL distribution to run `thoric update`; returns a job.
+/// `POST /api/update`: ask the WSL distribution to run `thoric update`, which moves the
+/// installation to the newest release, or downloads `edge` again for a manager that follows it;
+/// returns a job.
 pub async fn start(State(app): State<Arc<App>>) -> Result<Json<Value>> {
     let conflict = |message: &str| Error(StatusCode::CONFLICT, message.into());
     if !app.config.update_check {
@@ -303,8 +345,19 @@ pub async fn start(State(app): State<Arc<App>>) -> Result<Json<Value>> {
             "Only the WSL package updates from the dashboard; update this installation the way it was installed",
         ));
     }
-    if app.releases.available().is_none() {
-        return Err(conflict("This manager is the newest release"));
+    match app.releases.edge() {
+        // `thoric update` downloads the tag again whatever the newest release is.
+        Some(edge) if !edge.newer => {
+            return Err(conflict(&format!(
+                "This manager is the newest build of {}",
+                edge.image
+            )));
+        }
+        Some(_) => {}
+        None if app.releases.available().is_none() => {
+            return Err(conflict("This manager is the newest release"));
+        }
+        None => {}
     }
     // Every job of this manager ends with it, so none may be running.
     if !app.db.active_jobs()?.is_empty() {
@@ -320,7 +373,11 @@ pub async fn start(State(app): State<Arc<App>>) -> Result<Json<Value>> {
 /// Copy the database, leave the request, wait for the distribution to take it and follow the
 /// update.
 pub(crate) async fn run(app: &Arc<App>, id: &str, timing: Timing) -> anyhow::Result<Value> {
-    let newest = app.releases.available();
+    let edge = app.releases.edge();
+    let newest = match &edge {
+        Some(_) => Some(edge::TAG.to_owned()),
+        None => app.releases.available(),
+    };
     // The new manager may migrate the database so that this release no longer opens it; the
     // copy is the way back. Without it the update does not start.
     let copy = copy_database(app, newest.as_deref()).await.map_err(|error| {
@@ -332,18 +389,24 @@ pub(crate) async fn run(app: &Arc<App>, id: &str, timing: Timing) -> anyhow::Res
         id,
         &format!("Copied the database to {copy} in the manager's data volume, the way back to this release's records if the update has to be undone."),
     )?;
-    let target = newest.unwrap_or_else(|| "the newest release".into());
-    app.append_log(
-        id,
-        &format!("Asked the WSL distribution to run thoric update, which moves this installation to {target}."),
-    )?;
+    let asked = match &edge {
+        Some(edge) => format!(
+            "Asked the WSL distribution to run thoric update, which downloads {} again and recreates the manager with its newest build.",
+            edge.image
+        ),
+        None => format!(
+            "Asked the WSL distribution to run thoric update, which moves this installation to {}.",
+            newest.as_deref().unwrap_or("the newest release")
+        ),
+    };
+    app.append_log(id, &asked)?;
     let ended = package_requests::request(app, &UPDATE, id, &[], timing).await?;
     outcome(&ended)
 }
 
 /// Write a copy of the database beside it, named after this manager and the release the update
-/// moves to, such as `state-0.8.4-to-0.9.0.sqlite`, and keep only the newest [`KEPT_COPIES`] of
-/// them. Returns its name.
+/// moves to, such as `state-0.8.4-to-0.9.0.sqlite`, or `edge`, and keep only the newest
+/// [`KEPT_COPIES`] of them. Returns its name.
 async fn copy_database(app: &Arc<App>, target: Option<&str>) -> anyhow::Result<String> {
     // An edge build carries the version of the release before it, so its commit names it.
     let from = match crate::catalog::edge_commit() {

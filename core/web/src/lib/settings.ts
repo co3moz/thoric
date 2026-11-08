@@ -328,13 +328,23 @@ export function changesOf(variables: ConfigVariable[], draft: Record<string, str
   return changes
 }
 
-/** Where this installation stands against the newest release. */
+/**
+ * Whether the dashboard has an update for this installation: a newer release, or for a manager
+ * that follows `edge`, a newer build of it, since `thoric update` downloads the tag again whatever
+ * the newest release is.
+ */
+export function offered(update: Pick<UpdateStatus, "available" | "edge">) {
+  return update.edge ? update.edge.available : update.available
+}
+
+/** Where this installation stands against the newest release, or the newest build of `edge`. */
 export function releaseState(
-  update: Pick<UpdateStatus, "enabled" | "job_id" | "available" | "newest" | "error">
+  update: Pick<UpdateStatus, "enabled" | "job_id" | "available" | "newest" | "error" | "edge">
 ): "off" | "updating" | "available" | "current" | "failed" | "unchecked" {
   if (!update.enabled) return "off"
   if (update.job_id) return "updating"
-  if (update.available) return "available"
+  if (offered(update)) return "available"
+  if (update.edge) return update.edge.error ? "failed" : "current"
   // A failed look keeps the release seen before, which still tells whether this one is current.
   if (update.newest) return "current"
   return update.error ? "failed" : "unchecked"

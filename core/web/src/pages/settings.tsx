@@ -5,6 +5,7 @@ import {
   RiExternalLinkLine,
   RiRefreshLine,
 } from "@remixicon/react"
+import { cn } from "cn"
 import { toast } from "sonner"
 
 import { BackupCard } from "@/components/backup-card"
@@ -31,8 +32,9 @@ import { shortDate } from "@/lib/format"
 import { t } from "@/lib/i18n"
 import { queryClient, useUpdate } from "@/lib/queries"
 import { href } from "@/lib/route"
-import { releaseState } from "@/lib/settings"
+import { offered, releaseState } from "@/lib/settings"
 import type { UpdateStatus } from "@/lib/types"
+import { buildName } from "@/lib/update"
 
 function ReleaseBadge({ state }: { state: ReturnType<typeof releaseState> }) {
   const label = t(`settings.state.${state}`)
@@ -53,32 +55,55 @@ function ReleaseBadge({ state }: { state: ReturnType<typeof releaseState> }) {
   return <StatusBadge state={state} tone={tone[state]} label={label} />
 }
 
-function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+function Fact({
+  label,
+  className,
+  children,
+}: {
+  label: string
+  className?: string
+  children: React.ReactNode
+}) {
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className={cn("flex flex-col gap-0.5", className)}>
       <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className="font-medium">{children}</dd>
     </div>
   )
 }
 
-/** This release against the newest one, with the manual check and the update. */
+/** What a check found, as its toast says it. */
+function announceCheck(status: UpdateStatus) {
+  const edge = status.edge
+  if (edge) {
+    if (edge.available) toast.info(t("update.edgeAvailable"))
+    else if (edge.error) toast.error(t("settings.edgeCheckFailed", { error: edge.error }))
+    else toast.success(t("settings.upToDateEdge", { image: edge.image }))
+  } else if (status.available && status.newest)
+    toast.info(t("update.available", { version: status.newest }))
+  else if (status.error) toast.error(t("settings.checkFailed", { error: status.error }))
+  else toast.success(t("settings.upToDate", { version: status.current }))
+}
+
+/**
+ * This release against the newest one, or for an installation that follows `edge` this build
+ * against the newest one, with the manual check and the update.
+ */
 function VersionCard() {
   const update = useUpdate().data
   const [checking, setChecking] = React.useState(false)
   if (!update) return <Skeleton className="h-48 rounded-2xl" />
   const state = releaseState(update)
   const job = update.job_id
+  const edge = update.edge
+  const notes = edge ? edge.available && edge.changes_url : update.available && update.release_url
 
   const check = async () => {
     setChecking(true)
     try {
       const status = await api<UpdateStatus>("update/check", {})
       queryClient.setQueryData(["update"], status)
-      if (status.available && status.newest)
-        toast.info(t("update.available", { version: status.newest }))
-      else if (status.error) toast.error(t("settings.checkFailed", { error: status.error }))
-      else toast.success(t("settings.upToDate", { version: status.current }))
+      announceCheck(status)
     } catch (error) {
       toast.error((error as Error).message)
     } finally {
@@ -89,9 +114,13 @@ function VersionCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t("settings.release", { version: update.current })}</CardTitle>
+        <CardTitle>{t("settings.release", { version: buildName(update) })}</CardTitle>
         <CardDescription>
-          {state === "off" ? t("settings.checksOff") : t("settings.versionHint")}
+          {state === "off"
+            ? t("settings.checksOff")
+            : edge
+              ? t("settings.edgeHint")
+              : t("settings.versionHint")}
         </CardDescription>
         <CardAction>
           <ReleaseBadge state={state} />
@@ -114,20 +143,32 @@ function VersionCard() {
                 <span className="text-muted-foreground">{t("settings.never")}</span>
               )}
             </Fact>
+            {edge && (
+              <Fact label={t("settings.edgeImage")} className="col-span-2">
+                <span className="font-mono break-all">{edge.image}</span>
+              </Fact>
+            )}
           </dl>
           {update.error && (
             <p className="text-sm text-destructive">
               {t("settings.checkFailed", { error: update.error })}
             </p>
           )}
+          {edge?.error && (
+            <p className="text-sm text-destructive">
+              {t("settings.edgeCheckFailed", { error: edge.error })}
+            </p>
+          )}
           {state === "updating" && (
             <p className="text-sm text-muted-foreground">
-              {update.available ? t("update.runningDetail") : t("update.finishing")}
+              {offered(update) ? t("update.runningDetail") : t("update.finishing")}
             </p>
           )}
           {state === "available" && !update.installable && (
             <p className="text-sm text-muted-foreground">
-              {t("update.manual", { version: update.current })}
+              {edge
+                ? t("update.edgeManual", { image: edge.image })
+                : t("update.manual", { version: update.current })}
             </p>
           )}
         </CardContent>
@@ -149,15 +190,17 @@ function VersionCard() {
               {t("settings.check")}
             </Button>
           )}
-          {state === "available" && update.installable && update.newest && (
+          {state === "available" && update.installable && (edge || update.newest) && (
             <Button size="sm" onClick={() => openDialog({ kind: "update" })}>
               <RiArrowUpCircleLine />
-              {t("settings.updateTo", { version: update.newest })}
+              {edge
+                ? t("settings.updateEdge")
+                : t("settings.updateTo", { version: update.newest ?? "" })}
             </Button>
           )}
-          {update.available && update.release_url && (
+          {notes && (
             <Button variant="ghost" size="sm" asChild>
-              <a href={update.release_url} target="_blank" rel="noreferrer">
+              <a href={notes} target="_blank" rel="noreferrer">
                 {t("update.notes")}
                 <RiExternalLinkLine data-icon="inline-end" />
               </a>
