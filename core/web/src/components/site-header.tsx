@@ -1,6 +1,7 @@
 import { RiArrowRightSLine } from "@remixicon/react"
 
 import { JobsMenu } from "@/components/jobs-menu"
+import { ProcessesMenu } from "@/components/processes-menu"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 
@@ -44,6 +45,7 @@ export function SiteHeader({
         </h1>
         <div className="ml-auto flex items-center gap-3">
           {children}
+          <ProcessesMenu />
           <JobsMenu />
         </div>
       </div>

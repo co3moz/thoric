@@ -113,7 +113,7 @@ fn held(clients: &[Client]) -> String {
             }
         ));
     }
-    text.push_str(" End the program that holds it, with stop_application when it was launched as an application. A program that waits for a window to be picked with the mouse, such as ImageMagick's import given a window ID that no longer exists, also lets go after one click on the desktop.");
+    text.push_str(" End the program that holds it, with stop_application when it was launched as an application and kill_process with its pid otherwise. A program that waits for a window to be picked with the mouse, such as ImageMagick's import given a window ID that no longer exists, also lets go after one click on the desktop.");
     text
 }
 

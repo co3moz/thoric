@@ -4,8 +4,8 @@
 use super::ThoricMcp;
 use crate::{
     api, apps, audio, capture, changes, clipboard, compose, desktop_input, desktop_mcp, duplicate,
-    error, exec, files, gamepad, human, image_removal, jobs, layers, ocr, recordings, terminal,
-    transfers, uploads, usage, volumes, waits, windows,
+    error, exec, files, gamepad, human, image_removal, jobs, layers, ocr, processes, recordings,
+    terminal, transfers, uploads, usage, volumes, waits, windows,
 };
 use axum::{
     Json,
@@ -521,6 +521,22 @@ impl ThoricMcp {
                 let options: apps::Metrics = parse(args)?;
                 apps::sample_metrics(&self.app, &id.unwrap(), &application, options.duration_ms)
                     .await?
+            }
+            "list_processes" => {
+                json!(processes::list_processes(&self.app, &id.unwrap(), &parse(args)?).await?)
+            }
+            "kill_process" => {
+                let pid = args["pid"]
+                    .as_u64()
+                    .and_then(|pid| u32::try_from(pid).ok())
+                    .ok_or_else(|| {
+                        error::Error(
+                            StatusCode::BAD_REQUEST,
+                            "pid must be a process ID from list_processes".into(),
+                        )
+                    })?;
+                args.as_object_mut().unwrap().remove("pid");
+                json!(processes::kill_process(&self.app, &id.unwrap(), pid, &parse(args)?).await?)
             }
             "start_recording" => {
                 recordings::start_recording(&self.app, &id.unwrap(), &parse(args)?).await?

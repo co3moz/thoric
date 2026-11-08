@@ -2,7 +2,7 @@
 //! input schema and annotations. MCP endpoints offer its container tools bound to their
 //! containers, and the activity log reads a call's kind from its annotations.
 use crate::{
-    apps, audio, capture, changes, clipboard, desktop_input, files, gamepad, human, ocr,
+    apps, audio, capture, changes, clipboard, desktop_input, files, gamepad, human, ocr, processes,
     recordings, terminal, transfers, usage, waits, windows,
 };
 use rmcp::{
@@ -464,6 +464,8 @@ pub(super) static TOOLS: LazyLock<Vec<Tool>> = LazyLock::new(|| {
         false,
     ));
     tools.push(derived::<apps::Stop>("stop_application", "Stop a launched application: SIGTERM to its process group, then SIGKILL after grace_seconds. Returns the final state.", &[container.clone(), ("application_id", application.clone(), true)], false, true, false));
+    tools.push(derived::<processes::ListProcesses>("list_processes", "List the processes running in a container, whatever started them, as ps or a task manager shows them: pid, ppid, user, state, name, the command line (on one line, at most 512 characters), threads, resident memory (rss_bytes, pages shared between processes counted in each), CPU time and CPU use over interval_ms, 100 for one full core. role is desktop for the processes that make the screen, sound and session, which end with them, thoric for those the manager started through docker exec (its helpers, scripts, terminals and desktop MCP servers) and program for the rest. sort orders by cpu (the busiest first, the default), memory or pid, query keeps those whose name, command line or user contains the text, and limit (default 50) bounds the list; total, matched, the processes' cpu_percent and rss_bytes and the container's cgroup memory cover them all.", std::slice::from_ref(&container), true, false, false));
+    tools.push(derived::<processes::Kill>("kill_process", "Send a signal to a process of a container, by its pid from list_processes: term (the default) asks it to end, kill ends it at once, int is Ctrl+C and hup a hang-up. tree=true signals its descendants too, parents first. Waits up to wait_ms (default 2000) and returns which processes ended and which still run, so a term that is ignored can be followed by kill. Runs as the desktop user, which may signal only its own processes; root=true signals a process of any user as root. PID 1 is refused: stop or restart the container instead. Ending a process whose role is desktop ends the screen, the sound or the session. An application started by launch_application stops with stop_application, which records how it ended.", &[container.clone(), ("pid", json!({"type":"integer","minimum":2,"maximum":4194304,"description":"The process ID, from list_processes."}), true)], false, true, false));
     tools.push(tool("list_windows", "List visible X11 windows with IDs, titles, PIDs, geometry and which one is active. An ID ends with its window, which for an installer's dialog can be within a second, so list again before using an old one. Needs xdotool and wmctrl in the desktop image.", env(), &["container_id"], true, false, false));
     let window = json!({"type":"string","minLength":1,"description":"X11 window ID from list_windows, such as 0x3a00007."});
     tools.push(tool(
