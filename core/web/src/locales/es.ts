@@ -1180,6 +1180,7 @@ export const es: Messages = {
   "settings.edit.changed": "Cambiado",
   "settings.edit.reset": "Deshacer el cambio de {name}",
   "settings.edit.mib": "MiB",
+  "settings.edit.minutes": "minutos",
   "settings.edit.changes.one": "{count} ajuste cambiado",
   "settings.edit.changes.other": "{count} ajustes cambiados",
   "settings.edit.discard": "Descartar",
@@ -2332,4 +2333,5 @@ export const es: Messages = {
   "scale.instanceOf": "Instancia {number} de {set}",
   "scale.setOf": "Grupo escalable {name}",
   "scale.count": "{count} de {max}",
+  "scale.deleting": "Eliminando",
 }

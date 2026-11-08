@@ -67,10 +67,11 @@ impl App {
             Ok(info) => Ok(Some(info)),
             Err(error) => {
                 // Listing must succeed before an inspect failure can mean 'absent'.
-                let args = if kind == "container" {
-                    vec!["ps", "-a", "--format", "{{.Names}}"]
-                } else {
-                    vec![kind, "ls", "--format", "{{.Name}}"]
+                let args = match kind {
+                    "container" => vec!["ps", "-a", "--format", "{{.Names}}"],
+                    // An image's listing has no `Name`; a reference is its repository and tag.
+                    "image" => vec!["image", "ls", "--format", "{{.Repository}}:{{.Tag}}", name],
+                    _ => vec![kind, "ls", "--format", "{{.Name}}"],
                 };
                 let names = self.docker(&args).await?;
                 if String::from_utf8_lossy(&names).lines().any(|n| n == name) {

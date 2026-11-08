@@ -212,8 +212,9 @@ pub(crate) enum Target {
         tool: &'static str,
         containers: Vec<(String, String)>,
     },
-    /// `get_job`, for jobs of these containers.
-    Job { containers: Vec<String> },
+    /// `get_job`, for jobs of these containers. On a scale set's endpoint, `set`, they are its
+    /// instances now, and a job of one that is gone since is still the endpoint's to read.
+    Job { containers: Vec<String>, set: bool },
     /// A tool of a desktop server.
     Server {
         container_id: String,
@@ -495,6 +496,7 @@ fn set_catalog(app: &App, grant: &Grant, set: &str) -> Vec<Entry> {
             tool,
             target: Target::Job {
                 containers: members.clone(),
+                set: true,
             },
         });
     }
@@ -619,7 +621,10 @@ pub(crate) fn catalog(app: &App, endpoint: &Endpoint) -> Vec<Entry> {
         tool.description = Some("Read a job that a tool of this endpoint started, such as exec_container or container_action: its status, bounded log and result. Wait for completed, failed or interrupted; a queued job is not finished.".into());
         entries.push(Entry {
             tool,
-            target: Target::Job { containers: jobs },
+            target: Target::Job {
+                containers: jobs,
+                set: false,
+            },
         });
     }
     let sets = crate::scale::all(app).unwrap_or_default();

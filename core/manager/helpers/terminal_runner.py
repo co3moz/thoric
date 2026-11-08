@@ -63,6 +63,10 @@ if pid == 0:
                        "XDG_RUNTIME_DIR": "/run/desktop"})
     os.execvp("bash", ["bash", "--noprofile", "--norc", "-i"])
 fcntl.ioctl(master, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 120, 0, 0))
+# Input goes to the pty only as it takes it: a program that floods output without reading its
+# input would otherwise block the write here, and with it the draining of its output, the stop
+# file and so the terminal for good.
+os.set_blocking(master, False)
 reader = os.open(fifo, os.O_RDWR | os.O_NONBLOCK)
 state.update({"state": "running", "pid": pid})
 record()
@@ -70,6 +74,7 @@ output_path = os.path.join(directory, "output")
 output = open(output_path, "ab", buffering=0)
 size = 0
 stopped = False
+pending = b""
 while True:
     if os.path.exists(os.path.join(directory, "stop")):
         stopped = True
@@ -78,12 +83,25 @@ while True:
         except ProcessLookupError:
             pass
         break
-    ready, _, _ = select.select([master, reader], [], [], 0.5)
+    # More input is taken from the FIFO only once what came before is in the pty.
+    ready, writable, _ = select.select([master] + ([reader] if not pending else []),
+                                       [master] if pending else [], [], 0.5)
+    if pending and master in writable:
+        try:
+            pending = pending[os.write(master, pending):]
+        except BlockingIOError:
+            pass
+        except OSError:
+            break
     if master in ready:
         try:
             data = os.read(master, 65536)
+        except BlockingIOError:
+            data = None
         except OSError:
             data = b""
+        if data is None:
+            continue
         if not data:
             break
         if size + len(data) > LIMIT:
@@ -98,11 +116,9 @@ while True:
         record()
     if reader in ready:
         try:
-            data = os.read(reader, 65536)
+            pending = os.read(reader, 65536)
         except BlockingIOError:
-            data = b""
-        if data:
-            os.write(master, data)
+            pending = b""
 output.close()
 if stopped:
     # A shell that ignores the hangup is killed, so a closed terminal always ends.

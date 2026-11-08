@@ -313,7 +313,7 @@ impl EndpointMcp {
                 object.insert("container_id".into(), json!(container_id));
                 self.thoric(tool, args, caller).await
             }
-            Target::Job { containers } => {
+            Target::Job { containers, set } => {
                 let (id, read) = crate::jobs::read::mcp_arguments(args)?;
                 // Only jobs the endpoint started, so an administrator's script that ran as root
                 // in the same container stays the administrator's.
@@ -322,12 +322,16 @@ impl EndpointMcp {
                 }
                 let job: crate::model::Job =
                     self.app.db.get("job", &id).map_err(|_| error::missing())?;
-                // And of the endpoint's own containers, should a grant have been taken back.
-                if !job.resource.as_deref().is_some_and(|resource| {
-                    containers
-                        .iter()
-                        .any(|container| resource == format!("container:{container}"))
-                }) {
+                // And of the endpoint's own containers, should a grant have been taken back. A
+                // set's endpoint started every job in an instance of its own, and reads one of
+                // an instance that is gone since: a creation that failed, or a deletion.
+                if !set
+                    && !job.resource.as_deref().is_some_and(|resource| {
+                        containers
+                            .iter()
+                            .any(|container| resource == format!("container:{container}"))
+                    })
+                {
                     return Err(error::missing());
                 }
                 let job = crate::jobs::read::answer(&self.app, &id, &read, Some(&caller));

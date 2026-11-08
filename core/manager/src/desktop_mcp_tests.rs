@@ -791,7 +791,8 @@ fn a_grant_leaves_single_tools_out_under_the_names_the_endpoint_gives_them() {
     assert_eq!(
         job.target,
         Target::Job {
-            containers: vec!["c2".into()]
+            containers: vec!["c2".into()],
+            set: false,
         }
     );
     jobs.grants[1].excluded_tools = vec!["get_job".into()];
@@ -2770,4 +2771,110 @@ async fn a_server_the_set_starts_running_once_leaves_the_other_instances_and_com
             .refusal("ghidra")
             .is_none()
     );
+}
+
+#[tokio::test]
+async fn a_set_endpoint_reads_the_job_of_an_instance_that_is_gone_since() {
+    let app = mcp_app();
+    app.db
+        .put(CONTAINERS, "c1", &container("c1", "re-1"))
+        .unwrap();
+    scale_set(&app, &[(1, "c1")], 4);
+    app.db
+        .put(
+            ENDPOINTS,
+            "re",
+            &endpoint("re", vec![set_grant(&[Scope::View, Scope::Scale])]),
+        )
+        .unwrap();
+    // A creation the endpoint started that failed, and a deletion that finished: neither
+    // container is an instance now, and both are what the agent waits for.
+    for (id, resource, kind) in [
+        (
+            "creation",
+            "container:c2",
+            crate::scale::instances::SCALE_UP,
+        ),
+        (
+            "deletion",
+            "container:c3",
+            crate::scale::instances::SCALE_DOWN,
+        ),
+        ("others", "container:c9", "exec"),
+    ] {
+        app.db
+            .put(
+                "job",
+                id,
+                &crate::model::Job {
+                    id: id.into(),
+                    kind: kind.into(),
+                    resource: Some(resource.into()),
+                    status: "failed".into(),
+                    created_at: 1,
+                    finished_at: Some(2),
+                    log: String::new(),
+                    result: None,
+                    progress: None,
+                    stages: Vec::new(),
+                    script: None,
+                    name: None,
+                },
+            )
+            .unwrap();
+    }
+    app.desktop_mcp.started("re", "creation");
+    app.desktop_mcp.started("re", "deletion");
+    app.desktop_mcp.started("other", "others");
+    let session = open_session(&app, "/mcp/re", ADMIN).await;
+    let read = |job: &'static str| {
+        call(
+            app.clone(),
+            "/mcp/re",
+            Some(ADMIN),
+            Some(&session),
+            json!({"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"get_job","arguments":{"job_id":job}}}),
+        )
+    };
+    for job in ["creation", "deletion"] {
+        let (_, _, body) = read(job).await;
+        assert_eq!(body["result"]["structuredContent"]["id"], job, "{body}");
+    }
+    // One another caller started stays out of reach.
+    let (_, _, body) = read("others").await;
+    assert_eq!(body["result"]["isError"], true, "{body}");
+}
+
+#[tokio::test]
+async fn without_the_administrators_token_an_endpoints_calls_are_recorded_as_its_tokens() {
+    let mut app = app(true);
+    let config = &mut Arc::get_mut(&mut app).unwrap().config;
+    config.root_mcp_enabled = false;
+    config.mcp_token = None;
+    app.db
+        .put(CONTAINERS, "c1", &container("c1", "Chrome dev"))
+        .unwrap();
+    let Json(created) = create_endpoint(
+        State(app.clone()),
+        Json(
+            serde_json::from_value(json!({"name":"chrome-dev","grants":[{"container_id":"c1","scopes":["view"],"servers":"all"}]}))
+                .unwrap(),
+        ),
+    )
+    .await
+    .unwrap();
+    let token = created["token"].as_str().unwrap().to_owned();
+    let session = open_session(&app, "/mcp/chrome-dev", &token).await;
+    call(
+        app.clone(),
+        "/mcp/chrome-dev",
+        Some(&token),
+        Some(&session),
+        json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_usage","arguments":{}}}),
+    )
+    .await;
+    let rows = crate::activity::recorded(&app, 1).await;
+    // The endpoint opened with its own token, which the log says: `none` is for an
+    // installation that opens /mcp without one.
+    assert_eq!(rows[0].credential, "endpoint_token", "{rows:?}");
 }

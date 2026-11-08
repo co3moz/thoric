@@ -237,6 +237,13 @@ async fn mcp_negotiates_and_lists_tools_with_useful_results() {
         include_str!("../../../README.md").contains(&format!("with {} tools", tools.len())),
         "README.md must state the tool count"
     );
+    // And the acceptance suite asserts it on /mcp, where every tool is listed: a tool added here
+    // without that line moved stops the suite at its discovery phase.
+    assert!(
+        include_str!("../../../tests/integration.py")
+            .contains(&format!("[\"tools\"]) == {}", tools.len())),
+        "tests/integration.py must expect the tool count"
+    );
     assert_eq!(
         screenshot["inputSchema"]["required"],
         serde_json::json!(["container_id"])

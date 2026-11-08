@@ -32,7 +32,8 @@ import { closeDialog, openDialog } from "@/lib/dialogs"
 import { plural, t } from "@/lib/i18n"
 import { endpointUrl, toolGroups } from "@/lib/mcp"
 import { createToken, deleteEndpoint, removeServer, revokeToken } from "@/lib/mcp-api"
-import { useContainers, useEndpointTools, useMcpEndpoints } from "@/lib/queries"
+import { useContainers, useEndpointTools, useMcpEndpoints, useSkills } from "@/lib/queries"
+import { skillServer, skillsFor } from "@/lib/skills"
 import type { EndpointToken } from "@/lib/types"
 import { ClientSetup } from "./connect-dialog"
 import { useSubmit } from "./container-dialogs"
@@ -62,6 +63,8 @@ function CopyField({ label, value }: { label: string; value: string }) {
 export function TokenDialog({ token, ...props }: DialogProps & { token: EndpointToken }) {
   const { endpoint } = token
   const url = endpointUrl(location.origin, endpoint.path)
+  // The one moment the token shows is when a client is set up, skills included, as Connect does.
+  const skills = skillsFor(useSkills().data ?? [], skillServer(endpoint.name, endpoint))
   return (
     <Dialog {...props}>
       {/* A click beside it or Escape must not throw the only copy of the token away. */}
@@ -83,6 +86,7 @@ export function TokenDialog({ token, ...props }: DialogProps & { token: Endpoint
           <CopyField label={t("mcp.endpoint.url")} value={url} />
           <ClientSetup
             target={{ name: endpoint.name, url, path: endpoint.path, token: token.token }}
+            skills={skills}
           />
         </div>
         <DialogFooter>

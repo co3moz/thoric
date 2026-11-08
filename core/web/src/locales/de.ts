@@ -1194,6 +1194,7 @@ export const de: Messages = {
   "settings.edit.changed": "Geändert",
   "settings.edit.reset": "Änderung an {name} zurücknehmen",
   "settings.edit.mib": "MiB",
+  "settings.edit.minutes": "Minuten",
   "settings.edit.changes.one": "{count} Einstellung geändert",
   "settings.edit.changes.other": "{count} Einstellungen geändert",
   "settings.edit.discard": "Verwerfen",
@@ -2346,4 +2347,5 @@ export const de: Messages = {
   "scale.instanceOf": "Instanz {number} von {set}",
   "scale.setOf": "Skalierungsgruppe {name}",
   "scale.count": "{count} von {max}",
+  "scale.deleting": "Wird gelöscht",
 }

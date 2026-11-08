@@ -1175,6 +1175,7 @@ export const tr: Messages = {
   "settings.edit.changed": "Değişti",
   "settings.edit.reset": "{name} değişikliğini geri al",
   "settings.edit.mib": "MiB",
+  "settings.edit.minutes": "dakika",
   "settings.edit.changes.one": "{count} ayar değişti",
   "settings.edit.changes.other": "{count} ayar değişti",
   "settings.edit.discard": "Vazgeç",
@@ -2302,4 +2303,5 @@ export const tr: Messages = {
   "scale.instanceOf": "{set} grubunun {number}. örneği",
   "scale.setOf": "{name} ölçeklenebilir grubu",
   "scale.count": "{count} / {max}",
+  "scale.deleting": "Siliniyor",
 }

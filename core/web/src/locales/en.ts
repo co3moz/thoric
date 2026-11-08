@@ -1194,6 +1194,7 @@ export const en = {
   "settings.edit.changed": "Changed",
   "settings.edit.reset": "Undo the change to {name}",
   "settings.edit.mib": "MiB",
+  "settings.edit.minutes": "minutes",
   "settings.edit.changes.one": "{count} setting changed",
   "settings.edit.changes.other": "{count} settings changed",
   "settings.edit.discard": "Discard",
@@ -2325,6 +2326,7 @@ export const en = {
   "scale.instanceOf": "Instance {number} of {set}",
   "scale.setOf": "Scale set {name}",
   "scale.count": "{count} of {max}",
+  "scale.deleting": "Deleting",
 } as const
 
 export type MessageKey = keyof typeof en

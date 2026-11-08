@@ -77,6 +77,8 @@ export type ScaleSet = {
   endpoint: string | null
   endpoint_path: string | null
   slots: ScaleSlot[]
+  /** The set is being deleted with its instances; nothing is created or changed meanwhile. */
+  deleting?: boolean
 }
 
 /** The scaling section of a form, as the fields edit it. */

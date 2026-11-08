@@ -534,6 +534,36 @@ impl App {
             )?;
             removed.kept.push(name);
         }
+        // A scale set mounts the volumes its template shares in the instances it creates from
+        // now on, also one the instance that made them was the last to mount.
+        let doomed = match self.shared_by_sets(&doomed) {
+            Ok(by_sets) => {
+                let mut free = Vec::new();
+                for name in doomed {
+                    match by_sets.get(&name) {
+                        Some(set) => {
+                            self.append_log(
+                                job_id,
+                                &format!(
+                                    "Keeping the volume {name}: the scale set {set} shares it."
+                                ),
+                            )?;
+                            removed.kept.push(name);
+                        }
+                        None => free.push(name),
+                    }
+                }
+                free
+            }
+            Err(error) => {
+                self.append_log(
+                    job_id,
+                    &format!("Keeping the volumes created for it: {error:#}"),
+                )?;
+                removed.kept.extend(doomed);
+                Vec::new()
+            }
+        };
         // The container is gone, so Docker refuses only a volume something else still uses.
         for name in doomed {
             match self.docker(&["volume", "rm", &name]).await {

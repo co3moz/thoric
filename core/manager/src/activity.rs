@@ -102,7 +102,12 @@ impl Caller {
         let parts = context.extensions.get::<Parts>();
         let credential = match (parts, &app.config.mcp_token) {
             (None, _) => Credential::Inspector,
-            (Some(_), None) => Credential::None,
+            // Without a token nothing opens `/mcp`, and an endpoint opens with its own token
+            // alone; only an installation that opens `/mcp` without one is open to everyone.
+            (Some(_), None) if endpoint.is_none() || app.config.root_mcp_enabled => {
+                Credential::None
+            }
+            (Some(_), None) => Credential::EndpointToken,
             // `/mcp` opens with the administrator's token alone.
             (Some(_), Some(_)) if endpoint.is_none() => Credential::McpToken,
             (Some(parts), Some(administrator)) => {

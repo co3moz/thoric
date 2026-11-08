@@ -248,7 +248,11 @@ function Control({ name, edit, idle }: { name: string; edit: Edit; idle: boolean
           onChange={(event) => edit.onChange(event.target.value)}
           className="w-32 font-mono text-xs"
         />
-        <span className="text-xs text-muted-foreground">{t("settings.edit.mib")}</span>
+        {field.unit && (
+          <span className="text-xs text-muted-foreground">
+            {field.unit === "mib" ? t("settings.edit.mib") : t("settings.edit.minutes")}
+          </span>
+        )}
       </div>
     )
   const input = (placeholder?: string) => (

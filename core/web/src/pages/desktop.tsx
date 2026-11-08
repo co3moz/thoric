@@ -256,8 +256,12 @@ export function DesktopPage({ id }: { id: string }) {
     current.addEventListener("clipboard", (event) => {
       if (!live()) return
       const text = (event as CustomEvent<{ text: string }>).detail.text
-      setRemoteClipboard(text)
-      setClipboard((open) => (open === null ? null : text))
+      // The dialog follows the desktop's clipboard only while its text is still the desktop's;
+      // a draft someone is editing there stays.
+      setRemoteClipboard((previous) => {
+        setClipboard((open) => (open === null || open !== previous ? open : text))
+        return text
+      })
     })
     return () => {
       if (rfb.current === current) {
