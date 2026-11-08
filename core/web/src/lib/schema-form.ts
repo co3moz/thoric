@@ -2,6 +2,7 @@
 // gives each value a kind of field; what the form holds is a draft of the same shape, with the
 // text people typed, and reading it gives the arguments and the fields that cannot be sent.
 // The rules follow the VS Code MCP Server Inspector's form.
+import type { Concept } from "./concepts"
 import { t } from "./i18n"
 
 /** A JSON Schema, of which the form reads what picks and checks a field. */
@@ -39,6 +40,19 @@ export type JsonSchema = {
   /** Set by {@link normalizeSchema}: the types besides `null`, when there were several. */
   typeList?: string[]
   [keyword: string]: unknown
+}
+
+/**
+ * Values a text field offers beside typing, such as the containers a `container_id` names: one
+ * fills the field in, and the text stays the field's to change.
+ */
+export type FieldChoices = {
+  /** The picker's placeholder and accessible name. */
+  label: string
+  /** What the picker says when there is nothing to offer. */
+  empty: string
+  concept?: Concept
+  items: { value: string; label: string; detail?: string }[]
 }
 
 /** Below this depth every value is a JSON field. */

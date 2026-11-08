@@ -37,6 +37,7 @@ import type { Tone } from "@/lib/format"
 import { t } from "@/lib/i18n"
 import {
   expandTemplate,
+  fieldChoices,
   filterItems,
   ITEM_KINDS,
   itemId,
@@ -52,6 +53,7 @@ import {
   type TemplateItem,
 } from "@/lib/inspector"
 import { LIMITS, type InspectorClient, type InspectorState, type Status } from "@/lib/mcp-client"
+import type { ContainerItem } from "@/lib/types"
 import { ItemDetail } from "./item-detail"
 import type { RunState } from "./result-view"
 import { TrafficLog } from "./traffic-log"
@@ -86,6 +88,7 @@ const SECTIONS = {
 export function InspectorView({
   client,
   groups,
+  containers,
   picked,
   onPick,
   onConnect,
@@ -93,6 +96,8 @@ export function InspectorView({
 }: {
   client: InspectorClient | null
   groups: TargetGroup[]
+  /** The containers a field that takes one by its Thoric ID offers by name. */
+  containers: ContainerItem[] | undefined
   picked: string | undefined
   onPick(key: string): void
   onConnect(): void
@@ -164,7 +169,7 @@ export function InspectorView({
           )}
         </CardContent>
       </Card>
-      {client && <Session key={client.id} client={client} />}
+      {client && <Session key={client.id} client={client} containers={containers} />}
     </div>
   )
 }
@@ -247,8 +252,18 @@ function Connected({ client }: { client: InspectorClient }) {
 type Selected = { kind: ItemKind; key: string; item: Item }
 
 /** What the server offers, the chosen item and the traffic, for one connection. */
-function Session({ client }: { client: InspectorClient }) {
+function Session({
+  client,
+  containers,
+}: {
+  client: InspectorClient
+  containers: ContainerItem[] | undefined
+}) {
   const state = useInspector(client)
+  const choices = React.useMemo(
+    () => fieldChoices(client.target, containers ?? []),
+    [client.target, containers]
+  )
   const [query, setQuery] = React.useState("")
   const [sort, setSort] = React.useState<Sort>(storedSort)
   const [selected, setSelected] = React.useState<Selected>()
@@ -440,6 +455,7 @@ function Session({ client }: { client: InspectorClient }) {
               run={runs[currentId!]}
               lastArgs={args[currentId!]}
               ready={ready}
+              choices={choices}
               onRun={(values) => void run(current.kind, current.fresh ?? current.item, values)}
               onCancel={() => cancel(currentId!)}
             />

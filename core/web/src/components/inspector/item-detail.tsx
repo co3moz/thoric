@@ -33,6 +33,7 @@ import {
   prettyJson,
   readForm,
   type Draft,
+  type FieldChoices,
   type FieldError,
 } from "@/lib/schema-form"
 import { fileSize } from "@/lib/uploads"
@@ -49,6 +50,7 @@ export function ItemDetail({
   run,
   lastArgs,
   ready,
+  choices,
   onRun,
   onCancel,
 }: {
@@ -60,6 +62,8 @@ export function ItemDetail({
   lastArgs?: Record<string, unknown>
   /** Whether the server can be asked now. */
   ready: boolean
+  /** What a text field offers to fill in beside typing, by its name. */
+  choices?: ReadonlyMap<string, FieldChoices>
   onRun(args: Record<string, unknown>): void
   onCancel(): void
 }) {
@@ -217,6 +221,7 @@ export function ItemDetail({
               errors={errorMap}
               clear={clear}
               submit={submit}
+              choices={choices}
             />
           ) : (
             <p className="text-xs text-muted-foreground">

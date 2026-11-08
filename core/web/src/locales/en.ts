@@ -2087,6 +2087,8 @@ export const en = {
   "inspector.form.addItem": "Add item",
   "inspector.form.addTo": "Add an item to {name}",
   "inspector.form.jsonValue": "JSON value",
+  "inspector.form.pickContainer": "Choose a container…",
+  "inspector.form.noContainers": "No containers",
   "inspector.type.kinds": "array · {count} kinds",
   "inspector.type.oneOf": "one of",
   "inspector.type.oneOfCount": "one of {count}",

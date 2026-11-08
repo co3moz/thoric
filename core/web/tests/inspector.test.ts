@@ -6,6 +6,7 @@ import {
   asJson,
   base64Bytes,
   expandTemplate,
+  fieldChoices,
   filterItems,
   inputSchemaOf,
   mediaSource,
@@ -184,6 +185,31 @@ test("the picker offers what can be opened, and says why the rest cannot", () =>
   assert.ok(off[0].choices[0].unavailable)
   assert.equal(off[1].choices[0].unavailable, undefined)
   assert.equal(targetKey({ kind: "endpoint", name: "a" }), "endpoint:a")
+})
+
+test("Thoric's own MCP offers its containers by name for container_id, and no one else does", () => {
+  const containers = [container("c2", "exited"), container("c1", "running")]
+  const choices = fieldChoices({ kind: "administrator" }, containers).get("container_id")
+  assert.ok(choices)
+  assert.equal(choices.concept, "container")
+  // By name, but the field takes the Thoric ID.
+  assert.deepEqual(
+    choices.items.map((item) => [item.value, item.label]),
+    [
+      ["c1", "Desktop c1"],
+      ["c2", "Desktop c2"],
+    ]
+  )
+  assert.ok(
+    choices.items.every((item) => item.detail),
+    "each says its state"
+  )
+  assert.equal(fieldChoices({ kind: "administrator" }, []).get("container_id")?.items.length, 0)
+  // An endpoint names its containers in an enum, and a desktop server's container_id is its own.
+  assert.equal(fieldChoices({ kind: "endpoint", name: "a" }, containers).size, 0)
+  assert.equal(fieldChoices({ kind: "server", container: "c1", name: "x" }, containers).size, 0)
+  // A name an object inherits is not a field's choices.
+  assert.equal(fieldChoices({ kind: "administrator" }, containers).get("constructor"), undefined)
 })
 
 test("the inspector's socket is a route the API guide lists", () => {
