@@ -40,7 +40,8 @@ pub(crate) use placement::servers_changed;
 #[cfg(test)]
 pub(crate) use registry::SERVERS;
 pub(crate) use registry::{
-    DECLARATION_LIMIT, Declaration, check_declarations, server_name, slug, write_declarations,
+    DECLARATION_LIMIT, Declaration, check_declarations, server_name, slug, split_query,
+    write_declarations,
 };
 pub(crate) use servers::{
     all_servers, call_server_tool, container_servers, refresh_server, register_server, servers_of,

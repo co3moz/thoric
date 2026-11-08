@@ -34,6 +34,8 @@ const SUMMARY: usize = 160;
 pub(super) enum Keep {
     /// The value, a text cut at [`TEXT`] characters.
     Text,
+    /// A URL without its query or fragment, which may carry a token, cut at [`TEXT`] characters.
+    Url,
     /// A script, cut at [`SCRIPT`] characters.
     Script,
     /// A list or an object as it is, up to [`WHOLE`] bytes of JSON.
@@ -220,7 +222,7 @@ pub(super) fn policy(tool: &str) -> Option<&'static [Rule]> {
         "register_mcp_server" => &[
             ("name", Text, true),
             ("command", Text, true),
-            ("url", Text, true),
+            ("url", Url, true),
             ("description", Text, false),
             ("cwd", Text, false),
             ("env", Keys, false),
@@ -458,8 +460,15 @@ fn keep_value(keep: Keep, value: &Value, secrets: &mut Vec<String>) -> Value {
         (Text | Script, Value::String(text)) => {
             cut(text, if keep == Script { SCRIPT } else { TEXT })
         }
-        (Text | Script, Value::Array(_) | Value::Object(_)) | (Whole, _) => whole(value),
-        (Text | Script, _) => value.clone(),
+        (Url, Value::String(text)) => {
+            let (kept, hidden) = crate::desktop_mcp::split_query(text);
+            if !hidden.is_empty() {
+                remember(&Value::String(hidden.to_owned()), secrets);
+            }
+            cut(kept, TEXT)
+        }
+        (Text | Script | Url, Value::Array(_) | Value::Object(_)) | (Whole, _) => whole(value),
+        (Text | Script | Url, _) => value.clone(),
         (Keys, Value::Object(object)) => Value::Object(
             object
                 .iter()

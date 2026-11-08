@@ -47,6 +47,9 @@ pub(crate) struct Timing {
 
 /// How much of the log one read takes; the rest comes with the next.
 const READ_LIMIT: u64 = 1 << 20;
+/// The longest line kept until its end comes: a line this long, such as a progress line a
+/// command redraws with carriage returns, is added as it is and the rest of it as the next.
+const LINE_LIMIT: usize = 64 << 10;
 
 pub(crate) fn active(job: &Job) -> bool {
     job.status == "queued" || job.status == "running"
@@ -201,6 +204,9 @@ impl LogReader {
             let lines: String = self.partial.drain(..=end).collect();
             app.append_log(id, lines.trim_end_matches('\n'))?;
         }
+        if self.partial.len() >= LINE_LIMIT {
+            app.append_log(id, &std::mem::take(&mut self.partial))?;
+        }
         Ok(bytes.len() as u64)
     }
     fn finish(&mut self, app: &App, id: &str) -> anyhow::Result<()> {
@@ -242,3 +248,7 @@ async fn remove(path: &Path) -> anyhow::Result<()> {
         _ => Ok(()),
     }
 }
+
+#[cfg(test)]
+#[path = "package_requests_tests.rs"]
+mod tests;

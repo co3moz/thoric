@@ -439,3 +439,96 @@ async fn the_document_needs_the_session_as_the_rest_of_the_api_does() {
         "docs/API.md must list the route"
     );
 }
+
+/// The rows of the table under `## Endpoints` in docs/API.md: each path with how it is served,
+/// `Any` or its methods, which several rows of one path may share out.
+fn guide_routes() -> BTreeMap<String, Served> {
+    let guide = include_str!("../../../docs/API.md");
+    let (_, table) = guide.split_once("\n## Endpoints\n").unwrap();
+    let (table, _) = table.split_once("\n## ").unwrap();
+    let row = regex::Regex::new(r"(?m)^\| ([A-Za-z, ]+) \| `(/[^`]*)` \|").unwrap();
+    let mut routes = BTreeMap::new();
+    for found in row.captures_iter(table) {
+        let (methods, path) = (&found[1], &found[2]);
+        if methods == "Any" {
+            assert!(
+                routes.insert(path.to_owned(), Served::Any).is_none(),
+                "docs/API.md lists {path} twice"
+            );
+            continue;
+        }
+        let Served::Methods(listed) = routes
+            .entry(path.to_owned())
+            .or_insert_with(|| Served::Methods(BTreeSet::new()))
+        else {
+            panic!("docs/API.md lists {path} as Any and by method");
+        };
+        for method in methods.split(',').map(str::trim) {
+            assert!(
+                listed.insert(method.to_owned()),
+                "docs/API.md lists {method} {path} twice"
+            );
+        }
+    }
+    assert!(routes.len() > 100, "the table was not read: {routes:?}");
+    routes
+}
+
+/// A path with its parameters unnamed, `/api/jobs/{}`: the table calls a parameter what its
+/// row explains, `{job_id}` where the router says `{id}`, and a catch-all `{*path}` is `{path}`.
+fn shape(path: &str) -> String {
+    regex::Regex::new(r"\{[^}]*\}")
+        .unwrap()
+        .replace_all(path, "{}")
+        .into_owned()
+}
+
+#[tokio::test]
+async fn the_guides_endpoint_table_is_the_router() {
+    // A route that ends in a catch-all, `{*path}`, is one row of the table with the paths the
+    // router serves beside it for the same place without a path: the stem with and without its
+    // slash.
+    let served = served().await;
+    let stems: BTreeMap<String, &Served> = served
+        .iter()
+        .filter(|(path, _)| path.contains("{*"))
+        .filter_map(|(path, how)| Some((path[..path.rfind('/')?].to_owned(), how)))
+        .collect();
+    let served: BTreeMap<String, (&String, &Served)> = served
+        .iter()
+        .filter(|(path, how)| {
+            let stem = path.strip_suffix('/').unwrap_or(path);
+            stems.get(stem) != Some(how)
+        })
+        .map(|(path, how)| (shape(path), (path, how)))
+        .collect();
+    let guide = guide_routes();
+    let guide: BTreeMap<String, (&String, &Served)> = guide
+        .iter()
+        .map(|(path, how)| (shape(path), (path, how)))
+        .collect();
+    let mut problems = Vec::new();
+    for (shape, (path, how)) in &served {
+        match guide.get(shape) {
+            None => problems.push(format!(
+                "{path} is served ({how:?}) but docs/API.md has no row for it"
+            )),
+            Some((_, row)) if row != how => problems.push(format!(
+                "{path} is served {how:?} but docs/API.md says {row:?}"
+            )),
+            Some(_) => {}
+        }
+    }
+    for (shape, (path, _)) in &guide {
+        if !served.contains_key(shape) {
+            problems.push(format!(
+                "docs/API.md lists {path} but the router does not serve it"
+            ));
+        }
+    }
+    assert!(
+        problems.is_empty(),
+        "The route table of docs/API.md and the router differ:\n{}",
+        problems.join("\n")
+    );
+}

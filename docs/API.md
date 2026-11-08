@@ -106,6 +106,8 @@ A transfer ends when its client stops. A download of an image, volume or folder 
 | POST | `/api/containers/{id}/artifacts` | Package recordings and application logs as a tar.gz. |
 | POST | `/api/containers/{id}/audio-capture` | Record desktop or microphone audio as WAV. |
 | POST | `/api/containers/{id}/audio-inject` | Play WAV data into the microphone or speakers. |
+| GET | `/api/containers/{id}/vnc` | The desktop's screen as a WebSocket of the dashboard session, RFB in binary frames; see below the table. |
+| GET | `/api/containers/{id}/audio/{direction}` | The desktop's sound (`output`) or its microphone (`input`) as a WebSocket of the dashboard session; see below the table. |
 | GET | `/api/containers/{id}/clipboard` | The text on the desktop's [clipboard](#clipboard), or with `selection=primary` the text last selected. |
 | PUT | `/api/containers/{id}/clipboard` | Put text on the desktop's clipboard, and paste it with the keyboard when asked. |
 | GET | `/api/containers/{id}/terminals` | Terminal sessions and their state. |
@@ -153,9 +155,10 @@ A transfer ends when its client stops. A download of an image, volume or folder 
 | POST | `/api/volumes/{name}/files` | Stream a binary upload. |
 | GET | `/api/volumes/{name}/archive` | Download a volume's files as a `.tar.gz`; the transfer is recorded as a job. |
 | POST | `/api/volumes/import` | Stream a `.tar.gz` or `.tar` with `name` and optional `size` into a new volume; returns a job. |
+| DELETE | `/api/volumes/import` | Delete the volume called `import`, as `DELETE /api/volumes/{name}` would, since this path wins over `{name}`. |
 | POST | `/api/volumes/{name}/extract` | Stream a `.tar.gz` or `.tar` with `path` and optional `size` into a new folder of the volume; returns a job. |
 | POST | `/api/volumes/{name}/copy` | Copy the volume's files into a new volume named by `name`; returns a job. |
-| GET, PUT, POST | `/api/transfers/{token}` | Run the one upload, download, import or export a [transfer link](#transfer-links) authorizes; needs no session. |
+| Any | `/api/transfers/{token}` | Run the one upload, download, import or export a [transfer link](#transfer-links) authorizes, `GET` for a download or export and `PUT` or `POST` for an upload or import, `405` for another method; needs no session. |
 | Any | `/api/containers/{id}/ports/{port}/{path}` | HTTP or WebSocket to a [port inside the desktop](#desktop-ports) that its `ports` setting lists; needs the MCP token, not a session. |
 | GET | `/api/mcp/servers` | Every container's [desktop MCP servers](#desktop-mcp-servers-and-endpoints) as last seen, in `items`. |
 | GET, POST | `/api/containers/{id}/mcp/servers` | Read a running desktop's servers again and list them, or register one of source `container` and read its tools. |
@@ -168,6 +171,7 @@ A transfer ends when its client stops. A download of an image, volume or folder 
 | GET | `/api/mcp/endpoints/{name}/tools` | The tools the endpoint offers, as its agents see them. |
 | GET | `/api/mcp/inspect` | The [MCP inspector](#the-mcp-inspector)'s WebSocket, which joins the dashboard to one desktop server, endpoint or `/mcp`. |
 | GET | `/api/skills` | The [skills](#skills) Thoric serves its agents: each one's `name`, `description`, `url`, `digest` and `size`, and the MCP `servers` that offer it, `root` for `/mcp` and `set` for a scale set's endpoints. |
+| Any | `/mcp` | The root MCP server of [the MCP guide](MCP.md): Streamable HTTP with the MCP token, not a session; `404` unless `ROOT_MCP_ENABLED`. |
 | Any | `/mcp/{name}` | An [MCP endpoint](#desktop-mcp-servers-and-endpoints): Streamable HTTP with its own token or the MCP token, not a session. |
 | GET | `/api/jobs` | Latest 100 job summaries. The manager keeps the newest 500 finished jobs and removes older ones; a running job is kept until it ends. |
 | GET | `/api/jobs/{job_id}` | Job status, log and result. Optional `wait_seconds`, `log_tail_bytes` and `log_offset` [wait for it and read part of its log](#follow-a-job). |
@@ -826,7 +830,7 @@ A desktop declares MCP servers in `/etc/thoric/mcp.d/NAME.json`, which an image 
  "tools": [{"name": "browser_navigate", "description": "Navigate to a URL", "exposed": "chrome__browser_navigate"}], "tools_at": 1760900000, "log": ""}
 ```
 
-`env` and `headers` are names only; their values, which may hold credentials, are never returned. `state` is `ready`, `pending`, `error` or `stopped`, or `elsewhere` in an instance of a [scale set](#scalable-containers) that runs the server in instance `runs_in` alone. A tool's `exposed` is its name on an endpoint of this container alone, which an endpoint's `excluded_tools` uses. Registering takes the declaration with its `name`, such as `{"name": "x", "command": "node", "args": ["/home/desktop/ext/mcp.js"]}` or `{"name": "api", "url": "http://127.0.0.1:8931/mcp", "headers": {"Authorization": "Bearer ${API_TOKEN}"}}`, needs a running container, and answers once the server's tools were read or its error is known. A build takes the same declarations in `mcp`, at most 16 with names of their own; `/api/images/{id}/config` returns them and the image list names them in `mcp_servers`, with those of the images it was built or snapshotted from.
+`env` and `headers` are names only; their values, which may hold credentials, are never returned, and `url` is shown without its query, where a token goes when a server takes no header. `state` is `ready`, `pending`, `error` or `stopped`, or `elsewhere` in an instance of a [scale set](#scalable-containers) that runs the server in instance `runs_in` alone. A tool's `exposed` is its name on an endpoint of this container alone, which an endpoint's `excluded_tools` uses. Registering takes the declaration with its `name`, such as `{"name": "x", "command": "node", "args": ["/home/desktop/ext/mcp.js"]}` or `{"name": "api", "url": "http://127.0.0.1:8931/mcp", "headers": {"Authorization": "Bearer ${API_TOKEN}"}}`, needs a running container, and answers once the server's tools were read or its error is known. A build takes the same declarations in `mcp`, at most 16 with names of their own; `/api/images/{id}/config` returns them and the image list names them in `mcp_servers`, with those of the images it was built or snapshotted from.
 
 An endpoint is created with:
 
