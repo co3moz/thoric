@@ -1,6 +1,7 @@
 // Scalable containers: a container whose request is kept as a scale set's template, which creates
 // more instances of it on demand. Each instance is a container of its own from the same image and
-// settings, numbered from 1; what they share are volumes, each folder by the set's policy.
+// settings, numbered from 1; what they share are volumes, each folder by the set's policy. Each
+// desktop MCP server runs in every instance, or in instance 1 alone for all of them.
 import type { ContainerItem } from "./types"
 
 /** What an instance mounts for a volume of the template. */
@@ -8,6 +9,27 @@ export type VolumePolicy = "shared" | "new" | "first"
 
 /** The policies in the order the forms offer them. */
 export const POLICIES: VolumePolicy[] = ["shared", "new", "first"]
+
+/**
+ * Where the instances run a desktop MCP server: `each` its own, or `first`, instance 1 alone for
+ * all of them, for a server that locks what the instances share.
+ */
+export type ServerPolicy = "each" | "first"
+
+/** The server policies in the order the forms offer them. */
+export const SERVER_POLICIES: ServerPolicy[] = ["each", "first"]
+
+/** The server policies a set keeps of a form's: those that are not `each`. */
+export const serverPolicies = (servers: Record<string, ServerPolicy>) =>
+  Object.fromEntries(Object.entries(servers).filter(([, policy]) => policy !== "each"))
+
+/** Whether two forms of server policies say the same, `each` or left out alike. */
+export function samePolicies(a: Record<string, ServerPolicy>, b: Record<string, ServerPolicy>) {
+  const left = serverPolicies(a)
+  const right = serverPolicies(b)
+  const names = new Set([...Object.keys(left), ...Object.keys(right)])
+  return [...names].every((name) => left[name] === right[name])
+}
 
 /** The most instances a set may have, as the manager's `MAX_INSTANCES`. */
 export const MAX_INSTANCES = 16
@@ -49,6 +71,8 @@ export type ScaleSet = {
   idle_delete_minutes: number
   /** The folders whose policy is not `shared`. */
   volumes: Record<string, VolumePolicy>
+  /** The desktop servers whose policy is not `each`; a manager before them sends none. */
+  servers?: Record<string, ServerPolicy>
   instances: ScaleInstance[]
   endpoint: string | null
   endpoint_path: string | null
@@ -64,6 +88,7 @@ export type ScalingDraft = {
   max: string
   idle: string
   volumes: Record<string, VolumePolicy>
+  servers: Record<string, ServerPolicy>
 }
 
 export const scalingDraft = (set?: Partial<ScaleSet>): ScalingDraft => ({
@@ -73,6 +98,7 @@ export const scalingDraft = (set?: Partial<ScaleSet>): ScalingDraft => ({
   max: String(set?.max ?? 4),
   idle: String(set?.idle_delete_minutes ?? 0),
   volumes: { ...(set?.volumes ?? {}) },
+  servers: { ...(set?.servers ?? {}) },
 })
 
 /**
@@ -109,19 +135,58 @@ export function scalingError(draft: ScalingDraft): "min" | "max" | "idle" | null
   return null
 }
 
-/** The `scaling` a request sends for the draft, policies other than `shared` alone. */
+/**
+ * The `scaling` a request sends for the draft, volume policies other than `shared` and server
+ * policies other than `each` alone.
+ */
 export function scalingBody(draft: ScalingDraft) {
   const volumes = Object.fromEntries(
     Object.entries(draft.volumes).filter(([, policy]) => policy !== "shared")
   )
+  const servers = serverPolicies(draft.servers)
   return {
     ...(draft.set.trim() ? { set: draft.set.trim() } : {}),
     min: whole(draft.min) ?? 1,
     max: whole(draft.max) ?? 4,
     idle_delete_minutes: whole(draft.idle) ?? 0,
     volumes,
+    ...(Object.keys(servers).length ? { servers } : {}),
   }
 }
+
+/**
+ * A set's desktop servers, each name once, as its instances declare them in the order of their
+ * numbers: the first instance's record of a server, or, for one the set runs in instance 1
+ * alone, that instance's, which alone reads its tools.
+ */
+export function setServers<T extends { container_id: string; name: string }>(
+  set: ScaleSet | undefined,
+  servers: T[]
+): T[] {
+  const instances = [...(set?.instances ?? [])].sort((a, b) => a.number - b.number)
+  const out: T[] = []
+  for (const instance of instances)
+    for (const server of servers
+      .filter((entry) => entry.container_id === instance.container_id)
+      .sort((a, b) => a.name.localeCompare(b.name))) {
+      if (out.some((entry) => entry.name === server.name)) continue
+      if (set?.servers?.[server.name] === "first" && instance.number !== 1) continue
+      out.push(server)
+    }
+  return out
+}
+
+/** The names of a set's desktop servers, also those it has a policy for that no instance runs now. */
+export const setServerNames = (
+  set: ScaleSet | undefined,
+  servers: { container_id: string; name: string }[]
+) =>
+  [
+    ...new Set([
+      ...setServers(set, servers).map((server) => server.name),
+      ...Object.keys(set?.servers ?? {}),
+    ]),
+  ].sort()
 
 /** The folders a container's volumes are mounted at, each once: its settings', then its compose's. */
 export function scalingTargets(mounts: { target: string }[]): string[] {

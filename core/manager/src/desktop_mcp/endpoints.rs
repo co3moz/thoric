@@ -575,7 +575,8 @@ pub async fn endpoint_tools(
                 super::scopes::Target::Job { .. }
                 | super::scopes::Target::Instance { .. }
                 | super::scopes::Target::Set { .. } => ("thoric", Value::Null, Value::Null),
-                super::scopes::Target::InstanceServer { server, .. } => {
+                super::scopes::Target::InstanceServer { server, .. }
+                | super::scopes::Target::HomeServer { server, .. } => {
                     ("server", Value::Null, json!(server))
                 }
             };

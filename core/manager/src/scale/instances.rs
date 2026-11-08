@@ -142,6 +142,8 @@ pub(crate) async fn make_set_of(
         proxy_password: app.proxy_password(id),
     };
     let endpoint = save_new(app, &mut set, &template, endpoint).await?;
+    // The container may run, with connections to a server instance 1 now runs for the set.
+    crate::desktop_mcp::servers_changed(app, &BTreeMap::new(), &set);
     Ok((set, endpoint))
 }
 

@@ -1,7 +1,11 @@
 //! Connections to desktop MCP servers: a `docker exec` as the desktop user that speaks MCP on its
 //! stdio, either the server's own program or the adapter of a Streamable HTTP server on the
-//! desktop's loopback. Endpoints keep one connection per server and endpoint, closed once idle.
-use super::registry::{ServerRecord, ServerSpec, Source};
+//! desktop's loopback. Endpoints keep one connection per server and endpoint, closed once idle,
+//! and all of them one together to a server a scale set runs once for its instances.
+use super::{
+    placement::{Placement, SHARED, placement},
+    registry::{ServerRecord, ServerSpec, Source},
+};
 use crate::{App, model::Container};
 use anyhow::{Context, Result, bail};
 use rmcp::{
@@ -313,12 +317,36 @@ async fn connect(
     })
 }
 
-/// Start a server, read its tools and close it again.
+/// Start a server, read its tools and close it again. A server a scale set runs once for its
+/// instances is read through the connection every endpoint shares, opened for the read and kept
+/// as a call's is, so a read never starts a second copy beside the one agents use; one that runs
+/// in another instance is not started here at all.
 pub(super) async fn read_tools(
     app: &Arc<App>,
     container: &Container,
     record: &ServerRecord,
 ) -> Result<Vec<Tool>> {
+    let placement = placement(app, &container.id, &record.name);
+    if let Some(refusal) = placement.refusal(&record.name) {
+        return Err(refusal);
+    }
+    if let Placement::Home { .. } = placement {
+        let slot = app.desktop_mcp.pool.slot((
+            SHARED.to_owned(),
+            container.id.clone(),
+            record.name.clone(),
+        ));
+        let connection = opened(app, &slot, container, record).await?;
+        connection.touch();
+        let tools = tokio::time::timeout(CONNECT_LIMIT, list_tools(&connection.service))
+            .await
+            .context("The server did not list its tools in 2 minutes")
+            .and_then(|tools| tools);
+        if tools.is_err() {
+            forget(&slot, &connection).await;
+        }
+        return tools;
+    }
     let connection = connect(app, container, record).await?;
     let tools = tokio::time::timeout(CONNECT_LIMIT, list_tools(&connection.service))
         .await
@@ -373,7 +401,9 @@ type Key = (String, String, String);
 type Slot = Arc<tokio::sync::Mutex<Option<Arc<Connection>>>>;
 
 /// Connections by endpoint, container and server. Agents on one endpoint share a server's
-/// connection, and so its state, such as a browser's open pages; another endpoint has its own.
+/// connection, and so its state, such as a browser's open pages; another endpoint has its own. A
+/// server a scale set runs once for its instances has one connection under [`SHARED`] that every
+/// endpoint, `/mcp` and the read of its tools share, since a second copy could not run beside it.
 #[derive(Default)]
 pub(super) struct Pool(Mutex<HashMap<Key, Slot>>);
 impl Pool {
@@ -431,22 +461,16 @@ pub(super) async fn call_within(
     arguments: JsonObject,
     limit: Duration,
 ) -> Result<CallToolResult> {
+    let placement = placement(app, &container.id, &record.name);
+    if let Some(refusal) = placement.refusal(&record.name) {
+        return Err(refusal);
+    }
     let slot = app.desktop_mcp.pool.slot((
-        endpoint.to_owned(),
+        placement.connection(endpoint).to_owned(),
         container.id.clone(),
         record.name.clone(),
     ));
-    let connection = {
-        let mut held = slot.lock().await;
-        match held.as_ref() {
-            Some(connection) if !connection.closed() => connection.clone(),
-            _ => {
-                let connection = Arc::new(connect(app, container, record).await?);
-                *held = Some(connection.clone());
-                connection
-            }
-        }
-    };
+    let connection = opened(app, &slot, container, record).await?;
     connection.touch();
     let request = CallToolRequestParams::new(tool.to_owned()).with_arguments(arguments);
     let result = tokio::time::timeout(limit, connection.service.call_tool(request)).await;
@@ -454,25 +478,16 @@ pub(super) async fn call_within(
     // A connection that closed, or a server that hung, is not handed to the next call, which
     // would only wait as long again: it connects anew. A call that still uses it keeps it until
     // that call ends, and the `docker exec` goes with the last of them.
-    let forget = async {
-        let mut held = slot.lock().await;
-        if held
-            .as_ref()
-            .is_some_and(|held| Arc::ptr_eq(held, &connection))
-        {
-            held.take();
-        }
-    };
     match result {
         Ok(Ok(result)) => Ok(relayed(result)),
         Ok(Err(error)) => {
             if connection.closed() {
-                forget.await;
+                forget(&slot, &connection).await;
             }
             bail!("The server {} failed the call: {error}", record.name)
         }
         Err(_) => {
-            forget.await;
+            forget(&slot, &connection).await;
             bail!(
                 "The server {} did not answer in {}",
                 record.name,
@@ -482,6 +497,37 @@ pub(super) async fn call_within(
                 }
             )
         }
+    }
+}
+
+/// The slot's connection, started when it has none or its own closed. The slot stays locked
+/// while the server starts, so a call that comes meanwhile waits for this one instead of starting
+/// another.
+async fn opened(
+    app: &Arc<App>,
+    slot: &Slot,
+    container: &Container,
+    record: &ServerRecord,
+) -> Result<Arc<Connection>> {
+    let mut held = slot.lock().await;
+    match held.as_ref() {
+        Some(connection) if !connection.closed() => Ok(connection.clone()),
+        _ => {
+            let connection = Arc::new(connect(app, container, record).await?);
+            *held = Some(connection.clone());
+            Ok(connection)
+        }
+    }
+}
+
+/// Take `connection` out of its slot, unless another already replaced it there.
+async fn forget(slot: &Slot, connection: &Arc<Connection>) {
+    let mut held = slot.lock().await;
+    if held
+        .as_ref()
+        .is_some_and(|held| Arc::ptr_eq(held, connection))
+    {
+        held.take();
     }
 }
 

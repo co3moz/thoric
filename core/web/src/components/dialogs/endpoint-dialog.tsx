@@ -67,17 +67,26 @@ import {
   SCOPES,
   type GrantDraft,
 } from "@/lib/mcp"
+import { api } from "@/lib/api"
 import { createEndpoint, updateEndpoint } from "@/lib/mcp-api"
 import {
+  refreshLists,
   useContainers,
   useMcpEndpoints,
   useMcpScopes,
   useMcpServers,
   useScaleSets,
 } from "@/lib/queries"
-import type { ScaleSet } from "@/lib/scale"
+import {
+  samePolicies,
+  serverPolicies,
+  setServers,
+  type ScaleSet,
+  type ServerPolicy,
+} from "@/lib/scale"
 import type { ContainerItem, DesktopServer, McpScope, McpScopes, ServerTool } from "@/lib/types"
 import { useSubmit } from "./container-dialogs"
+import { ServerPolicySelect } from "./scaling-fields"
 import type { DialogProps } from "./side-drawer"
 import { Footer } from "./simple-dialogs"
 
@@ -165,7 +174,10 @@ function ToolChoices({
   )
 }
 
-/** One container of an endpoint: the name agents know it by, its scopes and its servers. */
+/**
+ * One container of an endpoint: the name agents know it by, its scopes and its servers. For a
+ * scale set, `policies` say where its instances run each server, which `onPolicy` changes.
+ */
 function GrantFields({
   draft,
   onChange,
@@ -173,6 +185,8 @@ function GrantFields({
   container,
   servers,
   scopes,
+  policies,
+  onPolicy,
 }: {
   draft: GrantDraft
   onChange: (draft: GrantDraft) => void
@@ -182,6 +196,8 @@ function GrantFields({
   /** The container's desktop MCP servers, with the tools the manager last read from each. */
   servers: DesktopServer[]
   scopes?: McpScopes
+  policies?: Record<string, ServerPolicy>
+  onPolicy?: (server: string, policy: ServerPolicy) => void
 }) {
   const id = React.useId()
   const set = (patch: Partial<GrantDraft>) => onChange({ ...draft, ...patch })
@@ -200,8 +216,15 @@ function GrantFields({
       exposed: tool,
       description: "",
     }))
-  // Servers chosen earlier stay listed after they were removed, so they can be taken out.
-  const names = [...new Set([...servers.map((server) => server.name), ...draft.servers])]
+  // Servers chosen earlier stay listed after they were removed, so they can be taken out, and so
+  // does a set's server that runs in instance 1 alone while no instance 1 reads it.
+  const names = [
+    ...new Set([
+      ...servers.map((server) => server.name),
+      ...draft.servers,
+      ...Object.keys(policies ?? {}),
+    ]),
+  ]
   const toggleScope = (scope: McpScope, on: boolean) =>
     set({
       scopes: on
@@ -329,18 +352,32 @@ function GrantFields({
             {names.map((server) => {
               const record = servers.find((entry) => entry.name === server)
               const included = draft.all || draft.servers.includes(server)
+              const label = draft.all ? (
+                <code className="font-mono text-xs leading-none">{server}</code>
+              ) : (
+                <Label className="flex items-center gap-2 font-normal">
+                  <Checkbox
+                    checked={draft.servers.includes(server)}
+                    onCheckedChange={(checked) => toggleServer(server, checked === true)}
+                  />
+                  <code className="font-mono text-xs">{server}</code>
+                </Label>
+              )
               return (
                 <li key={server} className="flex flex-col gap-1.5">
-                  {draft.all ? (
-                    <code className="font-mono text-xs leading-none">{server}</code>
-                  ) : (
-                    <Label className="flex items-center gap-2 font-normal">
-                      <Checkbox
-                        checked={draft.servers.includes(server)}
-                        onCheckedChange={(checked) => toggleServer(server, checked === true)}
+                  {onPolicy ? (
+                    // A set's server, with where its instances run it beside its name.
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      {label}
+                      <ServerPolicySelect
+                        server={server}
+                        policy={policies?.[server] ?? "each"}
+                        onChange={(policy) => onPolicy(server, policy)}
+                        className="w-full sm:w-48"
                       />
-                      <code className="font-mono text-xs">{server}</code>
-                    </Label>
+                    </div>
+                  ) : (
+                    label
                   )}
                   {included &&
                     record &&
@@ -369,6 +406,9 @@ function GrantFields({
             <FieldDescription className="pl-6 text-xs">{t("mcp.grant.noServers")}</FieldDescription>
           )
         )}
+        {onPolicy && names.length > 0 && (
+          <FieldDescription className="text-xs">{t("mcp.grant.serverPolicyHint")}</FieldDescription>
+        )}
       </FieldSet>
     </div>
   )
@@ -383,15 +423,10 @@ const SET_CHOICE = "set:"
  */
 function grantServers(grant: GrantDraft, servers: DesktopServer[], sets: ScaleSet[]) {
   if (!grant.set) return servers.filter((server) => server.container_id === grant.container_id)
-  const members = new Set(
-    sets.find((set) => set.name === grant.set)?.instances.map((entry) => entry.container_id) ?? []
+  return setServers(
+    sets.find((set) => set.name === grant.set),
+    servers
   )
-  const seen = new Set<string>()
-  return servers.filter((server) => {
-    if (!members.has(server.container_id) || seen.has(server.name)) return false
-    seen.add(server.name)
-    return true
-  })
 }
 
 /**
@@ -412,11 +447,16 @@ export function EndpointDialog({ name: existing, ...props }: DialogProps & { nam
   const [grants, setGrants] = React.useState<GrantDraft[]>(
     () => endpoint?.grants.map(grantDraft) ?? []
   )
-  useDraft({ name, grants })
+  // Where a scale set's instances run each server, once it is changed here: the set's setting,
+  // which saving changes for every endpoint.
+  const [placement, setPlacement] = React.useState<Record<string, ServerPolicy> | null>(null)
+  useDraft({ name, grants, placement })
   const { busy, error, submit } = useSubmit()
   const id = React.useId()
   // A scale set's grant is its endpoint's only one.
   const ofSet = grants.some((grant) => grant.set)
+  const grantSet = sets.find((set) => grants.some((grant) => grant.set === set.name))
+  const policies = placement ?? grantSet?.servers ?? {}
   const available = ofSet
     ? []
     : containers.filter((container) => !grants.some((grant) => grant.container_id === container.id))
@@ -424,6 +464,7 @@ export function EndpointDialog({ name: existing, ...props }: DialogProps & { nam
   const add = (containerId: string) => {
     if (containerId.startsWith(SET_CHOICE)) {
       const set = containerId.slice(SET_CHOICE.length)
+      setPlacement(null)
       setGrants([
         {
           container_id: "",
@@ -453,6 +494,12 @@ export function EndpointDialog({ name: existing, ...props }: DialogProps & { nam
   }
   const save = async () => {
     const body = grantRequests(grants, scopes)
+    // The set's server policies first: they are checked alone and rarely refused, and an
+    // endpoint saved after them reads the instances as they now run their servers.
+    if (grantSet && placement && !samePolicies(placement, grantSet.servers ?? {})) {
+      await api(`scale-sets/${grantSet.name}`, { servers: serverPolicies(placement) }, "PUT")
+      await refreshLists("scale-sets", "mcp")
+    }
     if (existing) {
       await updateEndpoint(existing, body)
       closeDialog()
@@ -563,10 +610,20 @@ export function EndpointDialog({ name: existing, ...props }: DialogProps & { nam
                     container={containers.find((entry) => entry.id === grant.container_id)}
                     servers={grantServers(grant, servers, sets)}
                     scopes={scopes}
+                    {...(grant.set && grant.set === grantSet?.name
+                      ? {
+                          policies,
+                          onPolicy: (server: string, policy: ServerPolicy) =>
+                            setPlacement({ ...policies, [server]: policy }),
+                        }
+                      : {})}
                     onChange={(next) =>
                       setGrants(grants.map((other, at) => (at === index ? next : other)))
                     }
-                    onRemove={() => setGrants(grants.filter((_, at) => at !== index))}
+                    onRemove={() => {
+                      if (grant.set) setPlacement(null)
+                      setGrants(grants.filter((_, at) => at !== index))
+                    }}
                   />
                 ))
               ) : (

@@ -2,6 +2,7 @@
 //! containers, and the tools of their desktop servers, each under the name the agent sees.
 use super::{
     endpoints::{Endpoint, Grant},
+    placement::Placement,
     registry::ServerRecord,
     servers::records,
 };
@@ -197,6 +198,14 @@ pub(crate) enum Target {
         tool: String,
         argument: &'static str,
     },
+    /// A tool of a desktop server that the scale set runs in its instance `number` alone, for
+    /// every instance: it takes no instance.
+    HomeServer {
+        set: String,
+        server: String,
+        tool: String,
+        number: u32,
+    },
     /// A Thoric MCP tool, for the containers listed by their alias. With one grant the tool
     /// takes no container argument.
     Thoric {
@@ -370,25 +379,39 @@ pub(super) fn instance_argument(tool: &Tool) -> &'static str {
 }
 
 /// A desktop server's tool as an endpoint of a scale set offers it once for every instance: with
-/// the argument that names the instance beside its own.
-fn instance_server_tool(tool: &Tool, name: String, set: &str, server: &str) -> Tool {
+/// the argument that names the instance beside its own, or, for a server the set runs in its
+/// instance `home` alone, without one and described as running there.
+fn instance_server_tool(
+    tool: &Tool,
+    name: String,
+    set: &str,
+    server: &str,
+    home: Option<u32>,
+) -> Tool {
     let mut exposed = tool.clone();
     exposed.name = name.into();
     let description = tool.description.as_deref().unwrap_or_default();
-    exposed.description = Some(format!("[{set} / {server}] {description}").into());
+    exposed.description = Some(match home {
+        Some(home) => {
+            format!("[{set} / {server}, instance {home} for every instance] {description}").into()
+        }
+        None => format!("[{set} / {server}] {description}").into(),
+    });
     exposed.annotations = None;
     exposed.icons = None;
-    let argument = instance_argument(tool);
-    let mut schema = Value::Object((*tool.input_schema).clone());
-    if !schema["properties"].is_object() {
-        schema["properties"] = json!({});
+    if home.is_none() {
+        let argument = instance_argument(tool);
+        let mut schema = Value::Object((*tool.input_schema).clone());
+        if !schema["properties"].is_object() {
+            schema["properties"] = json!({});
+        }
+        schema["properties"][argument] = instance_schema();
+        match schema["required"].as_array_mut() {
+            Some(required) => required.push(json!(argument)),
+            None => schema["required"] = json!([argument]),
+        }
+        exposed.input_schema = Arc::new(schema.as_object().cloned().unwrap_or_default());
     }
-    schema["properties"][argument] = instance_schema();
-    match schema["required"].as_array_mut() {
-        Some(required) => required.push(json!(argument)),
-        None => schema["required"] = json!([argument]),
-    }
-    exposed.input_schema = Arc::new(schema.as_object().cloned().unwrap_or_default());
     let mut meta = serde_json::Map::new();
     meta.insert("thoric/set".into(), json!(set));
     meta.insert("thoric/server".into(), json!(server));
@@ -400,7 +423,8 @@ fn instance_server_tool(tool: &Tool, name: String, set: &str, server: &str) -> T
 /// The tools of an endpoint of the scale set `set`: `list_instances`, the container tools of the
 /// scopes granted, taking `instance`, `create_instance` and `delete_instance` with `scale`,
 /// `get_job`, and each desktop server's tools once, taking `instance`, as the instances have
-/// them; they come from one image and compose, so they have the same ones.
+/// them; they come from one image and compose, so they have the same ones. A server the set runs
+/// in one instance alone has that instance's tools, which take no instance.
 fn set_catalog(app: &App, grant: &Grant, set: &str) -> Vec<Entry> {
     let mut entries: Vec<Entry> = Vec::new();
     if !grant.excludes(LIST_INSTANCES)
@@ -444,15 +468,24 @@ fn set_catalog(app: &App, grant: &Grant, set: &str) -> Vec<Entry> {
             });
         }
     }
-    let record = app
+    let scale_set = app
         .db
         .get::<crate::scale::ScaleSet>(crate::scale::SETS, set)
         .ok();
-    let members = record
+    let instances = scale_set
         .iter()
-        .flat_map(|record| record.instances.values())
-        .map(|instance| instance.container_id.clone())
+        .flat_map(|scale_set| scale_set.instances.iter())
         .collect::<Vec<_>>();
+    let members = instances
+        .iter()
+        .map(|(_, instance)| instance.container_id.clone())
+        .collect::<Vec<_>>();
+    // The instance that runs a server for all of them, for a server the set runs once.
+    let home_of = |server: &str| {
+        scale_set
+            .as_ref()
+            .and_then(|scale_set| scale_set.runs_in(server))
+    };
     if grant.scopes.iter().any(|scope| scope.has_jobs())
         && !grant.excludes("get_job")
         && let Some(mut tool) = crate::mcp::listed_tool("get_job")
@@ -465,22 +498,36 @@ fn set_catalog(app: &App, grant: &Grant, set: &str) -> Vec<Entry> {
             },
         });
     }
-    for container_id in &members {
-        for record in records(app, container_id)
+    for (number, instance) in instances {
+        for record in records(app, &instance.container_id)
             .iter()
-            .filter(|record| record.error.is_none() && grant.servers.includes(&record.name))
+            .filter(|record| {
+                record.error.is_none()
+                && grant.servers.includes(&record.name)
+                // Only the instance that runs it has the tools of a server it runs for all.
+                && home_of(&record.name).is_none_or(|home| home == *number)
+            })
         {
+            let home = home_of(&record.name);
             for Named { name, tool, .. } in server_tool_names(record) {
                 if grant.excludes(&name) || entries.iter().any(|entry| entry.tool.name == name) {
                     continue;
                 }
                 entries.push(Entry {
-                    tool: instance_server_tool(tool, name, set, &record.name),
-                    target: Target::InstanceServer {
-                        set: set.into(),
-                        server: record.name.clone(),
-                        tool: tool.name.to_string(),
-                        argument: instance_argument(tool),
+                    tool: instance_server_tool(tool, name, set, &record.name, home),
+                    target: match home {
+                        Some(number) => Target::HomeServer {
+                            set: set.into(),
+                            server: record.name.clone(),
+                            tool: tool.name.to_string(),
+                            number,
+                        },
+                        None => Target::InstanceServer {
+                            set: set.into(),
+                            server: record.name.clone(),
+                            tool: tool.name.to_string(),
+                            argument: instance_argument(tool),
+                        },
                     },
                 });
             }
@@ -575,17 +622,22 @@ pub(crate) fn catalog(app: &App, endpoint: &Endpoint) -> Vec<Entry> {
             target: Target::Job { containers: jobs },
         });
     }
+    let sets = crate::scale::all(app).unwrap_or_default();
     for grant in &endpoint.grants {
         let container = app
             .container(&grant.container_id)
             .map(|c| c.spec.name)
             .unwrap_or_else(|_| grant.alias.clone());
-        // Only the granted containers' servers are read, each with its whole tool list.
+        // Only the granted containers' servers are read, each with its whole tool list. A server
+        // another instance of the container's set runs for it is not offered here.
         let known = records(app, &grant.container_id);
-        for record in known
-            .iter()
-            .filter(|record| record.error.is_none() && grant.servers.includes(&record.name))
-        {
+        for record in known.iter().filter(|record| {
+            record.error.is_none()
+                && grant.servers.includes(&record.name)
+                && Placement::of(&sets, &grant.container_id, &record.name)
+                    .home()
+                    .is_none()
+        }) {
             for Named { name, hashed, tool } in server_tool_names(record) {
                 // The deny list names the tool as this container alone would expose it, so it
                 // holds whatever the alias is and whichever containers the endpoint covers.

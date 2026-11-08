@@ -1793,6 +1793,8 @@ export const de: Messages = {
   "mcp.grant.allServers": "Alle, auch später hinzugefügte",
   "mcp.grant.chosenServers": "Nur die hier gewählten",
   "mcp.grant.noServers": "Dieser Container hat noch keine Desktop-MCP-Server.",
+  "mcp.grant.serverPolicyHint":
+    "Wo ein Server läuft, ist eine Einstellung der Skalierungsgruppe: Sie gilt für jeden Endpunkt und für /mcp, und Speichern ändert sie sofort.",
   "mcp.grant.serversLine": "Server: {servers}",
   "mcp.grant.toolsOf": "{included} von {count} Werkzeugen",
   "mcp.grant.toolsHint":
@@ -1926,6 +1928,7 @@ export const de: Messages = {
   "mcp.state.error": "Fehler",
   "mcp.state.pending": "Werkzeuge nicht gelesen",
   "mcp.state.stopped": "Container gestoppt",
+  "mcp.state.elsewhere": "Läuft in Instanz {number}",
   "mcp.server.add": "Server hinzufügen",
   "mcp.server.addTo": "Server zu {name} hinzufügen",
   "mcp.server.test": "Testen",
@@ -1972,6 +1975,8 @@ export const de: Messages = {
   "mcp.server.readAt": "gelesen {date}",
   "mcp.server.noTools": "Keine Werkzeuge.",
   "mcp.server.toolsUnread": "Werkzeuge noch nicht gelesen.",
+  "mcp.server.elsewhere":
+    "Seine Skalierungsgruppe führt ihn nur in Instanz {number} aus, für jede Instanz; hier startet er nie, und seine Werkzeuge stehen dort.",
   "mcp.server.envNames": "Umgebung: {names}",
   "mcp.server.headerNames": "Header: {names}",
   "mcp.server.cwdIn": "Läuft in {path}",
@@ -2279,6 +2284,12 @@ export const de: Messages = {
   "scale.policy.shared": "Gemeinsam",
   "scale.policy.new": "Neu je Instanz",
   "scale.policy.first": "Erste behält es, andere neu",
+  "scale.servers": "Desktop-MCP-Server",
+  "scale.serversHint":
+    "Wo jeder Desktop-Server läuft. Nur Instanz 1 ist für ein Programm, das sperrt, was die Instanzen teilen, etwa ein Ghidra-Projekt auf einem gemeinsamen Volume: Instanz 1 führt es einmal aus, und seine Werkzeuge dienen jeder Instanz. Eine Änderung gilt sofort für alle Instanzen.",
+  "scale.serverPolicyOf": "Wo {server} läuft",
+  "scale.serverPolicy.each": "Jede Instanz",
+  "scale.serverPolicy.first": "Nur Instanz 1",
   "scale.summary": "Skalierbar, bis zu {max}",
   "scale.error.min": "Behalten muss eine ganze Zahl sein, nicht größer als Höchstens.",
   "scale.error.max": "Höchstens muss zwischen 1 und 16 liegen.",

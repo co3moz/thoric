@@ -197,7 +197,8 @@ def listing(image, target, as_json, status_path):
             for server in known.get("servers") or []:
                 if isinstance(server, dict) and isinstance(server.get("name"), str):
                     states[server["name"]] = {key: server.get(key) for key in
-                                              ("state", "error", "tools", "tools_at", "log")}
+                                              ("state", "runs_in", "error", "tools", "tools_at",
+                                               "log")}
         for row in rows:
             if row["active"] and row["name"] in states:
                 row["status"] = states[row["name"]]

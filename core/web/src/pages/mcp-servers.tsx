@@ -53,7 +53,7 @@ function RefreshServer({ server }: { server: DesktopServer }) {
         <Button
           variant="outline"
           size="icon-sm"
-          disabled={busy || server.state === "stopped"}
+          disabled={busy || server.state === "stopped" || server.state === "elsewhere"}
           onClick={refresh}
           aria-label={t("mcp.server.refreshOf", { name: server.name })}
         >
@@ -69,8 +69,10 @@ function RefreshServer({ server }: { server: DesktopServer }) {
 function ServerRow({ server }: { server: DesktopServer }) {
   const inspect = useOpenInInspector()
   const details = serverDetails(server.env, server.headers, server.cwd)
-  // Without a command or a URL its declaration could not be read, so nothing can start it.
-  const startable = server.state !== "stopped" && !!(server.command || server.url)
+  // Without a command or a URL its declaration could not be read, so nothing can start it; one
+  // that another instance of its set runs is never started here.
+  const startable =
+    server.state !== "stopped" && server.state !== "elsewhere" && !!(server.command || server.url)
   return (
     <li className="flex flex-col gap-2 px-4 py-3">
       <div className="flex items-start justify-between gap-3">
@@ -97,7 +99,7 @@ function ServerRow({ server }: { server: DesktopServer }) {
             <StatusBadge
               state={server.state}
               tone={serverTone(server.state)}
-              label={t(`mcp.state.${server.state}`)}
+              label={t(`mcp.state.${server.state}`, { number: server.runs_in ?? 1 })}
             />
           </div>
           {server.description && (
@@ -200,7 +202,11 @@ function ServerRow({ server }: { server: DesktopServer }) {
         </Accordion>
       ) : (
         <p className="text-xs text-muted-foreground">
-          {server.state === "ready" ? t("mcp.server.noTools") : t("mcp.server.toolsUnread")}
+          {server.state === "elsewhere"
+            ? t("mcp.server.elsewhere", { number: server.runs_in ?? 1 })
+            : server.state === "ready"
+              ? t("mcp.server.noTools")
+              : t("mcp.server.toolsUnread")}
         </p>
       )}
     </li>

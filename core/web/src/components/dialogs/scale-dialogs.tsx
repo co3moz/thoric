@@ -34,12 +34,14 @@ import { runJob } from "@/lib/actions"
 import { api } from "@/lib/api"
 import { closeDialog, useDraft } from "@/lib/dialogs"
 import { t } from "@/lib/i18n"
-import { refreshLists, useContainers, useScaleSets } from "@/lib/queries"
+import { refreshLists, useContainers, useMcpServers, useScaleSets } from "@/lib/queries"
 import {
   scalingBody,
   scalingDraft,
   scalingError,
   scalingTargets,
+  serverPolicies,
+  setServerNames,
   type ScaleSet,
   type ScalingDraft,
 } from "@/lib/scale"
@@ -64,6 +66,14 @@ const refreshed = () => refreshLists("scale-sets", "containers", "mcp")
  */
 export function MakeScalableDialog({ id, ...props }: DialogProps & { id: string }) {
   const item = useContainers().data?.find((entry) => entry.id === id)
+  // The container's desktop servers, which become the set's.
+  const servers = [
+    ...new Set(
+      (useMcpServers().data ?? [])
+        .filter((server) => server.container_id === id)
+        .map((server) => server.name)
+    ),
+  ].sort()
   const [draft, setDraft] = React.useState<ScalingDraft>(() => ({
     ...scalingDraft(),
     enabled: true,
@@ -99,6 +109,7 @@ export function MakeScalableDialog({ id, ...props }: DialogProps & { id: string 
             draft={draft}
             onChange={setDraft}
             targets={targets}
+            servers={servers}
             name={item.spec.name}
           />
           <Field>
@@ -121,9 +132,13 @@ export function MakeScalableDialog({ id, ...props }: DialogProps & { id: string 
   )
 }
 
-/** Changes a set's limits and what its new instances get for each volume. */
+/**
+ * Changes a set's limits, what its new instances get for each volume, and where its desktop
+ * servers run, which applies to every instance at once.
+ */
 export function ScaleSetDialog({ name, ...props }: DialogProps & { name: string }) {
   const set = useScaleSets().data?.find((entry) => entry.name === name)
+  const servers = setServerNames(set, useMcpServers().data ?? [])
   const [draft, setDraft] = React.useState<ScalingDraft>(() => ({
     ...scalingDraft(set),
     enabled: true,
@@ -149,6 +164,7 @@ export function ScaleSetDialog({ name, ...props }: DialogProps & { name: string 
                 volumes: Object.fromEntries(
                   targets.map((target) => [target, draft.volumes[target] ?? "shared"])
                 ),
+                servers: serverPolicies(draft.servers),
               },
               "PUT"
             )
@@ -161,7 +177,14 @@ export function ScaleSetDialog({ name, ...props }: DialogProps & { name: string 
             <DialogTitle>{t("scale.settingsTitle", { name })}</DialogTitle>
             <DialogDescription>{t("scale.settingsDescription")}</DialogDescription>
           </DialogHeader>
-          <ScalingFields named draft={draft} onChange={setDraft} targets={targets} name={name} />
+          <ScalingFields
+            named
+            draft={draft}
+            onChange={setDraft}
+            targets={targets}
+            servers={servers}
+            name={name}
+          />
           <FieldError>{error}</FieldError>
           <Footer busy={busy} label={t("common.save")} />
         </form>

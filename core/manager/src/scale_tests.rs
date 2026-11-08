@@ -150,6 +150,31 @@ fn only_policies_other_than_shared_are_kept() {
 }
 
 #[test]
+fn a_set_runs_a_server_in_every_instance_unless_it_names_instance_one() {
+    let scaling: Scaling = serde_json::from_value(json!({"servers": {
+        "ghidra": "first",
+        "chrome": "each",
+    }}))
+    .unwrap();
+    scaling.validate().unwrap();
+    let set = new_set("re", &spec(), &scaling);
+    assert_eq!(set.servers.len(), 1);
+    assert_eq!(set.server_policy("chrome"), ServerPolicy::Each);
+    assert_eq!(set.runs_in("ghidra"), Some(1));
+    assert_eq!(set.runs_in("unknown"), None);
+    // A server's name is a slug, and a set names a bounded number of them.
+    for refused in [
+        json!({"servers": {"Ghidra": "first"}}),
+        json!({"servers": {"-x": "first"}}),
+        json!({"servers": (0..65).map(|n| (format!("s{n}"), json!("first"))).collect::<serde_json::Map<_, _>>()}),
+    ] {
+        let scaling: Scaling = serde_json::from_value(refused.clone()).unwrap();
+        assert!(scaling.validate().is_err(), "{refused}");
+    }
+    assert!(serde_json::from_value::<Scaling>(json!({"servers": {"x": "second"}})).is_err());
+}
+
+#[test]
 fn a_container_knows_its_set_and_number() {
     let sets = [set_with(&[1, 3], 1, 4)];
     assert_eq!(membership(&sets, "c3"), json!({"set": "re", "number": 3}));

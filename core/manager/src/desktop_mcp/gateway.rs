@@ -245,6 +245,51 @@ impl EndpointMcp {
                         .await?,
                 )
             }
+            Target::HomeServer {
+                set,
+                server,
+                tool,
+                number,
+            } => {
+                // Whatever instance the agent works in, the server runs in this one.
+                let home = |message: &str| {
+                    format!(
+                        "{set} runs the desktop MCP server {server} in instance {number} alone, for every instance: {message}"
+                    )
+                };
+                let container =
+                    crate::scale::instances::instance(&self.app, &set, u64::from(number))
+                        .map_err(|error| error::Error(error.0, home(&error.1)))?;
+                let record: ServerRecord = self
+                    .app
+                    .db
+                    .get(SERVERS, &ServerRecord::key(&container.id, &server))
+                    .map_err(|_| {
+                        error::Error(
+                            StatusCode::CONFLICT,
+                            home("that instance does not declare it now; list_instances shows its state"),
+                        )
+                    })?;
+                let arguments = match args {
+                    Value::Object(arguments) => arguments,
+                    _ => Default::default(),
+                };
+                client::call(&self.app, &self.name, &container, &record, &tool, arguments)
+                    .await
+                    .map_err(|error| {
+                        let error = error::Error::from(error);
+                        if self.app.desktop_mcp.watched(&container.id) {
+                            return error;
+                        }
+                        error::Error(
+                            StatusCode::CONFLICT,
+                            home(&format!(
+                                "instance {number} does not run; start it with container_action and instance {number} where this endpoint offers it, or ask the user to. {}",
+                                error.1
+                            )),
+                        )
+                    })
+            }
             Target::Thoric { tool, containers } => {
                 let container_id = if containers.len() == 1 && args.get("container").is_none() {
                     containers[0].1.clone()
@@ -360,7 +405,7 @@ impl EndpointMcp {
         // /mcp checks them. A desktop server checks its own.
         if !matches!(
             entry.target,
-            Target::Server { .. } | Target::InstanceServer { .. }
+            Target::Server { .. } | Target::InstanceServer { .. } | Target::HomeServer { .. }
         ) && let Err(message) = mcp::check_arguments(&entry.tool, &args)
         {
             call.refused();
@@ -442,6 +487,18 @@ pub(super) fn set_instructions(app: &App, grant: &super::endpoints::Grant, set: 
         text.push_str(&format!(
             " These folders get a volume of each instance's own: {}.",
             own.join(", ")
+        ));
+    }
+    let once = record
+        .servers
+        .keys()
+        .filter(|server| record.runs_in(server).is_some() && grant.servers.includes(server))
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    if !once.is_empty() {
+        text.push_str(&format!(
+            " These desktop servers are the exception: they run in instance 1 alone, as one program every instance and agent shares, since a second copy cannot open what they hold: {}. Their tools take no instance and work in instance 1's desktop and files, so pass them paths in the shared folders, and expect the state another agent left, such as the program it opened.",
+            once.join(", ")
         ));
     }
     if grant.scopes.contains(&super::scopes::Scope::Scale) {

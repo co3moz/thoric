@@ -461,6 +461,33 @@ for line in sys.stdin:
         continue
     print(json.dumps({"jsonrpc": "2.0", "id": message["id"], "result": result}), flush=True)
 '''
+# A desktop MCP server that holds a lock on a shared folder, as Ghidra holds its project: it
+# notes every start there and refuses to start while another copy holds the lock.
+LOCKED_SERVER = r'''import fcntl, json, socket, sys
+folder = sys.argv[1]
+held = open(folder + "/project.lock", "w")
+try:
+    fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+except OSError:
+    sys.exit("the project is open in another copy")
+with open(folder + "/starts", "a") as starts:
+    starts.write(socket.gethostname() + "\n")
+for line in sys.stdin:
+    message = json.loads(line)
+    if "id" not in message:
+        continue
+    method = message["method"]
+    if method == "initialize":
+        result = {"protocolVersion": message["params"]["protocolVersion"], "capabilities": {"tools": {}}, "serverInfo": {"name": "locked", "version": "1"}}
+    elif method == "tools/list":
+        result = {"tools": [{"name": "where", "description": "Where the project is open", "inputSchema": {"type": "object", "properties": {}}}]}
+    elif method == "tools/call":
+        result = {"content": [{"type": "text", "text": socket.gethostname()}]}
+    else:
+        print(json.dumps({"jsonrpc": "2.0", "id": message["id"], "error": {"code": -32601, "message": method}}), flush=True)
+        continue
+    print(json.dumps({"jsonrpc": "2.0", "id": message["id"], "result": result}), flush=True)
+'''
 # The same tool from a Streamable HTTP server that listens on 127.0.0.1 only and needs a header.
 ECHO_HTTP_SERVER = r'''import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -2756,6 +2783,26 @@ try:
     # keeps is not an agent's to delete.
     named = endpoint_call(set_name, mcp_token, session, "tools/call", {"name": "get_container", "arguments": {"instance": 2}})["structuredContent"]
     assert named["id"] == second, named
+    # A server that locks the shared project runs in instance 1 alone: instance 2 never starts
+    # it, not even to read its tools, its tool takes no instance and answers from instance 1 for
+    # every agent, and the read and the calls share one copy of it.
+    docker("exec", "--user", "desktop", "-i", f"thoric-{first}", "sh", "-c", "cat > /home/desktop/Shared/locked.py", data=LOCKED_SERVER.encode())
+    placed = api(f"scale-sets/{set_name}", {"servers": {"locked": "first"}}, method="PUT")
+    assert placed["servers"] == {"locked": "first"}, placed
+    locked = {"name": "locked", "command": "python3", "args": ["/home/desktop/Shared/locked.py", "/home/desktop/Shared"]}
+    assert api(f"containers/{first}/mcp/servers", locked)["state"] == "ready"
+    elsewhere = api(f"containers/{second}/mcp/servers", locked)
+    assert elsewhere["state"] == "elsewhere" and elsewhere["runs_in"] == 1 and elsewhere["tools"] == [], elsewhere
+    session = endpoint_session(set_name, mcp_token)
+    where = next(t for t in endpoint_call(set_name, mcp_token, session, "tools/list")["tools"] if t["name"] == "locked__where")
+    assert "instance" not in where["inputSchema"].get("properties", {}), where
+    first_host = machine(f"thoric-{first}")["hostname"]
+    for _ in range(2):
+        answered = endpoint_call(set_name, mcp_token, session, "tools/call", {"name": "locked__where", "arguments": {}})
+        assert answered["content"][0]["text"] == first_host, answered
+    assert docker("exec", f"thoric-{first}", "cat", "/home/desktop/Shared/starts").decode().split() == [first_host]
+    refused_here = tool("call_mcp_server_tool", {"container_id": second, "server": "locked", "tool": "where"}, allow_error=True)
+    assert refused_here["isError"] and "instance 1 alone" in refused_here["content"][0]["text"], refused_here
     _, full = endpoint_post(set_name, mcp_token, {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"create_instance","arguments":{}}}, session)
     assert full["result"]["isError"] and "most instances" in full["result"]["content"][0]["text"], full
     _, kept = endpoint_post(set_name, mcp_token, {"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"delete_instance","arguments":{"instance":1}}}, session)

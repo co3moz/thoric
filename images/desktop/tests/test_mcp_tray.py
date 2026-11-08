@@ -114,6 +114,9 @@ class RowsTest(unittest.TestCase):
         self.assertEqual(tray.state(rows["broken"], True), ("error", "Unreadable"))
         self.assertEqual(tray.state(rows["new"], True), ("pending", "Waiting for Thoric"))
         self.assertEqual(tray.state(rows["new"], False), ("unknown", "Not checked"))
+        # An instance of a scale set that runs the server in instance 1 alone never starts it.
+        elsewhere = dict(rows["new"], status={"state": "elsewhere", "runs_in": 1, "tools": []})
+        self.assertEqual(tray.state(elsewhere, True), ("elsewhere", "Runs in instance 1"))
         self.assertEqual(tray.summary(list(rows.values()), True), "4 MCP servers, 1 ready, 2 with errors")
         self.assertEqual(tray.summary([], False), "No MCP servers")
         self.assertEqual(tray.summary([rows["new"]], False), "1 MCP server")

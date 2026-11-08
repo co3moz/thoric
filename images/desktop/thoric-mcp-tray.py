@@ -92,7 +92,9 @@ def effective(document):
 
 
 def state(row, watched):
-    """How a server is doing, as a kind (ready, pending, error or unknown) and a few words."""
+    """How a server is doing, as a kind (ready, pending, error, elsewhere or unknown) and a few
+    words. A server is elsewhere in an instance of a scale set that runs it in another instance
+    alone, for all of them."""
     status = row.get("status") or {}
     kind = status.get("state")
     if kind == "ready":
@@ -100,6 +102,8 @@ def state(row, watched):
         return "ready", "Ready, %d tool%s" % (count, "" if count == 1 else "s")
     if kind == "pending":
         return "pending", "Reading its tools"
+    if kind == "elsewhere":
+        return "elsewhere", "Runs in instance %s" % (status.get("runs_in") or 1)
     if kind == "error":
         return "error", "Error"
     if "error" in row:
@@ -563,7 +567,8 @@ class Window:
         else:
             origin = "Added"
         head.pack_start(label(origin, css=("mcp-tag", "dim-label")), False, False, 0)
-        head.pack_end(label(text, css=("mcp-" + kind,) if kind != "unknown" else ("dim-label",)),
+        head.pack_end(label(text, css=("mcp-" + kind,) if kind not in ("unknown", "elsewhere")
+                            else ("dim-label",)),
                       False, False, 0)
         box.pack_start(head, False, False, 0)
         subtitle = label(spec.get("description") or runs(spec) or row.get("error", ""), css=("dim-label",))

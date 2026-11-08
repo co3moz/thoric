@@ -201,6 +201,7 @@ export function serverTone(state: DesktopServer["state"]): Tone {
   if (state === "ready") return "success"
   if (state === "error") return "danger"
   if (state === "pending") return "warning"
+  // `stopped`, and `elsewhere`, which is how the set wants it.
   return "muted"
 }
 

@@ -19,6 +19,7 @@ Call `list_instances` before anything else, and again whenever you are unsure wh
 - `instances`: each one's `instance` number, `name` (such as `re-3`), `note` (what it is for and who uses it), `state` (`running`, `exited`), `creating` (its job has not finished), `kept` (one of the lowest numbers the set always keeps), `in_use`, and its `mounts`, each with `sharing`: `shared` with another instance or `own`.
 - `slots`: the set's volumes by the folder they are mounted at (`target`) with the `policy` a new instance gets: `shared` (the same volume everywhere), `new` (an empty one of its own, deleted with it) or `first` (instance 1 keeps the original, the others get their own).
 - `free`: how many more instances the set may have before it reaches its maximum.
+- `servers`: the desktop servers the set runs in instance 1 alone for every instance (`first`); see [A server that runs in instance 1 alone](#a-server-that-runs-in-instance-1-alone).
 
 The endpoint's own instructions also name the shared folders and the per-instance ones. Read both before you plan, because the plan depends on which folders are shared.
 
@@ -82,7 +83,18 @@ A shared folder behaves like one disk that several machines write at once: write
 - SQLite and other database files (keep one writer, or one instance owning the database);
 - editor and engine project state such as a Unity project's `Library`, a Wine prefix, a build's output folder.
 
-For such a folder, create the instance with `volumes: {"<target>": "new"}`, or point the program at a path inside the worker's own subfolder.
+For such a folder, create the instance with `volumes: {"<target>": "new"}`, or point the program at a path inside the worker's own subfolder. When the program is a desktop server every worker needs on the same data, such as Ghidra on one shared project, a copy per instance is the wrong answer: ask the user to set that server to "Instance 1 only" in the set's settings, which makes it one program for all instances (next section).
+
+## A server that runs in instance 1 alone
+
+A set can run a desktop server in instance 1 alone, for every instance: the set's `servers` name it as `first`, and the endpoint's instructions list it. Thoric then never starts it in another instance, and every agent and endpoint shares the one program in instance 1. Its tools on the set's endpoint:
+
+- **take no `instance`.** Whatever instance you work in, a call goes to instance 1. Do not try to open the same project in your own instance with another program; that is the collision this setting prevents.
+- **see instance 1's desktop and files.** A path you pass must exist in instance 1: put inputs in a shared folder (your own subfolder there) and pass that path, never a path in your instance's home or in a `new` volume.
+- **share one state.** The program keeps what the last caller left, such as the binary Ghidra has open or the program it analyzed. Before working, check or set the state you need (open your file explicitly), and do not assume another agent is not using it at the same time. When several workers need it, have them take turns or let one worker (often the parent) drive it and hand out results.
+- **depend on instance 1.** If instance 1 is stopped, a call says so; start it with `container_action` and `instance: 1` where the endpoint offers the `power` scope, or ask the user. Never delete instance 1 to make room.
+
+Its tools use instance 1's desktop, so a window it opens appears there, not in your instance: take screenshots of instance 1 when you need to see it.
 
 **Deleting in a shared folder deletes for everyone.** Never remove, move or overwrite shared files you did not create, and clean up only your own subfolder. `delete_instance` never touches shared volumes, so cleaning them is a deliberate step, not a side effect.
 
@@ -107,8 +119,9 @@ For such a folder, create the instance with `volumes: {"<target>": "new"}`, or p
 | `delete_instance`: one of the instances the set keeps | Leave it; only the dashboard deletes it. |
 | A tool says the set has no such instance | It was deleted, perhaps for being idle. Run `list_instances` and create a new one if the work needs it. |
 | A tool is unknown | The tool list changed (a desktop server was added or removed); list the tools again. |
+| A server tool says the set runs it in instance 1 alone and instance 1 does not run | Start instance 1 with `container_action` where `power` is offered, or ask the user; never create or delete instances to get it back. |
 | A creation job failed | Read its log, delete the instance, retry once, then report. |
 
 ## On the administrator's /mcp
 
-The administrator's `/mcp` has the same `list_instances`, `create_instance` and `delete_instance`, taking the set's name as `set`, and its container tools take the instance's `container_id` (from `list_instances`) instead of `instance`. A set is made by `create_container` with `scaling`: `set` (its name), `min` (the instances it keeps, 1 by default), `max` (4 by default, at most 16), `idle_delete_minutes` (0, never, by default) and `volumes`, the policy of each folder (`shared` by default, `new` or `first`). Choose the policies with the same care as above: `shared` for what workers must see of each other, `new` for any folder a program locks.
+The administrator's `/mcp` has the same `list_instances`, `create_instance` and `delete_instance`, taking the set's name as `set`, and its container tools take the instance's `container_id` (from `list_instances`) instead of `instance`. A set is made by `create_container` with `scaling`: `set` (its name), `min` (the instances it keeps, 1 by default), `max` (4 by default, at most 16), `idle_delete_minutes` (0, never, by default), `volumes`, the policy of each folder (`shared` by default, `new` or `first`), and `servers`, where each desktop server runs (`each` by default, or `first` for instance 1 alone). Choose the policies with the same care as above: `shared` for what workers must see of each other, `new` for any folder a program locks, and `first` for a desktop server that every worker uses on one shared project. `call_mcp_server_tool` on another instance than 1 is refused for such a server; call it with instance 1's `container_id`.
