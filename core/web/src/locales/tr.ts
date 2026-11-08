@@ -2066,6 +2066,8 @@ export const tr: Messages = {
   "inspector.form.addItem": "Öğe ekle",
   "inspector.form.addTo": "{name} listesine öğe ekle",
   "inspector.form.jsonValue": "JSON değeri",
+  "inspector.form.pickContainer": "Bir konteyner seçin…",
+  "inspector.form.noContainers": "Konteyner yok",
   "inspector.type.kinds": "dizi · {count} tür",
   "inspector.type.oneOf": "biri",
   "inspector.type.oneOfCount": "{count} seçenekten biri",

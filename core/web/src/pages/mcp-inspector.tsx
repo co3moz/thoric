@@ -30,6 +30,7 @@ export function McpInspectorPage() {
         <InspectorView
           client={client}
           groups={groups}
+          containers={containers}
           picked={picked}
           onPick={pickInspectorTarget}
           onConnect={() => pickedTarget && openInspector(pickedTarget, settings?.version ?? "")}

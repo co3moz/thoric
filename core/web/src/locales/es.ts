@@ -2091,6 +2091,8 @@ export const es: Messages = {
   "inspector.form.addItem": "Añadir elemento",
   "inspector.form.addTo": "Añadir un elemento a {name}",
   "inspector.form.jsonValue": "Valor JSON",
+  "inspector.form.pickContainer": "Elige un contenedor…",
+  "inspector.form.noContainers": "No hay contenedores",
   "inspector.type.kinds": "array · {count} tipos",
   "inspector.type.oneOf": "uno de",
   "inspector.type.oneOfCount": "uno de {count}",

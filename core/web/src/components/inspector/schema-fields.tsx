@@ -3,6 +3,7 @@ import { RiAddLine, RiArrowDownLine, RiArrowUpLine, RiCloseLine } from "@remixic
 import { cn } from "cn"
 
 import { CodeEditor } from "@/components/code-editor"
+import { ConceptIcon } from "@/components/concept"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -37,19 +38,24 @@ import {
   typeLabel,
   type ArrayItem,
   type Draft,
+  type FieldChoices,
   type JsonSchema,
 } from "@/lib/schema-form"
 
+const NO_CHOICES: ReadonlyMap<string, FieldChoices> = new Map()
+
 /**
  * What every field of one form shares: the root schema for `$ref`s, the errors of the last run,
- * and the run itself, which a JSON field's editor takes Ctrl+Enter for.
+ * the run itself, which a JSON field's editor takes Ctrl+Enter for, and the values text fields
+ * offer by their name.
  */
 const FormContext = React.createContext<{
   root: JsonSchema
   errors: ReadonlyMap<string, string>
   clear(path: string): void
   submit?(): void
-}>({ root: {}, errors: new Map(), clear: () => {} })
+  choices: ReadonlyMap<string, FieldChoices>
+}>({ root: {}, errors: new Map(), clear: () => {}, choices: NO_CHOICES })
 
 /** Radix selects take no empty value, so a field left unset is this one. */
 const UNSET = "unset"
@@ -74,6 +80,7 @@ export function SchemaForm({
   errors,
   clear,
   submit,
+  choices = NO_CHOICES,
 }: {
   schema: JsonSchema
   fields: Record<string, Draft>
@@ -81,10 +88,12 @@ export function SchemaForm({
   errors: ReadonlyMap<string, string>
   clear(path: string): void
   submit?(): void
+  /** What a text field offers to fill in beside typing, by its name. */
+  choices?: ReadonlyMap<string, FieldChoices>
 }) {
   const context = React.useMemo(
-    () => ({ root: schema, errors, clear, submit }),
-    [schema, errors, clear, submit]
+    () => ({ root: schema, errors, clear, submit, choices }),
+    [schema, errors, clear, submit, choices]
   )
   return (
     <FormContext.Provider value={context}>
@@ -254,14 +263,34 @@ function placeholder(schema: JsonSchema) {
 
 function TextField({ number, ...field }: Resolved & { number: boolean }) {
   const { id, error, edited, invalid } = useField(field.path)
+  const { choices } = React.useContext(FormContext)
+  const offered = number || field.bare ? undefined : choices.get(field.name)
   const text = (field.draft as Extract<Draft, { kind: "text" }>).text
   const change = (value: string) => {
     edited()
     field.onChange({ kind: "text", text: value })
   }
+  const area = (className?: string) => (
+    <Textarea
+      id={id}
+      rows={1}
+      spellCheck={false}
+      value={text}
+      placeholder={placeholder(field.schema)}
+      aria-label={field.bare ? field.name : undefined}
+      className={cn("min-h-9 py-1.5", className)}
+      onChange={(event) => change(event.target.value)}
+      {...invalid}
+    />
+  )
   return (
     <Shell id={id} {...field} error={error}>
-      {number ? (
+      {offered ? (
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start">
+          {area("sm:flex-1")}
+          <ChoicePicker choices={offered} text={text} onChoose={change} />
+        </div>
+      ) : number ? (
         <Input
           id={id}
           type="number"
@@ -276,19 +305,42 @@ function TextField({ number, ...field }: Resolved & { number: boolean }) {
           {...invalid}
         />
       ) : (
-        <Textarea
-          id={id}
-          rows={1}
-          spellCheck={false}
-          value={text}
-          placeholder={placeholder(field.schema)}
-          aria-label={field.bare ? field.name : undefined}
-          className="min-h-9 py-1.5"
-          onChange={(event) => change(event.target.value)}
-          {...invalid}
-        />
+        area()
       )}
     </Shell>
+  )
+}
+
+/** The values a text field offers: choosing one fills the field in, which stays free text. */
+function ChoicePicker({
+  choices,
+  text,
+  onChoose,
+}: {
+  choices: FieldChoices
+  text: string
+  onChoose(value: string): void
+}) {
+  const typed = text.trim()
+  const chosen = choices.items.some((item) => item.value === typed) ? typed : ""
+  const none = !choices.items.length
+  return (
+    <Select value={chosen} onValueChange={onChoose} disabled={none}>
+      <SelectTrigger className="w-full sm:w-56" aria-label={choices.label}>
+        <SelectValue placeholder={none ? choices.empty : choices.label} />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectGroup>
+          {choices.items.map((item) => (
+            <SelectItem key={item.value} value={item.value}>
+              {choices.concept && <ConceptIcon concept={choices.concept} />}
+              <span className="truncate">{item.label}</span>
+              {item.detail && <span className="text-muted-foreground">{item.detail}</span>}
+            </SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
   )
 }
 

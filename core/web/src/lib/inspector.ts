@@ -2,9 +2,10 @@
 // templates, the arguments each takes, and how a result reads. Pure helpers; the connection is
 // in mcp-client.ts.
 import type { Concept } from "./concepts"
+import { stateLabel } from "./format"
 import { formatNumber, t } from "./i18n"
 import type { InspectTarget } from "./mcp-client"
-import { isPlainObject, prettyJson, type JsonSchema } from "./schema-form"
+import { isPlainObject, prettyJson, type FieldChoices, type JsonSchema } from "./schema-form"
 import type { ContainerItem, DesktopServer, McpEndpoint } from "./types"
 
 /** A server the inspector can open, as the picker offers it. */
@@ -94,6 +95,36 @@ export function targetGroups(
         }),
     })
   return groups
+}
+
+/**
+ * What the text fields of the opened server offer beside typing, by the field's name. Thoric's
+ * own MCP takes a container by its Thoric ID in `container_id`, so it offers every container by
+ * name. An endpoint names its containers in an enum of its own, and a desktop server's fields are
+ * its own, whatever they are called.
+ */
+export function fieldChoices(
+  target: InspectTarget,
+  containers: Pick<ContainerItem, "id" | "state" | "spec">[]
+): ReadonlyMap<string, FieldChoices> {
+  if (target.kind !== "administrator") return new Map()
+  return new Map([
+    [
+      "container_id",
+      {
+        label: t("inspector.form.pickContainer"),
+        empty: t("inspector.form.noContainers"),
+        concept: "container",
+        items: [...containers]
+          .sort((a, b) => a.spec.name.localeCompare(b.spec.name))
+          .map((container) => ({
+            value: container.id,
+            label: container.spec.name,
+            detail: stateLabel(container.state),
+          })),
+      },
+    ],
+  ])
 }
 
 export type ItemKind = "tool" | "prompt" | "resource" | "template"
