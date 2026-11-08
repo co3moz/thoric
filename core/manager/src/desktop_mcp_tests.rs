@@ -7,7 +7,7 @@ use super::{
     endpoints::{ENDPOINTS, Endpoint, Grant, GrantRequest, Servers, grants, slug_of, summary},
     registry::{
         Declaration, SERVERS, ServerRecord, ServerSpec, Source, check_declarations, found,
-        loopback_url, merged, substitute,
+        loopback_url, merged, split_query, substitute,
     },
     scopes::{
         ENDPOINT_WORDING, Scope, Target, bound_tool, catalog, exposed_name, exposed_name_hashed,
@@ -224,13 +224,24 @@ fn compose_values_fill_placeholders_and_a_missing_one_is_an_error() {
 #[test]
 fn lists_name_variables_and_headers_but_never_show_their_values() {
     let spec = ServerSpec {
-        url: Some("http://127.0.0.1:8931/mcp".into()),
+        url: Some("http://127.0.0.1:8931/mcp?token=hunter3".into()),
         headers: BTreeMap::from([("Authorization".into(), "Bearer hunter2".into())]),
         ..Default::default()
     };
-    let summary = spec.summary().to_string();
-    assert!(summary.contains("Authorization"));
-    assert!(!summary.contains("hunter2"));
+    let summary = spec.summary();
+    assert!(summary.to_string().contains("Authorization"));
+    assert!(!summary.to_string().contains("hunter2"));
+    // A token can go in the URL's query where a server takes no header; the list leaves it out.
+    assert_eq!(summary["url"], "http://127.0.0.1:8931/mcp");
+    assert!(!summary.to_string().contains("hunter3"));
+    assert_eq!(
+        split_query("http://127.0.0.1:8931/mcp#frag?x"),
+        ("http://127.0.0.1:8931/mcp", "#frag?x")
+    );
+    assert_eq!(
+        split_query("http://127.0.0.1:8931/mcp"),
+        ("http://127.0.0.1:8931/mcp", "")
+    );
 }
 
 #[test]

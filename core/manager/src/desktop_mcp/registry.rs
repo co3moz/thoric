@@ -247,7 +247,8 @@ impl ServerSpec {
         Ok(resolved)
     }
 
-    /// What the server lists show: the names of its variables and headers, never their values.
+    /// What the server lists show: the names of its variables and headers, never their values,
+    /// and the URL without its query, which may carry a token as a header does.
     pub fn summary(&self) -> Value {
         json!({
             "description": self.description,
@@ -256,9 +257,18 @@ impl ServerSpec {
             "args": self.args,
             "cwd": self.cwd,
             "env": self.env.keys().collect::<Vec<_>>(),
-            "url": self.url,
+            "url": self.url.as_deref().map(|url| split_query(url).0),
             "headers": self.headers.keys().collect::<Vec<_>>(),
         })
+    }
+}
+
+/// A URL as what may be shown and what may not: up to its query or fragment, and the rest,
+/// empty when it has none. A server's query is where a token goes when a header cannot.
+pub(crate) fn split_query(url: &str) -> (&str, &str) {
+    match url.find(['?', '#']) {
+        Some(at) => (&url[..at], &url[at..]),
+        None => (url, ""),
     }
 }
 

@@ -87,6 +87,24 @@ fn headers_environment_and_arguments_of_a_registered_server_are_kept_as_their_si
 }
 
 #[test]
+fn a_registered_servers_url_is_kept_without_its_query() {
+    let masked = masked_tool(
+        "register_mcp_server",
+        json!({"container_id": "c1", "name": "api",
+               "url": "http://127.0.0.1:8931/mcp?token=tok_0123456789#part"}),
+    );
+    assert_eq!(masked.arguments["url"], "http://127.0.0.1:8931/mcp");
+    assert!(!keeps(&masked, "tok_0123456789"));
+    // The error text of a refusal that quotes the URL loses the query too.
+    assert!(
+        masked
+            .secrets
+            .iter()
+            .any(|secret| secret.contains("tok_0123456789"))
+    );
+}
+
+#[test]
 fn base64_payloads_are_kept_as_their_size() {
     for (tool, key) in [
         ("inject_audio", "data_base64"),

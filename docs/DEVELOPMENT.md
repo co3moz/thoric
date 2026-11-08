@@ -265,7 +265,7 @@ Register the route in `router()` in `core/manager/src/main.rs`, then give it an 
 
 A type a route reads or returns derives `schemars::JsonSchema` beside its serde traits, and so does every type in its fields; its doc comments become the schema's descriptions. A type whose serde is written by hand implements `JsonSchema` by hand next to that code, as `Compose`, `Icon` and `Servers` do, and a type whose name another one already has gets `#[schemars(rename = "...")]`.
 
-`cargo test` holds the table to the router both ways. `every_served_route_is_documented_and_every_documented_route_is_served` in `core/manager/src/openapi_tests.rs` reads the paths from the router and asks each with a method nobody serves, so axum names the methods it has, and it lists every route without an entry, every entry for a route that is gone and every method on one side only. List the route in the table of `docs/API.md` as well, and describe its answer there.
+`cargo test` holds the table to the router both ways. `every_served_route_is_documented_and_every_documented_route_is_served` in `core/manager/src/openapi_tests.rs` reads the paths from the router and asks each with a method nobody serves, so axum names the methods it has, and it lists every route without an entry, every entry for a route that is gone and every method on one side only. List the route in the table of `docs/API.md` as well, and describe its answer there: `the_guides_endpoint_table_is_the_router` holds that table to the router the same way, by path and methods, whatever a row calls a parameter.
 
 ## Check a change
 
