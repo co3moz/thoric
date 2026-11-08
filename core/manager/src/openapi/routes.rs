@@ -7,8 +7,8 @@ use super::{
 use crate::{
     activity, api, apps, archives, audio, auth, backup, capture, changes, clipboard, compose,
     config, desktop_input, desktop_mcp, duplicate, exec, files, gamepad, human, icons, jobs, model,
-    notify, ocr, processes, recordings, terminal, transfers, uploads, usage, volumes, waits,
-    windows,
+    notify, ocr, processes, recordings, skills, terminal, transfers, uploads, usage, volumes,
+    waits, windows,
 };
 
 const GZIP: &str = "application/gzip";
@@ -676,6 +676,12 @@ pub(super) fn all() -> Vec<Route> {
             "The MCP inspector's WebSocket to one desktop server, endpoint or `/mcp`.",
         )
         .websocket(),
+        get(
+            "/api/skills",
+            MCP,
+            "The skills Thoric serves its agents: where the web serves each and which MCP servers offer it.",
+        )
+        .returns::<Vec<skills::Listed>>(),
         get("/api/mcp/endpoints", MCP, "The MCP endpoints."),
         post(
             "/api/mcp/endpoints",
@@ -847,6 +853,19 @@ pub(super) fn all() -> Vec<Route> {
             "HTTP or a WebSocket to a path of a port inside the desktop.",
         )
         .access(Access::McpToken),
+        get(
+            "/.well-known/agent-skills/index.json",
+            MCP,
+            "The skills as the Agent Skills discovery index lists them: name, description, url and digest of each `SKILL.md`.",
+        )
+        .access(Access::Public),
+        get(
+            "/.well-known/agent-skills/{name}/SKILL.md",
+            MCP,
+            "One skill's `SKILL.md`, as the repository holds it.",
+        )
+        .access(Access::Public)
+        .download("text/markdown"),
         get(
             "/healthz",
             INSTALLATION,

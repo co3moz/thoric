@@ -11,6 +11,7 @@ import { followLog, jobReadPath, logWentBack, type JobRead } from "./job-log"
 import { endpointApi } from "./mcp"
 import { creationEnded } from "./pending"
 import type { ScaleSet } from "./scale"
+import type { Skill } from "./skills"
 import type {
   Configuration,
   ContainerItem,
@@ -93,6 +94,15 @@ export const useConfiguration = () =>
   useQuery({
     queryKey: ["configuration"],
     queryFn: () => api<Configuration>("configuration"),
+    staleTime: Infinity,
+    meta: { quiet: true },
+  })
+
+/** The skills this manager serves its agents, which only a new manager changes. */
+export const useSkills = () =>
+  useQuery({
+    queryKey: ["skills"],
+    queryFn: () => api<Skill[]>("skills"),
     staleTime: Infinity,
     meta: { quiet: true },
   })

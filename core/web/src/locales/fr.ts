@@ -1889,6 +1889,15 @@ export const fr: Messages = {
   "mcp.connect.snippet.file": "Réglages",
   "mcp.connect.snippet.wsl": "Par WSL sous Windows",
   "mcp.connect.snippet.remote": "Par mcp-remote (Node.js)",
+  "mcp.connect.snippet.shell": "macOS, Linux et WSL",
+  "mcp.connect.snippet.powershell": "Windows PowerShell",
+  "mcp.connect.skills.title": "Compétences",
+  "mcp.connect.skills.description":
+    "Les compétences apprennent à l'agent à travailler avec ce serveur. Le serveur les propose aux clients qui lisent les ressources MCP, et un client charge aussi de lui-même une copie placée dans son dossier de compétences.",
+  "mcp.connect.skills.folder":
+    "{client} charge les compétences depuis {user}, ou depuis {project} dans un projet. Ces commandes les copient dans votre dossier personnel :",
+  "mcp.connect.skills.noFolder":
+    "{client} reçoit les compétences comme un envoi dans ses réglages, pas depuis un dossier. Chaque lien ci-dessus ouvre le SKILL.md d'une compétence.",
   "mcp.connect.hint.claude-code":
     "Lancez la commande dans votre projet, ou ajoutez {flag} pour utiliser le serveur dans chaque projet. Le {file} d'un projet partage l'entrée avec tous ceux qui y travaillent.",
   "mcp.connect.hint.codex":

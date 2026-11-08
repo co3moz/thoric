@@ -1,13 +1,14 @@
 //! `/mcp/<name>`: an endpoint's MCP service. It answers with the endpoint's tools, runs a
 //! container tool through the same code as the administrator's `/mcp`, bound to a granted
-//! container, and passes a desktop server's tool call on to that server.
+//! container, and passes a desktop server's tool call on to that server. A scale set's endpoint
+//! also serves the skills `skills::mcp` offers there as resources.
 use super::{
     client,
     endpoints::{ENDPOINTS, Endpoint},
     registry::{SERVERS, ServerRecord},
     scopes::{Target, catalog},
 };
-use crate::{App, activity, error, mcp};
+use crate::{App, activity, error, mcp, skills};
 use axum::{
     Json,
     body::Body,
@@ -18,8 +19,9 @@ use axum::{
 use rmcp::{
     ErrorData, RoleServer, ServerHandler,
     model::{
-        CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, Implementation,
-        ListToolsResult, PaginatedRequestParams, ServerCapabilities, ServerConfig,
+        CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, CustomRequest,
+        CustomResult, Implementation, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
+        ReadResourceRequestParams, ReadResourceResponse, ServerCapabilities, ServerConfig,
         SubscriptionFilter,
     },
     service::{NotificationContext, RequestContext, SubscriptionContext},
@@ -510,6 +512,17 @@ pub(super) fn set_instructions(app: &App, grant: &super::endpoints::Grant, set: 
     text
 }
 
+impl EndpointMcp {
+    /// The skills this endpoint offers: those for a scale set on a set's endpoint, none on a
+    /// container's.
+    fn skills(&self) -> Vec<&'static skills::Skill> {
+        match self.endpoint() {
+            Ok(endpoint) if endpoint.set().is_some() => skills::mcp::offered(skills::Server::Set),
+            _ => Vec::new(),
+        }
+    }
+}
+
 impl ServerHandler for EndpointMcp {
     fn get_info(&self) -> ServerConfig {
         let set = self
@@ -521,17 +534,48 @@ impl ServerHandler for EndpointMcp {
                     .map(|(grant, set)| set_instructions(&self.app, grant, set))
             })
             .unwrap_or_default();
-        ServerConfig::new(
-            ServerCapabilities::builder()
-                .enable_tools()
-                .enable_tool_list_changed()
-                .build(),
-        )
-        .with_server_info(Implementation::new(
-            format!("thoric-{}", self.name),
-            env!("CARGO_PKG_VERSION"),
-        ))
-        .with_instructions(format!("{GENERAL}{set}"))
+        let skills = self.skills();
+        let mut capabilities = ServerCapabilities::builder()
+            .enable_tools()
+            .enable_tool_list_changed()
+            .build();
+        skills::mcp::declare(&mut capabilities, &skills);
+        ServerConfig::new(capabilities)
+            .with_server_info(Implementation::new(
+                format!("thoric-{}", self.name),
+                env!("CARGO_PKG_VERSION"),
+            ))
+            .with_instructions(format!(
+                "{GENERAL}{set}{}",
+                skills::mcp::instructions(&skills)
+            ))
+    }
+    async fn list_resources(
+        &self,
+        request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListResourcesResult, ErrorData> {
+        if request.is_some_and(|r| r.cursor.is_some()) {
+            return Err(ErrorData::invalid_params(
+                "This resource list has no next page",
+                None,
+            ));
+        }
+        Ok(skills::mcp::resources(&self.skills()))
+    }
+    async fn read_resource(
+        &self,
+        request: ReadResourceRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ReadResourceResponse, ErrorData> {
+        skills::mcp::read(&self.skills(), &request.uri).map(Into::into)
+    }
+    async fn on_custom_request(
+        &self,
+        request: CustomRequest,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<CustomResult, ErrorData> {
+        skills::mcp::request(&self.skills(), request)
     }
     async fn list_tools(
         &self,

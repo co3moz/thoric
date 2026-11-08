@@ -59,6 +59,7 @@ mod request_log;
 mod resolution;
 mod scale;
 mod script_progress;
+mod skills;
 mod stages;
 mod terminal;
 mod transfers;
@@ -363,6 +364,7 @@ fn router(app: Arc<App>) -> Router {
         .route("/api/mcp/servers", get(desktop_mcp::all_servers))
         .route("/api/mcp/scopes", get(desktop_mcp::scopes_list))
         .route("/api/mcp/inspect", get(desktop_mcp::inspect))
+        .route("/api/skills", get(skills::list))
         .route(
             "/api/mcp/endpoints",
             get(desktop_mcp::endpoints).post(desktop_mcp::create_endpoint),
@@ -429,6 +431,12 @@ fn router(app: Arc<App>) -> Router {
         .route(
             "/api/containers/{id}/ports/{port}/{*path}",
             any(proxy::proxy),
+        )
+        // The skills are public in the repository, so a command copies one without a session.
+        .route("/.well-known/agent-skills/index.json", get(skills::index))
+        .route(
+            "/.well-known/agent-skills/{name}/SKILL.md",
+            get(skills::file),
         )
         .route("/healthz", get(|| async { "ok" }))
         .route("/readyz", get(health::ready))

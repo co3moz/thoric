@@ -35,6 +35,10 @@ export type SnippetKind =
   | "wsl"
   /** A settings entry that runs mcp-remote, for clients that start only local programs. */
   | "remote"
+  /** A command for a POSIX shell: macOS, Linux and WSL. */
+  | "shell"
+  /** A command for Windows PowerShell. */
+  | "powershell"
 
 export type Snippet = {
   kind: SnippetKind
@@ -71,6 +75,19 @@ export type McpClient = {
   /** A link that opens the client and adds the server, when the client has one. */
   install?: (target: ConnectTarget) => string
   snippets: (target: ConnectTarget) => Snippet[]
+  /** Where it loads Agent Skills from by itself, or `null` for a client without such a folder. */
+  skills: SkillsFolder | null
+}
+
+/**
+ * The folders a client reads skills from, a folder per skill named after it, as its own
+ * documentation names them.
+ */
+export type SkillsFolder = {
+  /** Every project's, from the user's home. */
+  user: string
+  /** One project's, from its root. */
+  project: string
 }
 
 const json = (value: unknown) => JSON.stringify(value, null, 2)
@@ -151,6 +168,7 @@ export const MCP_CLIENTS: McpClient[] = [
     id: "claude-code",
     name: "Claude Code",
     docs: "https://code.claude.com/docs/en/mcp",
+    skills: { user: "~/.claude/skills", project: ".claude/skills" },
     terms: { flag: "--scope user", file: ".mcp.json" },
     snippets: (target) => [
       {
@@ -177,6 +195,7 @@ export const MCP_CLIENTS: McpClient[] = [
     id: "codex",
     name: "Codex",
     docs: "https://learn.chatgpt.com/docs/extend/mcp?surface=cli",
+    skills: { user: "~/.agents/skills", project: ".agents/skills" },
     terms: { file: "config.toml" },
     // `codex mcp add` takes a token only from an environment variable, and `bearer_token` in the
     // file is refused, so the token goes in as a header; the command is for a server without one.
@@ -208,6 +227,7 @@ export const MCP_CLIENTS: McpClient[] = [
     id: "vscode",
     name: "VS Code",
     docs: "https://code.visualstudio.com/docs/copilot/customization/mcp-servers",
+    skills: { user: "~/.copilot/skills", project: ".github/skills" },
     terms: { file: ".vscode/mcp.json" },
     install: (target) =>
       `vscode:mcp/install?${encodeURIComponent(
@@ -228,6 +248,7 @@ export const MCP_CLIENTS: McpClient[] = [
     id: "copilot-cli",
     name: "Copilot CLI",
     docs: "https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers",
+    skills: { user: "~/.copilot/skills", project: ".github/skills" },
     snippets: (target) => [
       {
         kind: "command",
@@ -255,6 +276,7 @@ export const MCP_CLIENTS: McpClient[] = [
     id: "cursor",
     name: "Cursor",
     docs: "https://cursor.com/docs/context/mcp",
+    skills: { user: "~/.cursor/skills", project: ".cursor/skills" },
     install: (target) =>
       `cursor://anysphere.cursor-deeplink/mcp/install?name=${encodeURIComponent(
         target.name
@@ -272,6 +294,7 @@ export const MCP_CLIENTS: McpClient[] = [
     id: "opencode",
     name: "OpenCode",
     docs: "https://opencode.ai/docs/mcp-servers/",
+    skills: { user: "~/.config/opencode/skills", project: ".opencode/skills" },
     terms: { file: "opencode.json" },
     snippets: (target) => [
       {
@@ -298,6 +321,7 @@ export const MCP_CLIENTS: McpClient[] = [
     id: "gemini",
     name: "Gemini CLI",
     docs: "https://github.com/google-gemini/gemini-cli/blob/main/docs/tools/mcp-server.md",
+    skills: { user: "~/.gemini/skills", project: ".gemini/skills" },
     terms: { flag: "--scope user" },
     snippets: (target) => [
       {
@@ -322,6 +346,7 @@ export const MCP_CLIENTS: McpClient[] = [
     id: "devin",
     name: "Devin Desktop",
     docs: "https://docs.devin.ai/desktop/cascade/mcp",
+    skills: { user: "~/.config/devin/skills", project: ".devin/skills" },
     snippets: (target) => [
       {
         kind: "file",
@@ -341,6 +366,7 @@ export const MCP_CLIENTS: McpClient[] = [
     id: "zed",
     name: "Zed",
     docs: "https://zed.dev/docs/ai/mcp",
+    skills: { user: "~/.agents/skills", project: ".agents/skills" },
     snippets: (target) => [
       {
         kind: "file",
@@ -354,6 +380,7 @@ export const MCP_CLIENTS: McpClient[] = [
     id: "cline",
     name: "Cline",
     docs: "https://docs.cline.bot/mcp/configuring-mcp-servers",
+    skills: { user: "~/.cline/skills", project: ".cline/skills" },
     snippets: (target) => [
       {
         kind: "command",
@@ -384,6 +411,7 @@ export const MCP_CLIENTS: McpClient[] = [
     id: "kiro",
     name: "Kiro",
     docs: "https://kiro.dev/docs/mcp/configuration/",
+    skills: { user: "~/.kiro/skills", project: ".kiro/skills" },
     snippets: (target) => [
       {
         kind: "file",
@@ -397,6 +425,7 @@ export const MCP_CLIENTS: McpClient[] = [
     id: "amp",
     name: "Amp",
     docs: "https://ampcode.com/docs/customize/mcp",
+    skills: { user: "~/.config/agents/skills", project: ".agents/skills" },
     snippets: (target) => [
       {
         kind: "file",
@@ -412,6 +441,7 @@ export const MCP_CLIENTS: McpClient[] = [
     id: "claude-desktop",
     name: "Claude Desktop",
     docs: "https://modelcontextprotocol.io/docs/develop/connect-local-servers",
+    skills: null,
     snippets: (target) => [
       {
         kind: "wsl",
@@ -434,6 +464,7 @@ export const MCP_CLIENTS: McpClient[] = [
     id: "generic",
     name: "Other",
     docs: "https://modelcontextprotocol.io/clients",
+    skills: { user: "~/.agents/skills", project: ".agents/skills" },
     snippets: (target) => [
       {
         kind: "file",

@@ -167,6 +167,7 @@ A transfer ends when its client stops. A download of an image, volume or folder 
 | POST, DELETE | `/api/mcp/endpoints/{name}/token` | Create or replace an endpoint's token, returned once, or revoke it. |
 | GET | `/api/mcp/endpoints/{name}/tools` | The tools the endpoint offers, as its agents see them. |
 | GET | `/api/mcp/inspect` | The [MCP inspector](#the-mcp-inspector)'s WebSocket, which joins the dashboard to one desktop server, endpoint or `/mcp`. |
+| GET | `/api/skills` | The [skills](#skills) Thoric serves its agents: each one's `name`, `description`, `url`, `digest` and `size`, and the MCP `servers` that offer it, `root` for `/mcp` and `set` for a scale set's endpoints. |
 | Any | `/mcp/{name}` | An [MCP endpoint](#desktop-mcp-servers-and-endpoints): Streamable HTTP with its own token or the MCP token, not a session. |
 | GET | `/api/jobs` | Latest 100 job summaries. The manager keeps the newest 500 finished jobs and removes older ones; a running job is kept until it ends. |
 | GET | `/api/jobs/{job_id}` | Job status, log and result. Optional `wait_seconds`, `log_tail_bytes` and `log_offset` [wait for it and read part of its log](#follow-a-job). |
@@ -179,6 +180,8 @@ A transfer ends when its client stops. A download of an image, volume or folder 
 | GET | `/api/activity` | The [agent activity](#agent-activity) log: MCP tool calls and used transfer links, newest first, with filters and a cursor. |
 | GET | `/api/dependencies` | Every [dependency](#dependencies) the manager image was built from: interface packages, crates and infrastructure. `404` for a manager built without the list. |
 | GET | `/api/openapi.json` | This API as an [OpenAPI 3.1 document](#openapi-document): every route with its parameters, request bodies and what it needs. |
+| GET | `/.well-known/agent-skills/index.json` | The [skills](#skills) as the Agent Skills discovery index lists them; does not require sign-in. |
+| GET | `/.well-known/agent-skills/{name}/SKILL.md` | One skill's `SKILL.md`, `text/markdown`; does not require sign-in. |
 | GET | `/healthz` | Liveness: `ok` while the manager answers requests, without asking the database or Docker; does not require sign-in. The manager image's `HEALTHCHECK` and the WSL package's wait at start use it. |
 | GET | `/readyz` | Readiness: `200` with `{"ready": true, "database": true, "docker": true}` when the database answers a query and Docker answers its Engine socket's ping (or `docker version` where the manager has no socket), `503` with the failed check `false` otherwise. Each check gives up after two seconds, so a probe never hangs; the answer never says why a check failed. Does not require sign-in. |
 | GET | `/metrics` | Prometheus metrics in the text format 0.0.4 with `METRICS_TOKEN` as a bearer token, never the session; `404` while it is not set, `401` without it and `429` for an address that sent 20 wrong ones in a minute. See [Prometheus metrics](#prometheus-metrics). |
@@ -1146,6 +1149,24 @@ An address that is not ntfy, Discord, Slack or Telegram gets this JSON payload:
 | `backend` | The manager's crates from `cargo metadata` for the platform's target, `x86_64-unknown-linux-gnu` or `aarch64-unknown-linux-gnu`. `scope` is `runtime` for what is compiled into the binary, `build` for what only build scripts and procedural macros use, `development` for what only tests do, and `direct` whether `core/manager/Cargo.toml` names it. |
 | `infrastructure` | What the Dockerfiles, Compose manifests and workflows use. `kind` is `image`, `package` (an APT package, with `source`, the image of the stage that installs it), `tool`, `download` (a GitHub release), `action` (with `pin`, the commit it is pinned to) or `runner`, and `used_in` lists where: `manager`, `desktop`, `wsl`, `compose` or `ci`. |
 
+## Skills
+
+The skills of the repository's `docs/skills/`, such as `thoric-scale-sets`, are built into the manager, so each matches the tools of the release that serves it. The web serves them without a session, since every file is public in the repository: `GET /.well-known/agent-skills/index.json` is the index of the [Agent Skills discovery RFC](https://github.com/cloudflare/agent-skills-discovery-rfc) 0.2.0,
+
+```json
+{"$schema": "https://schemas.agentskills.io/discovery/0.2.0/schema.json",
+ "skills": [{"name": "thoric-scale-sets", "type": "skill-md", "description": "How to work through a Thoric scale set, ...",
+             "url": "/.well-known/agent-skills/thoric-scale-sets/SKILL.md", "digest": "sha256:..."}]}
+```
+
+and each `url` answers with the file, so one command copies a skill into an agent's skills folder:
+
+```bash
+mkdir -p ~/.claude/skills/thoric-scale-sets && curl -fsSL http://localhost:8080/.well-known/agent-skills/thoric-scale-sets/SKILL.md -o ~/.claude/skills/thoric-scale-sets/SKILL.md
+```
+
+The dashboard's **Add to a client** dialog writes that command for each client's own folder, for a POSIX shell and for PowerShell. Over MCP the same skills are resources of `/mcp` and of a scale set's endpoints, as [the MCP guide](MCP.md#skills) describes.
+
 ## OpenAPI document
 
 `GET /api/openapi.json` returns this API as an [OpenAPI 3.1](https://spec.openapis.org/oas/v3.1.0) document, which client generators and API tools read. It needs the session like the other routes here, so send the cookie, or nothing with `AUTH_MODE=none`:
@@ -1154,10 +1175,10 @@ An address that is not ntfy, Discord, Slack or Telegram gets this JSON payload:
 curl --cookie thoric.cookies http://localhost:8080/api/openapi.json > thoric-openapi.json
 ```
 
-The manager makes the document from its own code, so it describes the release that serves it. It lists every route of the [table above](#endpoints), with `/mcp`, the transfer links, the desktop ports, `/healthz`, `/readyz` and `/metrics`, and for each:
+The manager makes the document from its own code, so it describes the release that serves it. It lists every route of the [table above](#endpoints), with `/mcp`, the transfer links, the desktop ports, the skills, `/healthz`, `/readyz` and `/metrics`, and for each:
 
 - its path and query parameters and its request body. The JSON Schemas of the bodies and query strings are those of the types the manager reads them into, with their defaults and limits, and the shared ones are under `components.schemas`. A create request's features have no default there, since a request that leaves one out gets the installation's, which `GET /api/settings` reports.
-- what it needs: `session`, the cookie, with the `X-Thoric-Request` header on a change; `mcp`, `endpoint` or `metrics`, a bearer token; or nothing, for the session state, sign-in, `/healthz`, `/readyz` and transfer links, which the token in their path authorizes.
+- what it needs: `session`, the cookie, with the `X-Thoric-Request` header on a change; `mcp`, `endpoint` or `metrics`, a bearer token; or nothing, for the session state, sign-in, the skills, `/healthz`, `/readyz` and transfer links, which the token in their path authorizes.
 - what it answers: a JSON type where the manager answers with one, such as `JobStarted` (`{"job_id"}`) for a route that queues a job, a job, a compose or a build configuration; otherwise JSON that this guide describes. Every operation names the statuses of the [errors](#errors) table, from `400` to `504`, each with its meaning under `components.responses` and the body `Error`, `{"error": "..."}`, which the other statuses a route uses carry too; `/readyz` describes its own `503`, its checks with the failed one `false`. Every operation takes the optional `X-Request-Id` header and every answer names it, as [the start of this guide](#http-api) says.
 
 A route that answers with something other than one JSON value says how in `x-thoric-stream`: `download` for a file, an archive or a picture streamed as it is read, `upload` for a body the manager streams as it arrives, `event-stream` for `/api/events`, `websocket` for VNC, the audio channels and the MCP inspector, which OpenAPI describes only as their `101` answer, and `relay` for `/mcp`, the MCP endpoints, transfer links and desktop ports, which answer with what is behind them. Operation IDs come from the method and the path, such as `postContainersByIdFilesRead`.
