@@ -290,6 +290,8 @@ export const tr: Messages = {
     "Bir imajdan konteyner oluşturun. Katalog imajı, ilk kullandığınızda indirilir.",
   "containers.filter": "Konteynerleri filtrele",
   "containers.filterPlaceholder": "Ada göre filtrele",
+  "containers.refresh.label": "Önizlemeleri yenile",
+  "containers.refresh.seconds": "{seconds} sn'de bir",
   "containers.gone": "Bu konteyner artık yok",
   "containers.container": "Konteyner",
   "containers.setupUnfinished": "Kurulum tamamlanmadı",
