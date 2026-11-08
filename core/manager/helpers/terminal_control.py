@@ -3,15 +3,19 @@
 A terminal counts only in a folder of this user's own, as the runner makes it, and its files are
 opened without following links, so a root terminal's control touches nothing the desktop user
 prepared."""
-import base64
 import json
 import os
 import re
+import select
 import stat
 import sys
 import time
 
 ESCAPES = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b[@-Z\\-_]")
+# The most one write hands over, as the manager limits what is typed, plus the newline it adds.
+WRITE_LIMIT = 65536 + 1
+# How long a write waits for a runner whose program is not taking input.
+WRITE_WAIT = 5.0
 
 
 def ours(directory):
@@ -47,22 +51,51 @@ def read_file(path):
         return b""
 
 
-def write(directory, encoded):
+def write(directory, data):
+    """Hand DATA, what is typed, to the runner: at most WRITE_WAIT seconds for a runner whose
+    program takes no input, so a shell busy with a flood of output never holds this call."""
     info = status(directory)
     if info.get("state") != "running":
         raise RuntimeError("Terminal is not running")
-    descriptor = opened(os.path.join(directory, "input"), os.O_WRONLY)
+    descriptor = opened(os.path.join(directory, "input"), os.O_WRONLY | os.O_NONBLOCK)
     try:
-        os.write(descriptor, base64.b64decode(encoded))
+        deadline = time.monotonic() + WRITE_WAIT
+        while data:
+            try:
+                data = data[os.write(descriptor, data):]
+            except BlockingIOError:
+                if time.monotonic() > deadline:
+                    raise RuntimeError("The terminal is not taking input; its program is busy")
+                select.select([], [descriptor], [], 0.1)
     finally:
         os.close(descriptor)
     return status(directory)
 
 
-def read(directory, offset, limit, strip):
+def snapshot(directory):
+    """The status and both output files as of one moment: the runner appends to the output before
+    it records the new count, so the files are read again until the count has not moved."""
     info = status(directory)
-    old = read_file(os.path.join(directory, "output.1"))
-    new = read_file(os.path.join(directory, "output"))
+    old = new = b""
+    for _ in range(3):
+        old = read_file(os.path.join(directory, "output.1"))
+        new = read_file(os.path.join(directory, "output"))
+        again = status(directory)
+        if (again.get("written", 0), again.get("base", 0)) == (info.get("written", 0), info.get("base", 0)):
+            break
+        info = again
+    # What arrived after the count was recorded is not counted yet; it is read next time.
+    extra = len(old) + len(new) - info.get("written", 0)
+    if extra > 0:
+        if extra <= len(new):
+            new = new[:len(new) - extra]
+        else:
+            old, new = old[:len(old) - (extra - len(new))], b""
+    return info, old, new
+
+
+def read(directory, offset, limit, strip):
+    info, old, new = snapshot(directory)
     written = info.get("written", 0)
     start = written - len(old) - len(new)
     dropped = offset < start
@@ -109,7 +142,8 @@ try:
         # Every terminal of a list in one call, in the order asked.
         print(json.dumps([status(directory) for directory in arguments]))
     elif command == "write":
-        print(json.dumps(write(arguments[0], arguments[1])))
+        # What is typed arrives on stdin, never on a command line, which every process reads.
+        print(json.dumps(write(arguments[0], sys.stdin.buffer.read(WRITE_LIMIT + 1)[:WRITE_LIMIT])))
     elif command == "read":
         print(json.dumps(read(arguments[0], int(arguments[1]), int(arguments[2]), arguments[3] == "true")))
     elif command == "stop":

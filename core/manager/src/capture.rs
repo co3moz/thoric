@@ -183,7 +183,17 @@ fn place(options: &Capture, rects: &[Rect], width: u16) -> Placement {
     let desktop = rects.first().map(|&[_, _, width, height]| (width, height));
     let window = options.window_id.is_some();
     let base = if window {
-        rects.get(1).copied()
+        // The reader captures only the part of the window on the screen, from the screen's
+        // edge for a window dragged past it, so that part is where the pixels are.
+        rects.get(1).map(|&[left, top, width, height]| {
+            let (screen_width, screen_height) = desktop.unwrap_or((i64::MAX, i64::MAX));
+            let (right, bottom) = (
+                (left + width).min(screen_width),
+                (top + height).min(screen_height),
+            );
+            let (left, top) = (left.max(0), top.max(0));
+            [left, top, (right - left).max(0), (bottom - top).max(0)]
+        })
     } else {
         rects
             .first()

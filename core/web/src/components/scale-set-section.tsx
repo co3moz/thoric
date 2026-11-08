@@ -21,7 +21,7 @@ export function ScaleSetSection({
   instances: ContainerItem[]
   images: ImageItem[]
 }) {
-  const full = room(set) === 0
+  const full = room(set) === 0 || set.deleting === true
   return (
     <section className="flex flex-col gap-3" aria-label={t("scale.setOf", { name: set.name })}>
       <div className="flex flex-wrap items-center justify-between gap-2 px-4 lg:px-6">
@@ -31,6 +31,7 @@ export function ScaleSetSection({
           <Badge variant="outline">
             {t("scale.count", { count: set.instances.length, max: set.max })}
           </Badge>
+          {set.deleting && <Badge variant="secondary">{t("scale.deleting")}</Badge>}
           {set.endpoint_path && (
             <code className="font-mono text-xs text-muted-foreground">{set.endpoint_path}</code>
           )}

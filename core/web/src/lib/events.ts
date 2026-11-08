@@ -264,6 +264,9 @@ export function keepStream(options: StreamOptions) {
       // connection; the stream is closed and opened again here instead.
       error: () => {
         if (source !== current) return
+        // A stream that fails while the session holds, such as behind a proxy that does not
+        // carry server-sent events, is tried again at the same growing pace.
+        attempt += 1
         drop()
         schedule()
       },

@@ -97,6 +97,11 @@ pub(crate) struct ScaleSet {
     /// The MCP endpoint made for the set, whose tools take `instance`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub endpoint: Option<String>,
+    /// The set is being deleted with its instances: no instance is created, deleted on its own
+    /// or changed meanwhile, and the record goes once the last instance is gone, so the name
+    /// stays taken and a deletion that fails halfway leaves a set that is deleted again.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub deleting: bool,
 }
 
 /// One instance of a set.
@@ -400,8 +405,11 @@ pub(crate) fn idle_delete_due(
 ) -> Option<u32> {
     let minutes = set.idle_delete_minutes;
     let limit = std::time::Duration::from_secs(u64::from(minutes) * 60);
-    (minutes > 0 && !set.kept().contains(&number) && idle.is_some_and(|idle| idle >= limit))
-        .then_some(minutes)
+    (minutes > 0
+        && !set.deleting
+        && !set.kept().contains(&number)
+        && idle.is_some_and(|idle| idle >= limit))
+    .then_some(minutes)
 }
 
 /// A set as the dashboard and the tools show it, with its instances' containers when they are
@@ -435,6 +443,7 @@ pub(crate) fn summary(set: &ScaleSet, containers: &[Container]) -> Value {
         "servers": set.servers,
         "instances": instances,
         "endpoint": set.endpoint,
+        "deleting": set.deleting,
         "endpoint_path": set.endpoint.as_ref().map(|name| format!("/mcp/{name}")),
     })
 }
@@ -457,6 +466,7 @@ pub(crate) fn new_set(name: &str, spec: &ContainerSpec, scaling: &Scaling) -> Sc
         servers: server_policies(&scaling.servers),
         instances: BTreeMap::new(),
         endpoint: None,
+        deleting: false,
     }
 }
 

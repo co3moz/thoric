@@ -712,41 +712,56 @@ async fn fence(stream: &mut TcpStream) -> anyhow::Result<()> {
                 }
             }
             2 => {} // Bell.
+            // ServerCutText: a selection the request's typing made, or another call's
+            // set_clipboard, which may hold more than the input limit; it is read past, never
+            // kept, so the request that was applied is not failed for it.
             3 => {
                 let mut padding = [0; 3];
                 stream.read_exact(&mut padding).await?;
-                let length = stream.read_u32().await? as usize;
-                if length > 65536 {
-                    bail!("VNC clipboard message exceeds the input limit");
+                let length = u64::from(stream.read_u32().await?);
+                let read =
+                    tokio::io::copy(&mut (&mut *stream).take(length), &mut tokio::io::sink())
+                        .await?;
+                if read < length {
+                    bail!("The VNC connection closed during input acknowledgement");
                 }
-                let mut text = vec![0; length];
-                stream.read_exact(&mut text).await?;
             }
             message => bail!("Unexpected VNC message during input acknowledgement: {message}"),
         }
     }
 }
+/// Where the pointer is, read on the desktop's display with the display watched, as every
+/// command on it is: a display a program holds answers with the refusal that names it, not
+/// with Docker's timeout.
 async fn pointer_position(app: &App, env: &crate::model::Container) -> anyhow::Result<(u16, u16)> {
     let container = relative::docker_id(app, env).await?;
-    let output = app
-        .docker(&[
-            "exec",
-            "--user",
-            "desktop",
-            "--env",
-            "DISPLAY=:0",
-            &container,
-            "xdotool",
-            "getmouselocation",
-            "--shell",
-        ])
-        .await
-        .map_err(|e| {
-            anyhow::anyhow!(
-                "Relative pointer actions need the current pointer position, which requires xdotool in the desktop image; move or click with coordinates first: {e:#}"
-            )
-        })?;
-    relative::location(&String::from_utf8_lossy(&output))
+    let args = [
+        "exec",
+        "--user",
+        "desktop",
+        "--env",
+        "DISPLAY=:0",
+        &container,
+        "xdotool",
+        "getmouselocation",
+        "--shell",
+    ]
+    .map(str::to_owned);
+    // Long enough for the display to be looked at once the read has taken PATIENCE.
+    let reading = crate::process::capture(
+        app.command(&args),
+        relative::ALLOWANCE * 2,
+        64 * 1024,
+        crate::process::Overflow::Reject,
+    );
+    let output = crate::display::watched(app, &container, reading).await?;
+    if !output.status.success() {
+        bail!(
+            "Relative pointer actions need the current pointer position, which requires xdotool in the desktop image; move or click with coordinates first: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
+    relative::location(&String::from_utf8_lossy(&output.stdout))
         .context("Could not read the pointer position")
 }
 /// How a request's steps went while they were sent.
@@ -849,19 +864,21 @@ pub async fn perform(app: &Arc<App>, id: &str, actions: &[Action]) -> Result<Val
     })?;
     let env = app.container(id)?;
     let address = app.address(&env).await?;
-    let start = if needs_start_position(actions) {
-        Some(pointer_position(app, &env).await?)
-    } else {
-        None
-    };
-    // Each relative movement is a `docker exec` of its own, which takes time beyond its pauses.
+    // Each relative movement is a `docker exec` of its own, which takes time beyond its pauses,
+    // as the read of where the pointer starts does.
     let movements = actions
         .iter()
         .filter(|action| matches!(action, Action::MoveRelative { .. }))
-        .count() as u32;
+        .count() as u32
+        + 2 * u32::from(needs_start_position(actions));
     let limit =
         Duration::from_millis(MAX_TOTAL_DELAY_MS + 15_000) + relative::ALLOWANCE * movements;
     let result = tokio::time::timeout(limit, async {
+        let start = if needs_start_position(actions) {
+            Some(pointer_position(app, &env).await?)
+        } else {
+            None
+        };
         let (mut stream, width, height) = connect(&address).await?;
         let planned = plan(actions, width, height, start)?;
         let sent = send(app, &env, &mut stream, &planned, (width, height)).await?;

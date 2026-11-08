@@ -106,6 +106,32 @@ pub(crate) fn removable(
     (free, shared)
 }
 
+impl App {
+    /// Of `volumes`, those a scale set shares in the instances it creates from now on, each
+    /// with the set's name: they stay when the container that made them goes, also as its last
+    /// instance. Every set and template is read, since a record that does not read may be the
+    /// one that shares a volume.
+    pub(crate) fn shared_by_sets(
+        &self,
+        volumes: &[String],
+    ) -> anyhow::Result<std::collections::HashMap<String, String>> {
+        if volumes.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+        let sets = self
+            .db
+            .list_complete::<crate::scale::ScaleSet>(crate::scale::SETS)?;
+        let templates = crate::scale::templates(self)?;
+        Ok(volumes
+            .iter()
+            .filter_map(|name| {
+                crate::scale::mounting(&sets, &templates, name)
+                    .map(|set| (name.clone(), set.name.clone()))
+            })
+            .collect())
+    }
+}
+
 /// Add `owner` to each line of `docker volume ls`: for a volume created for a container, its
 /// `container_id`, the `parameter` it was created for, and the container's `name` while its
 /// record exists, or `deleted`; `null` for any other volume.

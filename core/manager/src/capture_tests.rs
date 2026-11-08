@@ -162,6 +162,26 @@ fn a_screenshot_says_where_its_pixels_are_on_the_desktop() {
             100,
             (Some(1.0), Some((410, 150))),
         ),
+        // A window dragged past the screen's edges is captured from the edge, so its pixels
+        // start there, and a region within it from the part on the screen.
+        (
+            capture(None, None, true),
+            &[[0, 0, 1920, 1080], [-100, -50, 800, 600]][..],
+            700,
+            (Some(1.0), Some((0, 0))),
+        ),
+        (
+            capture(Some(210), None, true),
+            &[[0, 0, 1920, 1080], [1500, 900, 800, 600]][..],
+            210,
+            (Some(0.5), Some((1500, 900))),
+        ),
+        (
+            capture(None, Some("10,20,100,50"), true),
+            &[[0, 0, 1920, 1080], [-100, -50, 800, 600]][..],
+            100,
+            (Some(1.0), Some((10, 20))),
+        ),
         // Without xwininfo a window's place is unknown, and so is a scale that max_width chose.
         (capture(Some(400), None, true), &[][..], 400, (None, None)),
         (capture(None, None, true), &[][..], 800, (Some(1.0), None)),

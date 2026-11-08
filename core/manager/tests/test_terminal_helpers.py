@@ -3,7 +3,6 @@ files are gone marked so, a closed terminal that always ends, even a shell that 
 hangup, and leaves no files behind, and terminals kept in a folder of the user's own that nothing
 another user prepared, such as a link, takes the place of."""
 
-import base64
 import json
 import os
 from pathlib import Path
@@ -19,11 +18,17 @@ RUNNER = HELPERS / "terminal_runner.py"
 CONTROL = HELPERS / "terminal_control.py"
 
 
-def control(*arguments):
-    result = subprocess.run([sys.executable, str(CONTROL), *arguments], capture_output=True, text=True, timeout=30)
+def control(*arguments, stdin=b""):
+    result = subprocess.run([sys.executable, str(CONTROL), *arguments], input=stdin, capture_output=True, timeout=30)
     if result.returncode != 0:
-        raise AssertionError(result.stderr)
+        raise AssertionError(result.stderr.decode())
     return json.loads(result.stdout)
+
+
+def write_status(directory, **state):
+    """A status file as the runner writes it, for a read that races the runner's own writes."""
+    (directory / "status").write_text(json.dumps({"state": "running", "pid": 1, "exit_code": None,
+                                                  "signal": None, "started_at": 1, **state}))
 
 
 class TerminalTest(unittest.TestCase):
@@ -45,7 +50,61 @@ class TerminalTest(unittest.TestCase):
         return directory, runner
 
     def type(self, directory, text):
-        control("write", str(directory), base64.b64encode(text.encode()).decode())
+        # What is typed goes on stdin, never on the command line.
+        control("write", str(directory), stdin=text.encode())
+
+    def test_what_is_typed_is_not_on_the_helpers_command_line(self):
+        directory, _ = self.open("typed")
+        result = subprocess.run([sys.executable, str(CONTROL), "write", str(directory), "hunter2"],
+                                input=b"echo typed\n", capture_output=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        deadline = time.monotonic() + 10
+        while "typed" not in control("read", str(directory), "0", "65536", "true")["output"]:
+            self.assertLess(time.monotonic(), deadline, "the shell did not answer")
+            time.sleep(0.1)
+        # An extra argument is not what is typed.
+        self.assertNotIn("hunter2", control("read", str(directory), "0", "65536", "true")["output"])
+
+    def test_a_flood_of_output_never_holds_the_terminal_against_its_stop(self):
+        """A program that prints without reading its input fills the pty's input queue; input
+        waits in the runner instead of blocking it, so the stop still ends the terminal."""
+        directory, runner = self.open("flood")
+        self.type(directory, "yes\n")
+        time.sleep(0.5)
+        for _ in range(3):
+            try:
+                self.type(directory, "x" * 65536)
+            except AssertionError as error:
+                self.assertIn("not taking input", str(error))
+                break
+        started = time.monotonic()
+        status = control("stop", str(directory), "10")
+        self.assertEqual(status["state"], "exited")
+        self.assertLess(time.monotonic() - started, 9)
+        self.assertFalse(directory.exists())
+        self.assertEqual(runner.wait(10), 0)
+
+    def test_a_read_that_races_the_runner_starts_where_it_was_asked(self):
+        """The runner appends to the output before it records the new count, so a read between
+        the two sees more bytes than the count says; what the count does not cover waits."""
+        directory = self.parent / "racing"
+        directory.mkdir(parents=True)
+        (directory / "output").write_bytes(b"0123456789" + b"abcde")
+        write_status(directory, written=10, base=0)
+        read = control("read", str(directory), "0", "65536", "false")
+        self.assertEqual((read["output"], read["offset"], read["next_offset"], read["dropped"]), ("0123456789", 0, 10, False))
+        read = control("read", str(directory), "4", "3", "false")
+        self.assertEqual((read["output"], read["offset"], read["next_offset"], read["more"]), ("456", 4, 7, True))
+        # Once the count covers them, the bytes that arrived meanwhile follow at their offset.
+        write_status(directory, written=15, base=0)
+        read = control("read", str(directory), "10", "65536", "false")
+        self.assertEqual((read["output"], read["offset"], read["next_offset"]), ("abcde", 10, 15))
+        # A rotation in between: the old file is complete, the new one ahead of the count.
+        (directory / "output.1").write_bytes(b"0123456789abcde")
+        (directory / "output").write_bytes(b"fgh")
+        write_status(directory, written=15, base=15)
+        read = control("read", str(directory), "12", "65536", "false")
+        self.assertEqual((read["output"], read["offset"], read["next_offset"], read["more"]), ("cde", 12, 15, False))
 
     def test_one_call_reports_every_terminal_in_order(self):
         first, _ = self.open("first")

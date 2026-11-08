@@ -132,6 +132,12 @@ pub async fn update_set(
     let lock = scale::lock(&app, &name);
     let _held = lock.lock().await;
     let mut set = load(&app, &name)?;
+    if set.deleting {
+        return Err(Error(
+            StatusCode::CONFLICT,
+            format!("The scale set {name} is being deleted with its instances"),
+        ));
+    }
     let min = body.min.unwrap_or(set.min);
     let max = body.max.unwrap_or(set.max);
     let idle = body.idle_delete_minutes.unwrap_or(set.idle_delete_minutes);

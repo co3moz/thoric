@@ -14,7 +14,7 @@ use crate::{
     model::{CONTAINERS, Container, LABEL},
     reported::Reported,
 };
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use serde_json::{Value, json};
 use std::{
     collections::{HashMap, HashSet},
@@ -324,8 +324,20 @@ async fn carried_out(app: &App, record: &Container, due: Due, job_id: &str) -> R
                     "Deleting \"{name}\": nothing used this instance of its scale set for {minutes} minutes."
                 ),
             )?;
-            let removed = app.remove_container(record, job_id, true).await?;
-            Ok(crate::api::removal(id, name, true, removed))
+            // Out of the set under its lock first, where the count is read again: a deletion
+            // asked for meanwhile sees this instance gone, so the set keeps its minimum.
+            let sets = crate::scale::all(app)?;
+            let (set, number) = crate::scale::instance_of(&sets, id)
+                .map(|(set, number)| (set.name.clone(), number))
+                .context("The container is no longer an instance of a scale set")?;
+            let instance = crate::scale::instances::take_out(app, &set, number, true).await?;
+            match app.remove_container(record, job_id, true).await {
+                Ok(removed) => Ok(crate::api::removal(id, name, true, removed)),
+                Err(error) => {
+                    crate::scale::instances::put_back(app, &set, number, instance).await?;
+                    Err(error)
+                }
+            }
         }
         Due::Expiry(OnExpiry::Delete) => {
             app.append_log(job_id, &format!("\"{name}\" expired; deleting it."))?;

@@ -237,6 +237,10 @@ impl App {
         let mut waiting = Vec::new();
         for container in &records.containers {
             let name = &container.spec.name;
+            // Restored counts as used: a container nothing noted since the manager started
+            // would be idle for the manager's whole uptime, and a scale set's instance beyond
+            // its minimum deleted, with its volumes, by the next round of the reaper.
+            self.lifecycle.touch(&container.id);
             if let Some(reason) = skipped.get(&container.id) {
                 self.append_log(job_id, &format!("\"{name}\": {reason}"))?;
                 waiting.push(json!({"id": container.id, "name": name, "reason": reason}));

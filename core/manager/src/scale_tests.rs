@@ -217,3 +217,45 @@ fn the_summary_names_instances_without_the_templates_secrets() {
             .contains("secret-value")
     );
 }
+
+#[test]
+fn a_set_being_deleted_refuses_every_change_of_its_instances() {
+    use crate::scale::instances::refusal;
+    let mut set = set_with(&[1, 2, 3], 1, 4);
+    set.idle_delete_minutes = 30;
+    set.deleting = true;
+    assert!(refusal(&set, 2, true).unwrap().contains("being deleted"));
+    assert!(refusal(&set, 2, false).unwrap().contains("being deleted"));
+    assert_eq!(
+        idle_delete_due(&set, 3, Some(Duration::from_secs(3600))),
+        None
+    );
+    assert_eq!(summary(&set, &[])["deleting"], true);
+    // The mark is not saved for a set that is not being deleted, so older records read as it.
+    set.deleting = false;
+    assert!(!serde_json::to_string(&set).unwrap().contains("deleting"));
+    assert_eq!(summary(&set, &[])["deleting"], false);
+}
+
+#[tokio::test]
+async fn an_instance_leaves_its_set_before_its_container_so_the_minimum_holds() {
+    use crate::scale::instances::{put_back, take_out};
+    let app = crate::test_support::app(false);
+    app.db.put(SETS, "re", &set_with(&[1, 2, 3], 2, 4)).unwrap();
+    // Two deletions read the count one after another: the second finds the first's instance
+    // gone and the set at its minimum.
+    let taken = take_out(&app, "re", 3, false).await.unwrap();
+    assert_eq!(taken.container_id, "c3");
+    let refused = take_out(&app, "re", 2, false).await.unwrap_err();
+    assert!(
+        refused.to_string().contains("lower its minimum"),
+        "{refused}"
+    );
+    let saved: ScaleSet = app.db.get(SETS, "re").unwrap();
+    assert_eq!(saved.instances.keys().copied().collect::<Vec<_>>(), [1, 2]);
+    // A deletion that failed gives the instance back, and the set counts it again.
+    put_back(&app, "re", 3, taken).await.unwrap();
+    let saved: ScaleSet = app.db.get(SETS, "re").unwrap();
+    assert_eq!(saved.instances[&3].container_id, "c3");
+    assert!(take_out(&app, "re", 2, false).await.is_ok());
+}

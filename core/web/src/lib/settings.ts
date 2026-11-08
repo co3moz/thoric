@@ -151,7 +151,8 @@ export type Choice = { value: string; label?: MessageKey }
 /** How the Settings page edits a setting the manager marks editable. */
 export type Field =
   | { kind: "switch" }
-  | { kind: "number"; min: number; max: number }
+  /** A whole number, shown with its `unit` when it has one: a size in MiB or a time in minutes. */
+  | { kind: "number"; min: number; max: number; unit?: "mib" | "minutes" }
   | { kind: "text"; placeholder?: string }
   /** A few values, and `other` to type one, with `placeholder` in its field. */
   | { kind: "choice"; choices: Choice[]; placeholder?: string }
@@ -206,9 +207,9 @@ export const FIELDS: Record<string, Field> = {
   PROFILER_DEFAULT: { kind: "switch" },
   KVM_DEFAULT: { kind: "switch" },
   // Minutes, 0 for never; the manager takes up to a week.
-  IDLE_STOP_DEFAULT: { kind: "number", min: 0, max: 10080 },
-  UPLOAD_MAX_MB: { kind: "number", min: 1, max: 65536 },
-  IMAGE_ARCHIVE_MAX_MB: { kind: "number", min: 1, max: 1048576 },
+  IDLE_STOP_DEFAULT: { kind: "number", min: 0, max: 10080, unit: "minutes" },
+  UPLOAD_MAX_MB: { kind: "number", min: 1, max: 65536, unit: "mib" },
+  IMAGE_ARCHIVE_MAX_MB: { kind: "number", min: 1, max: 1048576, unit: "mib" },
   TEMPLATES_URL: {
     kind: "choice",
     choices: [

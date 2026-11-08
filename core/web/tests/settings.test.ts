@@ -130,6 +130,17 @@ test("every control the page has is for a setting the manager lets it change", (
   for (const field of Object.values(FIELDS))
     if (field.kind === "choice")
       for (const choice of field.choices) if (choice.label) assert.ok(choice.label in en)
+  // A number's unit is the setting's: a size in MiB is named so, and nothing else is.
+  for (const [name, field] of Object.entries(FIELDS))
+    if (field.kind === "number") assert.equal(field.unit === "mib", name.endsWith("_MB"), name)
+  assert.equal(
+    FIELDS.IDLE_STOP_DEFAULT.kind === "number" && FIELDS.IDLE_STOP_DEFAULT.unit,
+    "minutes"
+  )
+  assert.equal(
+    FIELDS.DESKTOP_PIDS_LIMIT.kind === "number" && FIELDS.DESKTOP_PIDS_LIMIT.unit,
+    undefined
+  )
 })
 
 test("a setting starts from the text its environment gave, or what the manager made of it", () => {

@@ -142,6 +142,9 @@ pub(crate) async fn make_set_of(
         proxy_password: app.proxy_password(id),
     };
     let endpoint = save_new(app, &mut set, &template, endpoint).await?;
+    // Made scalable counts as used, so a set that keeps no instance does not lose its first for
+    // the time the container went unused before it was one.
+    app.lifecycle.touch(id);
     // The container may run, with connections to a server instance 1 now runs for the set.
     crate::desktop_mcp::servers_changed(app, &BTreeMap::new(), &set);
     Ok((set, endpoint))
@@ -207,6 +210,12 @@ pub(crate) async fn grow(
         let lock = lock(&app, set);
         let _held = lock.lock().await;
         let mut record = load(&app, set)?;
+        if record.deleting {
+            return Err(Error(
+                StatusCode::CONFLICT,
+                format!("The scale set {set} is being deleted with its instances"),
+            ));
+        }
         let Some(number) = record.free_number() else {
             return Err(Error(
                 StatusCode::CONFLICT,
@@ -423,9 +432,15 @@ fn next(
     Box::pin(async move { grow(app, &set, BTreeMap::new(), String::new()).await })
 }
 
-/// Why deleting instance `number` of `set` is refused, if it is: the set keeps its minimum, and
-/// an agent leaves the instances it keeps alone.
+/// Why deleting instance `number` of `set` is refused, if it is: the set keeps its minimum, an
+/// agent leaves the instances it keeps alone, and a set being deleted deletes them itself.
 pub(crate) fn refusal(set: &ScaleSet, number: u32, agent: bool) -> Option<String> {
+    if set.deleting {
+        return Some(format!(
+            "The scale set {} is being deleted with its instances",
+            set.name
+        ));
+    }
     if !set.instances.contains_key(&number) {
         return Some(format!(
             "The scale set {} has no instance {number}",
@@ -467,17 +482,22 @@ pub(crate) fn shrink(app: Arc<App>, set: &str, number: u32, agent: bool) -> Resu
         SCALE_DOWN,
         format!("container:{id}"),
         move |app, job_id| async move {
-            // Read again under the container's lock, which the job holds.
-            let record = load(&app, &owner).map_err(|error| anyhow!(error.1))?;
-            if let Some(refusal) = refusal(&record, number, agent) {
-                anyhow::bail!(refusal);
-            }
+            // Checked again under the set's lock, where the instance leaves the record: two
+            // deletions never read the same count.
+            let instance = take_out(&app, &owner, number, agent).await?;
             let env = app.container(&id).map_err(|error| anyhow!(error.1))?;
-            let removed = app.remove_container(&env, &job_id, true).await?;
-            let mut result = crate::api::removal(&id, &name, true, removed);
-            result["set"] = json!(owner);
-            result["instance"] = json!(number);
-            Ok(result)
+            match app.remove_container(&env, &job_id, true).await {
+                Ok(removed) => {
+                    let mut result = crate::api::removal(&id, &name, true, removed);
+                    result["set"] = json!(owner);
+                    result["instance"] = json!(number);
+                    Ok(result)
+                }
+                Err(error) => {
+                    put_back(&app, &owner, number, instance).await?;
+                    Err(error)
+                }
+            }
         },
     )?;
     answer["set"] = json!(set);
@@ -485,25 +505,78 @@ pub(crate) fn shrink(app: Arc<App>, set: &str, number: u32, agent: bool) -> Resu
     Ok(answer)
 }
 
+/// Take instance `number` out of the record of `set`, under the set's lock, once nothing refuses
+/// its deletion: from then on the set no longer counts it, so a second deletion that reads the
+/// count meanwhile sees it gone and the set never goes below its minimum. Answers the instance,
+/// to put back should the deletion fail.
+pub(crate) async fn take_out(
+    app: &App,
+    set: &str,
+    number: u32,
+    agent: bool,
+) -> anyhow::Result<Instance> {
+    let lock = lock(app, set);
+    let _held = lock.lock().await;
+    let mut record = load(app, set).map_err(|error| anyhow!(error.1))?;
+    if let Some(refusal) = refusal(&record, number, agent) {
+        anyhow::bail!(refusal);
+    }
+    let instance = record
+        .instances
+        .remove(&number)
+        .context("refusal checks the number")?;
+    app.db.put(SETS, set, &record)?;
+    crate::desktop_mcp::announce_set(app, set);
+    Ok(instance)
+}
+
+/// Put an instance whose deletion failed back into its set, which counts it again.
+pub(crate) async fn put_back(
+    app: &App,
+    set: &str,
+    number: u32,
+    instance: Instance,
+) -> anyhow::Result<()> {
+    let lock = lock(app, set);
+    let _held = lock.lock().await;
+    let Ok(mut record) = load(app, set) else {
+        return Ok(());
+    };
+    record.instances.entry(number).or_insert(instance);
+    app.db.put(SETS, set, &record)?;
+    crate::desktop_mcp::announce_set(app, set);
+    Ok(())
+}
+
 /// Start deleting `set`: every instance with the volumes made for it, the set's MCP endpoint and
-/// its template. The volumes the instances share stay.
+/// its template. The volumes the instances share stay. The record is marked and stays until the
+/// last instance is gone, so the name stays taken, nothing creates or deletes an instance
+/// meanwhile, and a deletion that fails halfway leaves a set that is deleted again.
 pub(crate) async fn delete_set(app: Arc<App>, set: &str) -> Result<Value> {
-    // Out of the record first, so no instance is created meanwhile and an agent's call finds
-    // nothing; the job goes through the instances it had.
-    let record = {
+    let members = {
         let lock = lock(&app, set);
         let _held = lock.lock().await;
-        let record = load(&app, set)?;
-        app.db.remove(SETS, set)?;
-        record
+        let mut record = load(&app, set)?;
+        if record.deleting
+            && app.db.active_jobs()?.iter().any(|job| {
+                job.kind == SET_DELETE && job.resource.as_deref() == Some(&resource(set))
+            })
+        {
+            return Err(Error(
+                StatusCode::CONFLICT,
+                format!("The scale set {set} is being deleted already"),
+            ));
+        }
+        record.deleting = true;
+        app.db.put(SETS, set, &record)?;
+        record.instances
     };
-    let template: Option<Template> = app.db.get(TEMPLATES, set).ok();
+    crate::desktop_mcp::announce_set(&app, set);
     let owner = set.to_owned();
-    let members = record.instances.clone();
     let started = crate::jobs::launch(
         app.clone(),
         SET_DELETE,
-        format!("scale-set-delete:{set}"),
+        resource(set),
         move |app, job_id| async move {
             let mut deleted = Vec::new();
             for (number, instance) in &members {
@@ -525,7 +598,12 @@ pub(crate) async fn delete_set(app: Arc<App>, set: &str) -> Result<Value> {
                 app.remove_container(&env, &job_id, true).await?;
                 deleted.push(*number);
             }
-            app.db.remove(TEMPLATES, &owner)?;
+            {
+                let lock = lock(&app, &owner);
+                let _held = lock.lock().await;
+                app.db.remove(SETS, &owner)?;
+                app.db.remove(TEMPLATES, &owner)?;
+            }
             crate::desktop_mcp::forget_set(&app, &owner)?;
             app.append_log(
                 &job_id,
@@ -538,11 +616,18 @@ pub(crate) async fn delete_set(app: Arc<App>, set: &str) -> Result<Value> {
         Ok(Json(answer)) => Ok(answer),
         Err(error) => {
             // Nothing was deleted: the set comes back as it was.
-            app.db.put(SETS, set, &record)?;
-            if let Some(template) = template {
-                app.db.put(TEMPLATES, set, &template)?;
+            let lock = lock(&app, set);
+            let _held = lock.lock().await;
+            if let Ok(mut record) = load(&app, set) {
+                record.deleting = false;
+                app.db.put(SETS, set, &record)?;
             }
             Err(error)
         }
     }
+}
+
+/// The resource a set's deletion job holds.
+fn resource(set: &str) -> String {
+    format!("scale-set-delete:{set}")
 }

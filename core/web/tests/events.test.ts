@@ -155,6 +155,7 @@ function harness({ hidden = false, holds = async () => true as boolean } = {}) {
   const opened: { handlers: Handlers; closed: boolean }[] = []
   const seen: string[] = []
   const docker: (boolean | undefined)[] = []
+  const attempts: number[] = []
   let change = () => {}
   const state = { hidden }
   const stop = keepStream({
@@ -171,7 +172,10 @@ function harness({ hidden = false, holds = async () => true as boolean } = {}) {
     onLive: (live) => seen.push(live ? "live" : "down"),
     check: holds,
     hiddenFor: 0,
-    delay: () => 0,
+    delay: (attempt) => {
+      attempts.push(attempt)
+      return 0
+    },
     visibility: {
       hidden: () => state.hidden,
       listen: (listener) => {
@@ -184,6 +188,7 @@ function harness({ hidden = false, holds = async () => true as boolean } = {}) {
     opened,
     seen,
     docker,
+    attempts,
     stop,
     last: () => opened[opened.length - 1],
     send: (data: object) => opened[opened.length - 1].handlers.message(JSON.stringify(data)),
@@ -238,6 +243,23 @@ describe("keeping the stream", () => {
     // A page that fell behind reads everything again too.
     stream.send({ type: "resync" })
     expect(stream.seen.at(-1)).toBe("resumed")
+    stream.stop()
+  })
+
+  test("waits longer after each stream that fails while the session holds, until one is ready", async () => {
+    const stream = harness()
+    for (let failed = 0; failed < 3; failed++) {
+      stream.last().handlers.error()
+      await settle()
+    }
+    expect(stream.opened.length).toBe(4)
+    // Each failure is one more attempt, so a stream a proxy cuts off is not reopened every
+    // second; a stream that is ready starts again from the first.
+    expect(stream.attempts).toEqual([1, 2, 3])
+    stream.send({ type: "ready" })
+    stream.last().handlers.error()
+    await settle()
+    expect(stream.attempts.at(-1)).toBe(1)
     stream.stop()
   })
 

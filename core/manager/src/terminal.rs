@@ -10,7 +10,6 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
 };
-use base64::{Engine, engine::general_purpose::STANDARD};
 use rmcp::schemars::{self, JsonSchema};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -151,14 +150,30 @@ fn first(statuses: Value) -> Option<Value> {
     statuses.as_array()?.first().cloned()
 }
 async fn control(app: &App, container: &str, who: &str, arguments: &[&str]) -> Result<Value> {
-    let mut args = vec!["exec", "--user", who, container, "python3", "-c", CONTROL];
+    control_input(app, container, who, arguments, None).await
+}
+/// [`control`] with `input` on the helper's stdin: what is typed into a terminal goes that way,
+/// never on a command line, which every process in the desktop reads.
+async fn control_input(
+    app: &App,
+    container: &str,
+    who: &str,
+    arguments: &[&str],
+    input: Option<Vec<u8>>,
+) -> Result<Value> {
+    let mut args = vec!["exec"];
+    if input.is_some() {
+        args.push("--interactive");
+    }
+    args.extend(["--user", who, container, "python3", "-c", CONTROL]);
     args.extend(arguments);
     let args = args.iter().map(|s| s.to_string()).collect::<Vec<_>>();
-    let output = process::capture(
+    let output = process::capture_input(
         app.command(&args),
         Duration::from_secs(60),
         1_048_576,
         process::Overflow::Reject,
+        input,
     )
     .await?;
     if !output.status.success() {
@@ -254,11 +269,12 @@ pub async fn terminal_input(
     if body.press_enter {
         text.push('\n');
     }
-    let status = control(
+    let status = control_input(
         app,
         container,
         user(&record),
-        &["write", &directory(&record), &STANDARD.encode(text)],
+        &["write", &directory(&record)],
+        Some(text.into_bytes()),
     )
     .await?;
     Ok(describe(&record, status))

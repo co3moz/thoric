@@ -1194,6 +1194,7 @@ export const fr: Messages = {
   "settings.edit.changed": "Modifié",
   "settings.edit.reset": "Annuler la modification de {name}",
   "settings.edit.mib": "Mio",
+  "settings.edit.minutes": "minutes",
   "settings.edit.changes.one": "{count} paramètre modifié",
   "settings.edit.changes.other": "{count} paramètres modifiés",
   "settings.edit.discard": "Abandonner",
@@ -2342,4 +2343,5 @@ export const fr: Messages = {
   "scale.instanceOf": "Instance {number} de {set}",
   "scale.setOf": "Groupe évolutif {name}",
   "scale.count": "{count} sur {max}",
+  "scale.deleting": "Suppression en cours",
 }

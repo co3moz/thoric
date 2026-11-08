@@ -300,7 +300,7 @@ fn the_dashboard_offers_the_idle_stops_the_manager_takes() {
     assert!(lifecycle.contains(&format!("MAX_IDLE_MINUTES = {MAX_IDLE_MINUTES}\n")));
     let settings = include_str!("../../web/src/lib/settings.ts");
     assert!(settings.contains(&format!(
-        "IDLE_STOP_DEFAULT: {{ kind: \"number\", min: 0, max: {MAX_IDLE_MINUTES} }}"
+        "IDLE_STOP_DEFAULT: {{ kind: \"number\", min: 0, max: {MAX_IDLE_MINUTES}, unit: \"minutes\" }}"
     )));
 }
 
