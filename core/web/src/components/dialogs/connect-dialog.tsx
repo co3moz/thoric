@@ -30,7 +30,8 @@ import {
   type McpClient,
   type Snippet,
 } from "@/lib/mcp-connect"
-import { useConfiguration, useMcpEndpoints } from "@/lib/queries"
+import { useConfiguration, useMcpEndpoints, useSkills } from "@/lib/queries"
+import { skillCommands, skillServer, skillsFor, type Skill } from "@/lib/skills"
 import type { DialogProps } from "./side-drawer"
 
 const CLIENT_KEY = "thoric.mcp.client"
@@ -79,10 +80,67 @@ function SnippetBlock({ snippet }: { snippet: Snippet }) {
 }
 
 /**
- * What each MCP client needs to reach `target`: a choice of client, then the link, the command or
- * the settings to copy. Everything is made here, in the browser; nothing is sent to the manager.
+ * The skills an agent of this server should have, for `client`: each one's link, the client's
+ * skills folder and the commands that copy them there from this dashboard's address.
  */
-export function ClientSetup({ target }: { target: ConnectTarget }) {
+function SkillsSetup({ client, skills }: { client: McpClient; skills: Skill[] }) {
+  const id = React.useId()
+  const folder = client.skills
+  const code = (path: string) => <code className="font-mono text-xs text-foreground">{path}/</code>
+  return (
+    <section aria-labelledby={`${id}-skills`} className="flex min-w-0 flex-col gap-3 border-t pt-4">
+      <div className="flex flex-col gap-1">
+        <h3 id={`${id}-skills`} className="text-sm font-medium">
+          {t("mcp.connect.skills.title")}
+        </h3>
+        <p className="text-sm text-muted-foreground">{t("mcp.connect.skills.description")}</p>
+      </div>
+      <ul className="flex min-w-0 flex-col gap-2">
+        {skills.map((skill) => (
+          <li key={skill.name} className="flex min-w-0 flex-col gap-0.5">
+            <a
+              href={skill.url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 self-start font-mono text-xs break-all underline-offset-4 hover:underline"
+            >
+              {skill.name}
+              <RiExternalLinkLine className="size-3.5 shrink-0" aria-hidden />
+            </a>
+            <span className="line-clamp-2 text-xs text-muted-foreground" title={skill.description}>
+              {skill.description}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {folder ? (
+        <>
+          <p className="text-sm text-muted-foreground">
+            {rich("mcp.connect.skills.folder", {
+              client: clientName(client),
+              user: code(folder.user),
+              project: code(folder.project),
+            })}
+          </p>
+          {skillCommands(folder, location.origin, skills).map((snippet) => (
+            <SnippetBlock key={`${client.id}-${snippet.kind}`} snippet={snippet} />
+          ))}
+        </>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          {t("mcp.connect.skills.noFolder", { client: clientName(client) })}
+        </p>
+      )}
+    </section>
+  )
+}
+
+/**
+ * What each MCP client needs to reach `target`: a choice of client, then the link, the command or
+ * the settings to copy, and the skills the server's agents should have, when it offers any.
+ * Everything is made here, in the browser; nothing is sent to the manager.
+ */
+export function ClientSetup({ target, skills = [] }: { target: ConnectTarget; skills?: Skill[] }) {
   const id = React.useId()
   const [picked, setPicked] = React.useState(storedClient)
   const client = mcpClient(picked)
@@ -156,6 +214,7 @@ export function ClientSetup({ target }: { target: ConnectTarget }) {
           : t("mcp.connect.docs", { client: client.name })}
         <RiExternalLinkLine className="size-3.5" aria-hidden />
       </a>
+      {skills.length > 0 && <SkillsSetup client={client} skills={skills} />}
     </div>
   )
 }
@@ -167,6 +226,7 @@ export function ClientSetup({ target }: { target: ConnectTarget }) {
 export function ConnectDialog({ name, ...props }: DialogProps & { name?: string }) {
   const id = React.useId()
   const endpoint = useMcpEndpoints(false).data?.find((entry) => entry.name === name)
+  const skills = skillsFor(useSkills().data ?? [], skillServer(name, endpoint))
   const [token, setToken] = React.useState("")
   const [header, setHeader] = React.useState(true)
   const path = name ? (endpoint?.path ?? `/mcp/${name}`) : "/mcp"
@@ -229,7 +289,7 @@ export function ConnectDialog({ name, ...props }: DialogProps & { name?: string 
             />
             <FieldDescription>{header ? tokenHint : t("mcp.connect.noHeader")}</FieldDescription>
           </Field>
-          <ClientSetup target={target} />
+          <ClientSetup target={target} skills={skills} />
         </div>
         <DialogFooter>
           <DialogClose asChild>

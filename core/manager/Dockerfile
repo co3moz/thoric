@@ -34,6 +34,8 @@ COPY core/manager/helpers core/manager/helpers
 COPY images/desktop/profiles.json images/desktop/profiles.json
 # The screenshot reader the manager runs in every desktop, also in one from an older image.
 COPY images/desktop/desktop-screenshot.py images/desktop/desktop-screenshot.py
+# The skills the manager serves its agents, built in so they match its tools.
+COPY docs/skills docs/skills
 # The publishing workflow names the tag of the desktop images it publishes with this manager, the
 # version for a release and sha-<commit> for a build of master, and the manager then downloads
 # those. A build without it, such as one from the source, downloads each catalog image's reference.

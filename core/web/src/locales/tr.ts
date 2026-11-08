@@ -1858,6 +1858,15 @@ export const tr: Messages = {
   "mcp.connect.snippet.file": "Ayarlar",
   "mcp.connect.snippet.wsl": "Windows'ta WSL üzerinden",
   "mcp.connect.snippet.remote": "mcp-remote ile (Node.js)",
+  "mcp.connect.snippet.shell": "macOS, Linux ve WSL",
+  "mcp.connect.snippet.powershell": "Windows PowerShell",
+  "mcp.connect.skills.title": "Beceriler",
+  "mcp.connect.skills.description":
+    "Beceriler ajana bu sunucuyla nasıl çalışacağını öğretir. Sunucu onları MCP kaynaklarını okuyan istemcilere sunar; istemci, beceri klasöründeki bir kopyayı da kendiliğinden yükler.",
+  "mcp.connect.skills.folder":
+    "{client} becerileri {user} klasöründen, bir projede {project} klasöründen yükler. Bu komutlar onları ev klasörünüze kopyalar:",
+  "mcp.connect.skills.noFolder":
+    "{client} becerileri bir klasörden değil, ayarlarında yükleme olarak alır. Yukarıdaki her bağlantı bir becerinin SKILL.md dosyasını açar.",
   "mcp.connect.hint.claude-code":
     "Komutu projenizde çalıştırın ya da sunucuyu her projede kullanmak için {flag} ekleyin. Bir projenin {file} dosyası girdiyi projede çalışan herkesle paylaşır.",
   "mcp.connect.hint.codex":

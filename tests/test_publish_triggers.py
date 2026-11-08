@@ -1,5 +1,6 @@
 """Which changes run .github/workflows/publish.yml. A push to master publishes images, so it runs only
-for what they are built from, and a change to the documentation alone publishes nothing. A pull
+for what they are built from, and a change to the documentation alone publishes nothing, except the
+skills under docs/skills, which the manager builds in. A pull
 request runs the checks, so it also runs for every file a test names: the Rust and interface tests
 hold docs/API.md, docs/MCP.md and the README to the routes and tools they describe, and a change to
 those alone could break them without any check running.
@@ -114,6 +115,16 @@ class PublishTriggersTest(unittest.TestCase):
         for path in ("README.md", "AGENTS.md", "docs/API.md"):
             with self.subTest(path=path):
                 self.assertFalse(any(matches(pattern, path) for pattern in published), f"a push of {path} publishes")
+
+    def test_a_change_to_a_skill_publishes_since_the_manager_serves_it(self):
+        # The manager image copies docs/skills and builds every skill in, so a changed skill reaches
+        # agents only through a new manager.
+        self.assertIn("COPY docs/skills docs/skills", (ROOT / "core/manager/Dockerfile").read_text(encoding="utf-8"))
+        published = trigger_paths("push")
+        for skill in sorted((ROOT / "docs/skills").glob("*/SKILL.md")):
+            path = skill.relative_to(ROOT).as_posix()
+            with self.subTest(path=path):
+                self.assertTrue(any(matches(pattern, path) for pattern in published), f"a push of {path} publishes nothing")
 
     def test_the_scan_finds_a_file_however_a_test_names_it(self):
         rust = ROOT / "core/manager/src/example_tests.rs"

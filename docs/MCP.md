@@ -33,7 +33,7 @@ Use the hostname and HTTPS address of your installation for LAN access. The toke
 
 `MCP_AUTH_MODE=none` accepts agent requests without a token; leave the authorization header out of the client settings, or keep it, since the manager then ignores it. The Host and Origin checks still apply, so a web page opened in a browser cannot call the endpoint, but any program that can reach the manager's address gets the same administrator access. Use it only while the manager listens on localhost. Desktops then do not count: the manager shares a network with each of them, and refuses every request that reaches it there. With `BIND_ADDRESS=0.0.0.0`, though, a desktop with internet access reaches the published port through the host, as a device on the network does, and the manager cannot tell it from your own browser, so every program in such a desktop gets administrator access too. The manager warns about this at startup and on the Management page.
 
-Clients configure HTTP headers in different ways. Add the URL and bearer header using your client's MCP server settings; the server does not implement an OAuth sign-in flow. **Add /mcp to a client** on the dashboard's **Endpoints** page, under **MCP**, shows the command or settings entry for Claude Code, Codex, VS Code, Cursor, OpenCode, Gemini CLI and other clients, filled in with the address and a token you paste there. It uses stateless requests, so there is no session ID to save. The SDK handles protocol negotiation, including clients using the 2025 Streamable HTTP revisions.
+Clients configure HTTP headers in different ways. Add the URL and bearer header using your client's MCP server settings; the server does not implement an OAuth sign-in flow. **Add /mcp to a client** on the dashboard's **Endpoints** page, under **MCP**, shows the command or settings entry for Claude Code, Codex, VS Code, Cursor, OpenCode, Gemini CLI and other clients, filled in with the address and a token you paste there, and the commands that copy its [skills](#skills) into the client's skills folder. It uses stateless requests, so there is no session ID to save. The SDK handles protocol negotiation, including clients using the 2025 Streamable HTTP revisions.
 
 ## Connect through stdio on Windows
 
@@ -395,6 +395,7 @@ The set gets one endpoint, `/mcp/SET`, in place of an endpoint for each instance
 - `list_instances` is always offered: each instance's number, name, state and note, which ones the set keeps, and every volume each mounts with `sharing`, `shared` with another instance or `own`. `slots` are the template's volumes with their policies.
 - The `scale` scope, which only an endpoint of a set has, offers `create_instance` and `delete_instance`. `create_instance` answers the instance's number and name at once with `job_id`; wait for `get_job` before using it. `volumes` chooses `shared` or `new` for one folder of that instance, and `note` says what it is for. `delete_instance` deletes one with the volumes made for it, never the lowest numbers the set keeps. The endpoint of a set gets the default scopes and `scale`; `get_job` comes with `scale` too.
 - The endpoint's instructions name the shared folders and those each instance has of its own, so an agent knows what its subagents see of each other.
+- The endpoint serves the scale set [skill](#skills), and its instructions say to read it before an agent grows the set or hands an instance to a subagent.
 
 A parent agent gives each subagent an instance of its own: it calls `create_instance` with a note, waits for the job and hands the number on, and the subagent passes it as `instance` to every call. The administrator's `/mcp` has the same three tools, which take the set's name as `set`.
 
@@ -409,7 +410,32 @@ A server under `first`:
 - is offered once on the set's endpoint, without `instance`. An agent working in instance 3 calls it like any tool and it works on instance 1's desktop and files, so it passes paths in the folders the instances share. A call while instance 1 is stopped, being created or gone says so.
 - is refused elsewhere: `call_mcp_server_tool` on another instance names instance 1, and the dashboard's inspector does not start a second copy of it in any instance; inspect the set's endpoint instead, which uses that one.
 
-[`docs/skills/thoric-scale-sets`](skills/thoric-scale-sets/SKILL.md) is a skill that teaches an agent this work: when to create instances and how many, what to tell a subagent, how workers write a shared volume without overwriting each other's files, and what to keep before it deletes the instances it made. Copy the folder, under its own name, into the agent's skills folder: `~/.claude/skills/` serves both Claude Code and OpenCode, which also reads `~/.config/opencode/skills/`, and a project's `.claude/skills/` or `.opencode/skills/` gives the skill to that project alone.
+## Skills
+
+Beside its tools Thoric ships skills, instructions an agent loads when its task calls for them. [`thoric-scale-sets`](skills/thoric-scale-sets/SKILL.md) teaches an agent to work through a [scale set](#scalable-containers): when to create instances and how many, what to tell a subagent, how workers write a shared volume without overwriting each other's files, and what to keep before it deletes the instances it made. The skills are built into the manager, so each matches the tools of the release that serves it, and an agent gets them in two ways.
+
+**From the MCP server.** `/mcp` and the endpoint of every scale set serve their skills as MCP resources, such as `skill://thoric-scale-sets/SKILL.md`, by the MCP Skills extension (SEP-2640): they declare `io.modelcontextprotocol/skills` and answer `skills/list` and `skills/get` with each skill's frontmatter, size and SHA-256 digest. Few clients load skills that way yet, so the server's instructions also name each skill's resource and when to read it, and a client whose model reads MCP resources, as Claude Code, Codex and OpenCode let it, reads the skill from there with nothing installed. A container's endpoint serves none.
+
+**From the client's skills folder.** A client loads a skill in its skills folder by itself, from its description, also before the agent has looked at the server. **Add to a client** on the dashboard shows each client's folder and the commands, for a POSIX shell and for PowerShell, that copy the skills of that server into it from the manager, which serves them without a session at `/.well-known/agent-skills/` ([API guide](API.md#skills)):
+
+```bash
+mkdir -p ~/.claude/skills/thoric-scale-sets && curl -fsSL http://localhost:8080/.well-known/agent-skills/thoric-scale-sets/SKILL.md -o ~/.claude/skills/thoric-scale-sets/SKILL.md
+```
+
+| Client | Every project | One project |
+| --- | --- | --- |
+| Claude Code | `~/.claude/skills/` | `.claude/skills/` |
+| Codex, Zed | `~/.agents/skills/` | `.agents/skills/` |
+| VS Code, Copilot CLI | `~/.copilot/skills/` | `.github/skills/` |
+| Cursor | `~/.cursor/skills/` | `.cursor/skills/` |
+| OpenCode | `~/.config/opencode/skills/` | `.opencode/skills/` |
+| Gemini CLI | `~/.gemini/skills/` | `.gemini/skills/` |
+| Devin Desktop | `~/.config/devin/skills/` | `.devin/skills/` |
+| Cline | `~/.cline/skills/` | `.cline/skills/` |
+| Kiro | `~/.kiro/skills/` | `.kiro/skills/` |
+| Amp | `~/.config/agents/skills/` | `.agents/skills/` |
+
+Many clients also read `~/.agents/skills/`, the folder of the Agent Skills standard, and Claude Desktop takes a skill as an upload in its settings. A copy stays as it was copied, so copy the skills again after an update; the ones the server serves always match it.
 
 ## Agent activity
 

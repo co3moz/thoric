@@ -2448,6 +2448,110 @@ async fn a_set_endpoint_works_on_the_instance_its_number_names() {
     );
 }
 
+/// A set's endpoint serves the scale set skill and names it in its instructions, so an agent that
+/// never installed it still reads it before it grows the set; a container's endpoint has no use
+/// for it and declares no resources.
+#[tokio::test]
+async fn a_set_endpoint_serves_the_scale_set_skill_and_a_container_endpoint_none() {
+    let app = mcp_app();
+    app.db
+        .put(CONTAINERS, "c1", &container("c1", "re-1"))
+        .unwrap();
+    scale_set(&app, &[(1, "c1")], 2);
+    app.db
+        .put(
+            ENDPOINTS,
+            "re",
+            &endpoint("re", vec![set_grant(&[Scope::View])]),
+        )
+        .unwrap();
+    app.db
+        .put(
+            ENDPOINTS,
+            "one",
+            &endpoint("one", vec![grant("c1", "re-1", &[Scope::View])]),
+        )
+        .unwrap();
+    let uri = "skill://thoric-scale-sets/SKILL.md";
+    let initialize = json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"1"}}});
+    // Opens a session on `path`, answered with it and the result of `initialize`.
+    let open = |path: &'static str| {
+        let app = app.clone();
+        let initialize = initialize.clone();
+        async move {
+            let (status, session, body) =
+                call(app.clone(), path, Some(ADMIN), None, initialize).await;
+            assert_eq!(status, StatusCode::OK, "{body}");
+            let session = session.unwrap();
+            let (status, _, _) = call(
+                app,
+                path,
+                Some(ADMIN),
+                Some(&session),
+                json!({"jsonrpc":"2.0","method":"notifications/initialized"}),
+            )
+            .await;
+            assert_eq!(status, StatusCode::ACCEPTED);
+            (session, body)
+        }
+    };
+    let ask = |path: &'static str, session: String, id: u32, method: &str, params: Value| {
+        let message = json!({"jsonrpc":"2.0","id":id,"method":method,"params":params});
+        let app = app.clone();
+        async move {
+            call(app, path, Some(ADMIN), Some(&session), message)
+                .await
+                .2
+        }
+    };
+
+    let (session, body) = open("/mcp/re").await;
+    let result = &body["result"];
+    assert!(
+        result["capabilities"]["extensions"][crate::skills::mcp::EXTENSION].is_object(),
+        "{body}"
+    );
+    assert!(
+        result["instructions"].as_str().unwrap().contains(uri),
+        "{body}"
+    );
+    let body = ask(
+        "/mcp/re",
+        session.clone(),
+        2,
+        "resources/read",
+        json!({"uri": uri}),
+    )
+    .await;
+    assert_eq!(
+        body["result"]["contents"][0]["text"],
+        crate::skills::find("thoric-scale-sets").unwrap().content,
+        "{body}"
+    );
+    let body = ask("/mcp/re", session, 3, "skills/list", json!({})).await;
+    assert_eq!(body["result"]["skills"][0]["uri"], uri, "{body}");
+
+    let (session, body) = open("/mcp/one").await;
+    let result = &body["result"];
+    assert!(result["capabilities"].get("resources").is_none(), "{body}");
+    assert!(result["capabilities"].get("extensions").is_none(), "{body}");
+    assert!(
+        !result["instructions"].as_str().unwrap().contains(uri),
+        "{body}"
+    );
+    let body = ask(
+        "/mcp/one",
+        session.clone(),
+        2,
+        "resources/read",
+        json!({"uri": uri}),
+    )
+    .await;
+    assert_eq!(body["error"]["code"], -32602, "{body}");
+    let body = ask("/mcp/one", session, 3, "skills/list", json!({})).await;
+    assert_eq!(body["error"]["code"], -32601, "{body}");
+}
+
 /// Make the set `re` run `server` in instance 1 alone.
 fn run_once(app: &App, server: &str) {
     let mut set: crate::scale::ScaleSet = app.db.get(crate::scale::SETS, "re").unwrap();

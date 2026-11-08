@@ -2,7 +2,8 @@ name: Publish containers
 
 on:
   # A push publishes only when what the images and the package are built from changes, so a change
-  # to the documentation alone publishes nothing.
+  # to the documentation alone publishes nothing. The skills under docs/skills are built into the
+  # manager, which serves them to agents.
   push:
     branches: [master]
     tags: ['v*']
@@ -21,6 +22,7 @@ on:
       - 'tests/**'
       - 'LICENSE'
       - 'THIRD_PARTY_NOTICES.md'
+      - 'docs/skills/**'
   # A pull request runs only the checks and the audit; every publishing job is limited to master and
   # the tags. It runs them for the push's paths and for docs/ and the README, which the tests hold to
   # the routes and tools they describe. tests/test_publish_triggers.py keeps the two lists so.
@@ -41,6 +43,7 @@ on:
       - 'tests/**'
       - 'LICENSE'
       - 'THIRD_PARTY_NOTICES.md'
+      - 'docs/skills/**'
       - 'docs/**'
       - 'README.md'
   workflow_dispatch:
