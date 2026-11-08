@@ -4,6 +4,7 @@
 //! --json` and the tray read it. A report names no token and no other container.
 use super::{
     endpoints::{ENDPOINTS, Endpoint},
+    placement::shown,
     registry::ServerRecord,
     servers::records,
 };
@@ -22,13 +23,18 @@ const SETTLE: Duration = Duration::from_millis(250);
 /// The report of one container, without the time it was made: its servers as the manager knows
 /// them, and the endpoints that cover it with this container's grant alone.
 pub(super) fn report(app: &App, container_id: &str) -> Value {
+    let sets = crate::scale::all(app).unwrap_or_default();
     let servers = records(app, container_id)
         .iter()
         .map(|record| {
+            // A server another instance of the set runs for this one is `elsewhere`, and
+            // `runs_in` names that instance.
+            let (state, runs_in) = shown(record, true, &sets);
             json!({
                 "name": record.name,
                 "source": record.source,
-                "state": record.state(true),
+                "state": state,
+                "runs_in": runs_in,
                 "error": record.error,
                 "tools": record.tools.iter().map(|tool| json!({
                     "name": tool.name,
@@ -41,7 +47,6 @@ pub(super) fn report(app: &App, container_id: &str) -> Value {
         .collect::<Vec<_>>();
     let mut endpoints: Vec<Endpoint> = app.db.list(ENDPOINTS).unwrap_or_default();
     endpoints.sort_by(|a, b| a.name.cmp(&b.name));
-    let sets = crate::scale::all(app).unwrap_or_default();
     let endpoints = endpoints
         .iter()
         .filter_map(|endpoint| {

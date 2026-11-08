@@ -5,6 +5,7 @@
 use super::{
     client,
     endpoints::announce,
+    placement::{Placement, placement},
     registry::{Found, SERVERS, ServerRecord, Source, found, merged, watch_args},
     report,
     servers::records,
@@ -214,6 +215,7 @@ pub(super) async fn apply_with(
         return;
     }
     let existing = records(app, container_id);
+    let sets = crate::scale::all(app).unwrap_or_default();
     let mut changed = false;
     let mut pending = Vec::new();
     for server in &found {
@@ -284,6 +286,9 @@ pub(super) async fn apply_with(
     if changed {
         announce(app, container_id);
     }
+    // A server that another instance of the set runs for this one is never started here, not
+    // even to read its tools: its record stays without them.
+    pending.retain(|name| Placement::of(&sets, container_id, name).home().is_none());
     for name in pending {
         let app = app.clone();
         let container_id = container_id.to_owned();
@@ -292,8 +297,11 @@ pub(super) async fn apply_with(
 }
 
 /// Start a server once and keep the tools it lists, or why it could not list them. A server
-/// already being read is left to that.
+/// already being read is left to that, and one another instance of its set runs is not read here.
 pub(super) async fn fetch(app: &Arc<App>, container_id: &str, name: &str) {
+    if placement(app, container_id, name).home().is_some() {
+        return;
+    }
     let key = ServerRecord::key(container_id, name);
     if !app.desktop_mcp.fetching.lock().unwrap().insert(key.clone()) {
         return;

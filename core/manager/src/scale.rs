@@ -4,7 +4,9 @@
 //! so an instance starts from the image and its compose setup, never from another instance's
 //! files. What instances share are volumes: each volume of the template is mounted by every
 //! instance (`shared`), or each instance gets an empty one of its own (`new`), or the first keeps
-//! the template's and the others get their own (`first`).
+//! the template's and the others get their own (`first`). Each desktop MCP server of the template
+//! runs in every instance (`each`), or in instance 1 alone for all of them (`first`), for a server
+//! that holds what only one copy may hold, such as a project on a shared volume with a lock file.
 //!
 //! The set's record is the one place that says which containers are its instances, by number,
 //! and it keeps a number from the moment an instance's creation starts, so two creations never
@@ -50,6 +52,24 @@ pub(crate) enum VolumePolicy {
     First,
 }
 
+/// Where the instances run a desktop MCP server of the template.
+#[derive(
+    Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum ServerPolicy {
+    /// Every instance runs its own.
+    #[default]
+    Each,
+    /// Instance 1 alone runs it, in one process, and its tools serve every instance: for a server
+    /// that holds what only one copy may hold, such as a project a shared volume keeps with a lock
+    /// file. The other instances never start it.
+    First,
+}
+
+/// The most desktop servers a set names a policy for.
+const SERVER_POLICY_LIMIT: usize = 64;
+
 /// A scale set as it is saved: the template, its limits and its instances.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct ScaleSet {
@@ -68,6 +88,9 @@ pub(crate) struct ScaleSet {
     /// A folder left out is shared.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub volumes: BTreeMap<String, VolumePolicy>,
+    /// Where each desktop MCP server runs, by its name. A server left out runs in every instance.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub servers: BTreeMap<String, ServerPolicy>,
     /// The instances by number, also those still being created.
     #[serde(default)]
     pub instances: BTreeMap<u32, Instance>,
@@ -93,6 +116,15 @@ impl ScaleSet {
     /// What an instance mounts for the template's volume at `target`.
     pub fn policy(&self, target: &str) -> VolumePolicy {
         self.volumes.get(target).copied().unwrap_or_default()
+    }
+    /// Where the instances run the desktop server `server`.
+    pub fn server_policy(&self, server: &str) -> ServerPolicy {
+        self.servers.get(server).copied().unwrap_or_default()
+    }
+    /// The instance that alone runs the desktop server `server` for every instance, or `None`
+    /// when each runs its own.
+    pub fn runs_in(&self, server: &str) -> Option<u32> {
+        (self.server_policy(server) == ServerPolicy::First).then_some(1)
     }
     /// The number of the instance that is the container `id`.
     pub fn number_of(&self, id: &str) -> Option<u32> {
@@ -159,6 +191,11 @@ pub(crate) struct Scaling {
     /// default, `new` or `first`.
     #[serde(default)]
     pub volumes: BTreeMap<String, VolumePolicy>,
+    /// Where each desktop MCP server runs, by its name: `each`, the default, in every instance,
+    /// or `first`, in instance 1 alone, whose tools then serve every instance. `first` is for a
+    /// server that locks what the instances share, such as a project on a shared volume.
+    #[serde(default)]
+    pub servers: BTreeMap<String, ServerPolicy>,
 }
 fn one() -> u32 {
     1
@@ -176,8 +213,31 @@ impl Scaling {
         for target in self.volumes.keys() {
             crate::model::mount_target(target)?;
         }
-        Ok(())
+        check_servers(&self.servers)
     }
+}
+
+/// Server policies a request may give: at most [`SERVER_POLICY_LIMIT`], each for a valid server
+/// name. A server the instances do not declare yet is kept, as one the desktop user may add later.
+pub(crate) fn check_servers(servers: &BTreeMap<String, ServerPolicy>) -> Result<()> {
+    if servers.len() > SERVER_POLICY_LIMIT {
+        bail!("A scale set names at most {SERVER_POLICY_LIMIT} desktop MCP servers");
+    }
+    for name in servers.keys() {
+        crate::desktop_mcp::server_name(name)?;
+    }
+    Ok(())
+}
+
+/// The server policies a set keeps of a request's: those that are not the default.
+pub(crate) fn server_policies(
+    servers: &BTreeMap<String, ServerPolicy>,
+) -> BTreeMap<String, ServerPolicy> {
+    servers
+        .iter()
+        .filter(|(_, policy)| **policy != ServerPolicy::Each)
+        .map(|(name, policy)| (name.clone(), *policy))
+        .collect()
 }
 
 /// A set's limits: at most [`MAX_INSTANCES`], a minimum that fits under the maximum and an idle
@@ -372,6 +432,7 @@ pub(crate) fn summary(set: &ScaleSet, containers: &[Container]) -> Value {
         "max": set.max,
         "idle_delete_minutes": set.idle_delete_minutes,
         "volumes": set.volumes,
+        "servers": set.servers,
         "instances": instances,
         "endpoint": set.endpoint,
         "endpoint_path": set.endpoint.as_ref().map(|name| format!("/mcp/{name}")),
@@ -393,6 +454,7 @@ pub(crate) fn new_set(name: &str, spec: &ContainerSpec, scaling: &Scaling) -> Sc
             .filter(|(_, policy)| **policy != VolumePolicy::Shared)
             .map(|(target, policy)| (target.clone(), *policy))
             .collect(),
+        servers: server_policies(&scaling.servers),
         instances: BTreeMap::new(),
         endpoint: None,
     }

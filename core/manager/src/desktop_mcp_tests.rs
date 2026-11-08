@@ -900,7 +900,7 @@ fn server_lists_name_each_tool_as_an_endpoint_of_its_container_exposes_it() {
         .db
         .get(SERVERS, &ServerRecord::key("c1", "playwright"))
         .unwrap();
-    let shown = super::servers::summary(&app, &record, "Chrome dev", true);
+    let shown = super::servers::summary(&app, &record, "Chrome dev", true, &[]);
     let tools: Vec<(String, String)> = shown["tools"]
         .as_array()
         .unwrap()
@@ -2445,5 +2445,225 @@ async fn a_set_endpoint_works_on_the_instance_its_number_names() {
             .unwrap()
             .contains("keeps"),
         "{body}"
+    );
+}
+
+/// Make the set `re` run `server` in instance 1 alone.
+fn run_once(app: &App, server: &str) {
+    let mut set: crate::scale::ScaleSet = app.db.get(crate::scale::SETS, "re").unwrap();
+    set.servers
+        .insert(server.into(), crate::scale::ServerPolicy::First);
+    app.db.put(crate::scale::SETS, "re", &set).unwrap();
+}
+
+#[test]
+fn a_server_the_set_runs_in_instance_one_is_offered_from_there_without_instance() {
+    let app = app(false);
+    for (id, name) in [("c1", "re-1"), ("c2", "re-2")] {
+        app.db.put(CONTAINERS, id, &container(id, name)).unwrap();
+        server(&app, id, "chrome", &["navigate"]);
+    }
+    server(&app, "c1", "ghidra", &["decompile"]);
+    // Instance 2 read its tools before the set ran the server once; they are not its to offer.
+    server(&app, "c2", "ghidra", &["stale"]);
+    scale_set(&app, &[(1, "c1"), (2, "c2")], 4);
+    run_once(&app, "ghidra");
+    let set = endpoint("re", vec![set_grant(&[Scope::View])]);
+    let entries = catalog(&app, &set);
+    let offered = names(&app, &set);
+    assert!(
+        offered.contains(&"ghidra__decompile".to_owned()),
+        "{offered:?}"
+    );
+    assert!(
+        !offered.contains(&"ghidra__stale".to_owned()),
+        "{offered:?}"
+    );
+    let entry = |name: &str| entries.iter().find(|e| e.tool.name == name).unwrap();
+    let decompile = entry("ghidra__decompile");
+    assert_eq!(
+        decompile.target,
+        Target::HomeServer {
+            set: "re".into(),
+            server: "ghidra".into(),
+            tool: "decompile".into(),
+            number: 1,
+        }
+    );
+    let schema = Value::Object((*decompile.tool.input_schema).clone());
+    assert!(schema["properties"].get("instance").is_none(), "{schema}");
+    assert!(schema.get("required").is_none(), "{schema}");
+    assert!(
+        decompile
+            .tool
+            .description
+            .as_deref()
+            .unwrap()
+            .starts_with("[re / ghidra, instance 1 for every instance]")
+    );
+    // A server every instance runs still takes the instance.
+    let navigate = Value::Object((*entry("chrome__navigate").tool.input_schema).clone());
+    assert_eq!(navigate["properties"]["instance"]["type"], "integer");
+    // An endpoint of instance 2 alone does not offer what instance 1 runs for it; one of instance
+    // 1 does.
+    let second = endpoint("re-2", vec![grant("c2", "re-2", &[Scope::View])]);
+    assert!(
+        !names(&app, &second)
+            .iter()
+            .any(|name| name.starts_with("ghidra"))
+    );
+    let first = endpoint("re-1", vec![grant("c1", "re-1", &[Scope::View])]);
+    assert!(names(&app, &first).contains(&"ghidra__decompile".to_owned()));
+}
+
+#[tokio::test]
+async fn every_instance_reaches_the_server_instance_one_runs_and_no_other_starts_it() {
+    let app = mcp_app();
+    for (id, name) in [("c1", "re-1"), ("c2", "re-2")] {
+        app.db.put(CONTAINERS, id, &container(id, name)).unwrap();
+        server(&app, id, "ghidra", &["decompile"]);
+    }
+    scale_set(&app, &[(1, "c1"), (2, "c2")], 2);
+    run_once(&app, "ghidra");
+    app.db
+        .put(
+            ENDPOINTS,
+            "re",
+            &endpoint("re", vec![set_grant(&[Scope::View])]),
+        )
+        .unwrap();
+    let (_, session, body) = call(
+        app.clone(),
+        "/mcp/re",
+        Some(ADMIN),
+        None,
+        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}),
+    )
+    .await;
+    // The agent is told the server is one program in instance 1 for all of them.
+    let instructions = body["result"]["instructions"].as_str().unwrap();
+    assert!(
+        instructions.contains("run in instance 1 alone") && instructions.contains(": ghidra."),
+        "{instructions}"
+    );
+    let session = session.unwrap();
+    call(
+        app.clone(),
+        "/mcp/re",
+        Some(ADMIN),
+        Some(&session),
+        json!({"jsonrpc":"2.0","method":"notifications/initialized"}),
+    )
+    .await;
+    // The call names no instance and goes to instance 1, which does not run here.
+    let (_, _, body) = call(
+        app.clone(),
+        "/mcp/re",
+        Some(ADMIN),
+        Some(&session),
+        json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"ghidra__decompile","arguments":{}}}),
+    )
+    .await;
+    assert_eq!(body["result"]["isError"], true, "{body}");
+    let text = body["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(
+        text.contains("re runs the desktop MCP server ghidra in instance 1 alone")
+            && text.contains("instance 1 does not run"),
+        "{text}"
+    );
+    // The administrator's /mcp is sent to instance 1 as well.
+    let refused =
+        super::servers::call_server_tool(&app, "c2", "ghidra", "decompile", Default::default())
+            .await
+            .unwrap_err();
+    assert_eq!(refused.0, StatusCode::CONFLICT);
+    assert!(refused.1.contains("in instance 1 alone"), "{}", refused.1);
+    // A read of its tools does not start it in instance 2, while a server instance 2 runs itself
+    // is started there, which fails without Docker.
+    server(&app, "c2", "chrome", &[]);
+    for name in ["ghidra", "chrome"] {
+        let key = ServerRecord::key("c2", name);
+        let mut record: ServerRecord = app.db.get(SERVERS, &key).unwrap();
+        record.tools_at = None;
+        app.db.put(SERVERS, &key, &record).unwrap();
+        super::watch::fetch(&app, "c2", name).await;
+    }
+    let read = |name: &str| -> ServerRecord {
+        app.db.get(SERVERS, &ServerRecord::key("c2", name)).unwrap()
+    };
+    assert!(read("ghidra").error.is_none());
+    assert!(read("chrome").error.is_some());
+    // Nor does the inspector, in either instance.
+    for target in ["c1", "c2"] {
+        let refused = super::inspect::open(
+            &app,
+            super::inspect::Target::Server {
+                container: target.into(),
+                name: "ghidra".into(),
+            },
+        )
+        .await
+        .err()
+        .unwrap();
+        assert_eq!(refused.0, StatusCode::CONFLICT, "{}", refused.1);
+    }
+    // Lists and the desktop show where it runs.
+    let sets = crate::scale::all(&app).unwrap();
+    let listed = super::servers::summary(&app, &read("ghidra"), "re-2", true, &sets);
+    assert_eq!(listed["state"], "elsewhere");
+    assert_eq!(listed["runs_in"], 1);
+    let report = super::report::report(&app, "c2");
+    let ghidra = report["servers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|server| server["name"] == "ghidra")
+        .unwrap();
+    assert_eq!(ghidra["state"], "elsewhere");
+    assert_eq!(ghidra["runs_in"], 1);
+}
+
+#[tokio::test]
+async fn a_server_the_set_starts_running_once_leaves_the_other_instances_and_comes_back() {
+    let app = app(false);
+    for (id, name) in [("c1", "re-1"), ("c2", "re-2")] {
+        app.db.put(CONTAINERS, id, &container(id, name)).unwrap();
+        server(&app, id, "ghidra", &["decompile"]);
+    }
+    scale_set(&app, &[(1, "c1"), (2, "c2")], 2);
+    let before: crate::scale::ScaleSet = app.db.get(crate::scale::SETS, "re").unwrap();
+    run_once(&app, "ghidra");
+    let after: crate::scale::ScaleSet = app.db.get(crate::scale::SETS, "re").unwrap();
+    servers_changed(&app, &before.servers, &after);
+    let read = |id: &str| -> ServerRecord {
+        app.db
+            .get(SERVERS, &ServerRecord::key(id, "ghidra"))
+            .unwrap()
+    };
+    assert!(read("c2").tools.is_empty() && read("c2").tools_at.is_none());
+    assert_eq!(read("c1").tools.len(), 1);
+    // A listing of instance 2's servers keeps it without tools and reads none.
+    super::watch::apply_with(
+        &app,
+        "c2",
+        vec![super::registry::Found {
+            name: "ghidra".into(),
+            source: Source::Image,
+            spec: Ok(stdio("playwright-mcp")),
+        }],
+        true,
+    )
+    .await;
+    for _ in 0..10 {
+        tokio::task::yield_now().await;
+    }
+    assert!(read("c2").tools_at.is_none() && read("c2").error.is_none());
+    // Back to every instance: instance 2 is no longer refused.
+    app.db.put(crate::scale::SETS, "re", &before).unwrap();
+    servers_changed(&app, &after.servers, &before);
+    assert!(
+        super::placement::placement(&app, "c2", "ghidra")
+            .refusal("ghidra")
+            .is_none()
     );
 }

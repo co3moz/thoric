@@ -7,7 +7,7 @@ use crate::{
     error::{Error, Result},
     model::{CONTAINERS, Container},
     scale::{
-        self, SETS, ScaleSet, Scaling, TEMPLATES, Template, VolumePolicy,
+        self, SETS, ScaleSet, Scaling, ServerPolicy, TEMPLATES, Template, VolumePolicy,
         instances::{self, load},
         volumes::{self, Override},
     },
@@ -102,7 +102,7 @@ pub async fn make_scalable(
     Ok(Json(described(&app, &set, &containers)))
 }
 
-/// A change of a set's limits and volume policies; what it leaves out stays.
+/// A change of a set's limits, volume policies and server policies; what it leaves out stays.
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct UpdateSet {
@@ -115,10 +115,15 @@ pub struct UpdateSet {
     /// What each volume becomes in the instances created from now on, by its folder.
     #[serde(default)]
     pub volumes: Option<BTreeMap<String, VolumePolicy>>,
+    /// Where each desktop MCP server runs, by its name, at once: `each` in every instance, or
+    /// `first` in instance 1 alone for all of them. It replaces the set's whole map.
+    #[serde(default)]
+    pub servers: Option<BTreeMap<String, ServerPolicy>>,
 }
 
 /// `PUT /api/scale-sets/{name}`. The template stays as it is; a change applies to the instances
-/// created from now on and to which ones the set keeps.
+/// created from now on and to which ones the set keeps, and a change of where a desktop server
+/// runs to every instance at once.
 pub async fn update_set(
     State(app): State<Arc<App>>,
     Path(name): Path<String>,
@@ -151,8 +156,14 @@ pub async fn update_set(
             .map(|(target, policy)| (target.clone(), *policy))
             .collect();
     }
+    let before = set.servers.clone();
+    if let Some(servers) = &body.servers {
+        scale::check_servers(servers)?;
+        set.servers = scale::server_policies(servers);
+    }
     (set.min, set.max, set.idle_delete_minutes) = (min, max, idle);
     app.db.put(SETS, &name, &set)?;
+    crate::desktop_mcp::servers_changed(&app, &before, &set);
     let containers: Vec<Container> = app.db.list(CONTAINERS)?;
     Ok(Json(described(&app, &set, &containers)))
 }

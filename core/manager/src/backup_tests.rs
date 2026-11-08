@@ -99,6 +99,7 @@ pub(super) fn scale_set(name: &str, image: &str, instances: &[(u32, &str)]) -> S
         "min": 1,
         "max": 4,
         "volumes": {"/home/desktop/shared": "first"},
+        "servers": {"ghidra": "first"},
         "instances": instances
             .iter()
             .map(|(number, id)| (number.to_string(), json!({"container_id": id, "note": "an agent's"})))

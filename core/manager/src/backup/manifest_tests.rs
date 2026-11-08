@@ -208,6 +208,8 @@ fn a_backup_carries_the_scale_sets_with_their_templates_and_endpoints() {
     assert_eq!(set.instances[&1].note, "an agent's");
     assert_eq!(set.template.image, "thoric/snapshot:i1");
     assert_eq!(set.endpoint.as_deref(), Some("re"));
+    // Where its desktop servers run comes along.
+    assert_eq!(set.runs_in("ghidra"), Some(1));
     // Only the template of a set the backup holds, with everything it keeps when asked for.
     let [template] = &records.scale_set_templates[..] else {
         panic!("{:?}", records.scale_set_templates);

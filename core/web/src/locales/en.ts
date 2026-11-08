@@ -1783,6 +1783,8 @@ export const en = {
   "mcp.grant.allServers": "All, including ones added later",
   "mcp.grant.chosenServers": "Only the ones chosen here",
   "mcp.grant.noServers": "This container has no desktop MCP servers yet.",
+  "mcp.grant.serverPolicyHint":
+    "Where a server runs is the scale set's setting: it applies to every endpoint and to /mcp, and saving changes it at once.",
   "mcp.grant.serversLine": "Servers: {servers}",
   "mcp.grant.toolsOf": "{included} of {count} tools",
   "mcp.grant.toolsHint": "Open the tools of a scope or a server and untick one to leave it out.",
@@ -1909,6 +1911,7 @@ export const en = {
   "mcp.state.error": "Error",
   "mcp.state.pending": "Tools not read",
   "mcp.state.stopped": "Container stopped",
+  "mcp.state.elsewhere": "Runs in instance {number}",
   "mcp.server.add": "Add server",
   "mcp.server.addTo": "Add server to {name}",
   "mcp.server.test": "Test",
@@ -1954,6 +1957,8 @@ export const en = {
   "mcp.server.readAt": "read {date}",
   "mcp.server.noTools": "No tools.",
   "mcp.server.toolsUnread": "Tools not read yet.",
+  "mcp.server.elsewhere":
+    "Its scale set runs it in instance {number} alone, for every instance, so it is never started here and its tools are listed there.",
   "mcp.server.envNames": "Environment: {names}",
   "mcp.server.headerNames": "Headers: {names}",
   "mcp.server.cwdIn": "Runs in {path}",
@@ -2258,6 +2263,12 @@ export const en = {
   "scale.policy.shared": "Shared",
   "scale.policy.new": "New per instance",
   "scale.policy.first": "First keeps it, others new",
+  "scale.servers": "Desktop MCP servers",
+  "scale.serversHint":
+    "Where each desktop server runs. Instance 1 only is for a program that locks what the instances share, such as a Ghidra project on a shared volume: instance 1 runs it once and its tools serve every instance. A change applies to every instance at once.",
+  "scale.serverPolicyOf": "Where {server} runs",
+  "scale.serverPolicy.each": "Every instance",
+  "scale.serverPolicy.first": "Instance 1 only",
   "scale.summary": "Scalable, up to {max}",
   "scale.error.min": "Keep must be a whole number no larger than At most.",
   "scale.error.max": "At most must be between 1 and 16.",

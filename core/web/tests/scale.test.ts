@@ -8,11 +8,15 @@ import {
   entryCount,
   room,
   runningEntries,
+  samePolicies,
   scalingBody,
   scalingDraft,
   scalingError,
   scalingTargets,
+  serverPolicies,
   setNameOf,
+  setServerNames,
+  setServers,
   type ScaleSet,
 } from "../src/lib/scale"
 import type { ContainerItem, Job } from "../src/lib/types"
@@ -69,6 +73,45 @@ test("a request sends the policies that are not shared, and the set's name only 
     "/a",
     "/b",
   ])
+  // A server every instance runs is the default and goes unsaid.
+  assert.deepEqual(
+    scalingBody({ ...scalingDraft(), servers: { ghidra: "first", chrome: "each" } }).servers,
+    { ghidra: "first" }
+  )
+  assert.equal(scalingBody({ ...scalingDraft(), servers: { chrome: "each" } }).servers, undefined)
+})
+
+test("a set's server policies start from the set and compare without the default", () => {
+  const pinned = { ...set("re", 2), servers: { ghidra: "first" as const } }
+  assert.deepEqual(scalingDraft(pinned).servers, { ghidra: "first" })
+  assert.deepEqual(serverPolicies({ ghidra: "first", chrome: "each" }), { ghidra: "first" })
+  assert.ok(samePolicies({ ghidra: "first", chrome: "each" }, { ghidra: "first" }))
+  assert.ok(samePolicies({}, { chrome: "each" }))
+  assert.ok(!samePolicies({ ghidra: "first" }, {}))
+})
+
+test("a set's servers are listed once, a server instance 1 runs for all from instance 1", () => {
+  const record = (container_id: string, name: string) => ({ container_id, name })
+  // Instance 2 comes first in the list, as the manager sorts containers by name.
+  const servers = [
+    record("re-2", "chrome"),
+    record("re-2", "ghidra"),
+    record("re-1", "ghidra"),
+    record("re-1", "chrome"),
+    record("other", "db"),
+  ]
+  const each = set("re", 2)
+  assert.deepEqual(setServers(each, servers), [record("re-1", "chrome"), record("re-1", "ghidra")])
+  // Instance 1 is gone: a server every instance runs comes from instance 2, one instance 1 runs
+  // alone from nowhere, though its name stays for its policy.
+  const pinned = {
+    ...each,
+    servers: { ghidra: "first" as const },
+    instances: each.instances.slice(1),
+  }
+  assert.deepEqual(setServers(pinned, servers), [record("re-2", "chrome")])
+  assert.deepEqual(setServerNames(pinned, servers), ["chrome", "ghidra"])
+  assert.deepEqual(setServers(undefined, servers), [])
 })
 
 test("the containers page shows each set's instances in order and the others after them", () => {

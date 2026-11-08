@@ -647,8 +647,13 @@ export type DesktopServer = {
   env: string[]
   url: string | null
   headers: string[]
-  /** `pending` before its tools were read, `stopped` while the container is not running. */
-  state: "ready" | "error" | "pending" | "stopped"
+  /**
+   * `pending` before its tools were read, `stopped` while the container is not running, and
+   * `elsewhere` in an instance of a scale set that runs the server in another instance alone.
+   */
+  state: "ready" | "error" | "pending" | "stopped" | "elsewhere"
+  /** The instance of the container's scale set that runs the server for it, if another does. */
+  runs_in?: number | null
   error: string | null
   tools: ServerTool[]
   /** Unix seconds. */

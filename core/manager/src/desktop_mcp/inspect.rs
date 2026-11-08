@@ -21,6 +21,7 @@ use super::{
     client::{self, Bounded, Started},
     endpoints::{ENDPOINTS, Endpoint},
     gateway::EndpointMcp,
+    placement::{Placement, placement},
     registry::{Declaration, SERVERS, ServerRecord, ServerSpec, Source},
 };
 use crate::{
@@ -225,6 +226,7 @@ pub(super) async fn open(app: &Arc<App>, target: Target) -> Result<(Value, Peer)
                         format!("This container has no MCP server called {name}"),
                     )
                 })?;
+            runs_once(app, &container, &name)?;
             let spec = record.spec.as_ref().ok_or_else(|| {
                 Error(
                     StatusCode::CONFLICT,
@@ -249,6 +251,7 @@ pub(super) async fn open(app: &Arc<App>, target: Target) -> Result<(Value, Peer)
                 .validate()
                 .map_err(|e| Error(StatusCode::BAD_REQUEST, format!("{e:#}")))?;
             let container = app.container(&container)?;
+            runs_once(app, &container, &server.name)?;
             let described = json!({
                 "kind": "trial",
                 "container_id": container.id,
@@ -278,6 +281,21 @@ pub(super) async fn open(app: &Arc<App>, target: Target) -> Result<(Value, Peer)
             let server = json!({"kind": "administrator", "path": "/mcp"});
             Ok((server, serve(ThoricMcp::new(app.clone()))))
         }
+    }
+}
+
+/// Refuse to start a second copy of a server that a scale set runs once for its instances: the
+/// inspector's `docker exec` would sit beside the one agents use, or run it in an instance that
+/// never does. The set's endpoint, which an inspector serves inside the manager, shares that one.
+fn runs_once(app: &App, container: &Container, name: &str) -> Result<()> {
+    match placement(app, &container.id, name) {
+        Placement::Own => Ok(()),
+        Placement::Home { set } | Placement::Elsewhere { set, .. } => Err(Error(
+            StatusCode::CONFLICT,
+            format!(
+                "The scale set {set} runs {name} once, in instance 1, for all its instances, so the inspector does not start another copy; inspect the set's endpoint, which uses that one"
+            ),
+        )),
     }
 }
 

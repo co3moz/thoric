@@ -14,12 +14,15 @@ import {
 } from "@/components/ui/select"
 import { t } from "@/lib/i18n"
 import { IDLE_PRESETS, MAX_IDLE_MINUTES, minutesText } from "@/lib/lifecycle"
+import { ConceptIcon } from "@/components/concept"
 import {
   MAX_INSTANCES,
   POLICIES,
+  SERVER_POLICIES,
   SET_NAME_PATTERN,
   setNameOf,
   type ScalingDraft,
+  type ServerPolicy,
   type VolumePolicy,
 } from "@/lib/scale"
 import { choiceGroup, choiceItem } from "./screen-fields"
@@ -30,15 +33,17 @@ const CUSTOM = "custom"
 
 /**
  * How a container is made scalable: the set's name, how many instances it keeps and may have,
- * when an idle one goes, and what each volume becomes in a new instance. `toggle` shows the switch
- * that turns scaling on, as the create form does; `targets` are the folders its volumes are
- * mounted at; `name` the container's, which the set is named after when its own is left empty.
+ * when an idle one goes, what each volume becomes in a new instance and where each desktop server
+ * runs. `toggle` shows the switch that turns scaling on, as the create form does; `targets` are
+ * the folders its volumes are mounted at; `servers` the names of its desktop servers, when they
+ * are known; `name` the container's, which the set is named after when its own is left empty.
  * `named` leaves the name and the introduction out, for a set that exists, whose name stays.
  */
 export function ScalingFields({
   draft,
   onChange,
   targets,
+  servers = [],
   name,
   toggle = false,
   named = false,
@@ -46,6 +51,7 @@ export function ScalingFields({
   draft: ScalingDraft
   onChange: (draft: ScalingDraft) => void
   targets: string[]
+  servers?: string[]
   name: string
   toggle?: boolean
   named?: boolean
@@ -218,8 +224,85 @@ export function ScalingFields({
             )}
             <FieldDescription className="text-xs">{t("scale.volumesHint")}</FieldDescription>
           </Field>
+          {servers.length > 0 && (
+            <Field>
+              <FieldLabel>{t("scale.servers")}</FieldLabel>
+              <ServerPolicyList
+                servers={servers}
+                policies={draft.servers}
+                onChange={(name, policy) => set({ servers: { ...draft.servers, [name]: policy } })}
+              />
+              <FieldDescription className="text-xs">{t("scale.serversHint")}</FieldDescription>
+            </Field>
+          )}
         </>
       )}
     </FieldGroup>
+  )
+}
+
+/** Where the instances run a desktop server, as a form offers it beside its name. */
+export function ServerPolicySelect({
+  server,
+  policy,
+  onChange,
+  className,
+}: {
+  server: string
+  policy: ServerPolicy
+  onChange: (policy: ServerPolicy) => void
+  className?: string
+}) {
+  return (
+    <Select value={policy} onValueChange={(value) => onChange(value as ServerPolicy)}>
+      <SelectTrigger
+        size="sm"
+        className={className ?? "w-full sm:w-56"}
+        aria-label={t("scale.serverPolicyOf", { server })}
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectGroup>
+          {SERVER_POLICIES.map((choice) => (
+            <SelectItem key={choice} value={choice}>
+              {t(`scale.serverPolicy.${choice}`)}
+            </SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
+  )
+}
+
+/** A set's desktop servers, each with where the instances run it, as the volumes are listed. */
+function ServerPolicyList({
+  servers,
+  policies,
+  onChange,
+}: {
+  servers: string[]
+  policies: Record<string, ServerPolicy>
+  onChange: (server: string, policy: ServerPolicy) => void
+}) {
+  return (
+    <ul className="flex flex-col divide-y rounded-xl border">
+      {servers.map((server) => (
+        <li
+          key={server}
+          className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <span className="flex min-w-0 items-center gap-2">
+            <ConceptIcon concept="mcp" className="size-4 shrink-0" />
+            <code className="min-w-0 font-mono text-xs break-all">{server}</code>
+          </span>
+          <ServerPolicySelect
+            server={server}
+            policy={policies[server] ?? "each"}
+            onChange={(policy) => onChange(server, policy)}
+          />
+        </li>
+      ))}
+    </ul>
   )
 }

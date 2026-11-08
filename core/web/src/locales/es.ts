@@ -1774,6 +1774,8 @@ export const es: Messages = {
   "mcp.grant.allServers": "Todos, incluidos los que se añadan después",
   "mcp.grant.chosenServers": "Solo los elegidos aquí",
   "mcp.grant.noServers": "Este contenedor aún no tiene servidores MCP del escritorio.",
+  "mcp.grant.serverPolicyHint":
+    "Dónde se ejecuta un servidor es un ajuste del grupo escalable: vale para todos los endpoints y para /mcp, y al guardar cambia al momento.",
   "mcp.grant.serversLine": "Servidores: {servers}",
   "mcp.grant.toolsOf": "{included} de {count} herramientas",
   "mcp.grant.toolsHint":
@@ -1908,6 +1910,7 @@ export const es: Messages = {
   "mcp.state.error": "Error",
   "mcp.state.pending": "Herramientas sin leer",
   "mcp.state.stopped": "Contenedor detenido",
+  "mcp.state.elsewhere": "Se ejecuta en la instancia {number}",
   "mcp.server.add": "Añadir servidor",
   "mcp.server.addTo": "Añadir un servidor a {name}",
   "mcp.server.test": "Probar",
@@ -1953,6 +1956,8 @@ export const es: Messages = {
   "mcp.server.readAt": "leídas el {date}",
   "mcp.server.noTools": "Sin herramientas.",
   "mcp.server.toolsUnread": "Herramientas aún sin leer.",
+  "mcp.server.elsewhere":
+    "Su grupo escalable lo ejecuta solo en la instancia {number}, para todas las instancias, así que aquí nunca se inicia y sus herramientas se listan allí.",
   "mcp.server.envNames": "Entorno: {names}",
   "mcp.server.headerNames": "Cabeceras: {names}",
   "mcp.server.cwdIn": "Se ejecuta en {path}",
@@ -2263,6 +2268,12 @@ export const es: Messages = {
   "scale.policy.shared": "Compartido",
   "scale.policy.new": "Nuevo por instancia",
   "scale.policy.first": "La primera lo mantiene, las demás nuevo",
+  "scale.servers": "Servidores MCP del escritorio",
+  "scale.serversHint":
+    "Dónde se ejecuta cada servidor del escritorio. Solo la instancia 1 es para un programa que bloquea lo que comparten las instancias, como un proyecto de Ghidra en un volumen compartido: la instancia 1 lo ejecuta una vez y sus herramientas sirven a todas las instancias. Un cambio se aplica a todas las instancias al momento.",
+  "scale.serverPolicyOf": "Dónde se ejecuta {server}",
+  "scale.serverPolicy.each": "Cada instancia",
+  "scale.serverPolicy.first": "Solo la instancia 1",
   "scale.summary": "Escalable, hasta {max}",
   "scale.error.min": "Mantener debe ser un número entero no mayor que Como máximo.",
   "scale.error.max": "Como máximo debe estar entre 1 y 16.",

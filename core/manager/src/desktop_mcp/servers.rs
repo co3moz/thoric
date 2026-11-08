@@ -2,6 +2,7 @@
 //! one in a running desktop, removing it and reading its tools again, and calling one of its tools
 //! for the administrator's channel.
 use super::{
+    placement::shown,
     registry::{Declaration, SERVERS, ServerRecord, Source, server_name},
     scopes::server_tool_names,
     watch,
@@ -10,6 +11,7 @@ use crate::{
     App,
     error::{Error, Result, missing},
     model::Container,
+    scale::ScaleSet,
 };
 use anyhow::Context;
 use axum::{
@@ -22,8 +24,14 @@ use std::{collections::HashMap, sync::Arc};
 
 /// A server as lists show it: never the values of its variables or headers. Each tool comes with
 /// `exposed`, its name on an endpoint of this container alone, which an endpoint's deny list
-/// uses.
-pub(crate) fn summary(app: &App, record: &ServerRecord, container: &str, running: bool) -> Value {
+/// uses. `runs_in` is the instance of the container's scale set that runs the server for it.
+pub(crate) fn summary(
+    app: &App,
+    record: &ServerRecord,
+    container: &str,
+    running: bool,
+    sets: &[ScaleSet],
+) -> Value {
     let mut value = match &record.spec {
         Some(spec) => spec.summary(),
         None => {
@@ -34,7 +42,9 @@ pub(crate) fn summary(app: &App, record: &ServerRecord, container: &str, running
     value["container_name"] = json!(container);
     value["name"] = json!(record.name);
     value["source"] = json!(record.source);
-    value["state"] = json!(record.state(running));
+    let (state, runs_in) = shown(record, running, sets);
+    value["state"] = json!(state);
+    value["runs_in"] = json!(runs_in);
     value["error"] = json!(record.error);
     value["tools"] = json!(
         server_tool_names(record)
@@ -80,6 +90,7 @@ pub async fn all_servers(State(app): State<Arc<App>>) -> Result<Json<Value>> {
     let mut items = Vec::new();
     let mut containers: Vec<Container> = app.db.list(crate::model::CONTAINERS)?;
     containers.sort_by(|a, b| a.spec.name.cmp(&b.spec.name));
+    let sets = crate::scale::all(&app)?;
     for container in containers {
         let Some(mut records) = by_container.remove(&container.id) else {
             continue;
@@ -87,7 +98,7 @@ pub async fn all_servers(State(app): State<Arc<App>>) -> Result<Json<Value>> {
         records.sort_by(|a, b| a.name.cmp(&b.name));
         let running = app.desktop_mcp.watched(&container.id);
         for record in records {
-            items.push(summary(&app, &record, &container.spec.name, running));
+            items.push(summary(&app, &record, &container.spec.name, running, &sets));
         }
     }
     Ok(Json(json!({"items": items})))
@@ -128,10 +139,11 @@ pub(crate) async fn servers_of(app: &Arc<App>, id: &str, schemas: bool) -> Resul
         let found = app.read_servers(docker_id).await?;
         watch::apply(app, id, found).await;
     }
+    let sets = crate::scale::all(app)?;
     let items = records(app, id)
         .iter()
         .map(|record| {
-            let mut value = summary(app, record, &container.spec.name, running);
+            let mut value = summary(app, record, &container.spec.name, running, &sets);
             if schemas {
                 for (listed, named) in value["tools"]
                     .as_array_mut()
@@ -149,7 +161,8 @@ pub(crate) async fn servers_of(app: &Arc<App>, id: &str, schemas: bool) -> Resul
 }
 
 /// Call a desktop server's tool for the administrator's channel, on a connection of its own that
-/// no endpoint shares. The server must be known and list the tool, so a typo is told as such.
+/// no endpoint shares, unless a scale set runs the server once for its instances. The server must
+/// be known and list the tool, so a typo is told as such.
 pub(crate) async fn call_server_tool(
     app: &Arc<App>,
     container_id: &str,
@@ -167,6 +180,9 @@ pub(crate) async fn call_server_tool(
             ),
         )
     })?;
+    if let Some(refusal) = super::placement::placement(app, container_id, server).refusal(server) {
+        return Err(refusal.into());
+    }
     if let Some(error) = &record.error {
         return Err(Error(
             StatusCode::CONFLICT,
@@ -214,7 +230,14 @@ pub async fn register_server(
     watch::apply(&app, &id, found).await;
     watch::fetch(&app, &id, &declaration.name).await;
     let record = find(&app, &id, &declaration.name)?;
-    Ok(Json(summary(&app, &record, &container.spec.name, true)))
+    let sets = crate::scale::all(&app)?;
+    Ok(Json(summary(
+        &app,
+        &record,
+        &container.spec.name,
+        true,
+        &sets,
+    )))
 }
 
 /// Remove a server the desktop user registered. One the image declares stays: the image's files
@@ -253,5 +276,12 @@ pub async fn refresh_server(
     running(&app, &container).await?;
     watch::fetch(&app, &id, &name).await;
     let record = find(&app, &id, &name)?;
-    Ok(Json(summary(&app, &record, &container.spec.name, true)))
+    let sets = crate::scale::all(&app)?;
+    Ok(Json(summary(
+        &app,
+        &record,
+        &container.spec.name,
+        true,
+        &sets,
+    )))
 }

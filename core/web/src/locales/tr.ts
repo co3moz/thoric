@@ -1754,6 +1754,8 @@ export const tr: Messages = {
   "mcp.grant.allServers": "Tümü, sonradan eklenenler de",
   "mcp.grant.chosenServers": "Yalnızca burada seçilenler",
   "mcp.grant.noServers": "Bu konteynerde henüz masaüstü MCP sunucusu yok.",
+  "mcp.grant.serverPolicyHint":
+    "Bir sunucunun nerede çalıştığı ölçeklenebilir grubun ayarıdır: her uç noktaya ve /mcp'ye uygulanır, kaydetmek onu hemen değiştirir.",
   "mcp.grant.serversLine": "Sunucular: {servers}",
   "mcp.grant.toolsOf": "{count} araçtan {included} tanesi",
   "mcp.grant.toolsHint":
@@ -1885,6 +1887,7 @@ export const tr: Messages = {
   "mcp.state.error": "Hata",
   "mcp.state.pending": "Araçlar okunmadı",
   "mcp.state.stopped": "Konteyner durdu",
+  "mcp.state.elsewhere": "{number}. örnekte çalışır",
   "mcp.server.add": "Sunucu ekle",
   "mcp.server.addTo": "{name} konteynerine sunucu ekle",
   "mcp.server.test": "Dene",
@@ -1930,6 +1933,8 @@ export const tr: Messages = {
   "mcp.server.readAt": "{date} tarihinde okundu",
   "mcp.server.noTools": "Araç yok.",
   "mcp.server.toolsUnread": "Araçlar henüz okunmadı.",
+  "mcp.server.elsewhere":
+    "Ölçeklenebilir grubu onu her örnek için yalnız {number}. örnekte çalıştırır; burada hiç başlamaz, araçları orada listelenir.",
   "mcp.server.envNames": "Ortam: {names}",
   "mcp.server.headerNames": "Başlıklar: {names}",
   "mcp.server.cwdIn": "{path} içinde çalışır",
@@ -2234,6 +2239,12 @@ export const tr: Messages = {
   "scale.policy.shared": "Ortak",
   "scale.policy.new": "Örnek başına yeni",
   "scale.policy.first": "İlki tutar, diğerleri yeni",
+  "scale.servers": "Masaüstü MCP sunucuları",
+  "scale.serversHint":
+    "Her masaüstü sunucusunun nerede çalıştığı. Yalnız 1. örnek, örneklerin paylaştığını kilitleyen bir program içindir, örneğin paylaşılan bir volume'deki Ghidra projesi: 1. örnek onu bir kez çalıştırır ve araçları her örneğe hizmet eder. Değişiklik her örneğe hemen uygulanır.",
+  "scale.serverPolicyOf": "{server} nerede çalışır",
+  "scale.serverPolicy.each": "Her örnek",
+  "scale.serverPolicy.first": "Yalnız 1. örnek",
   "scale.summary": "Ölçeklenebilir, en fazla {max}",
   "scale.error.min": "Tut, En fazla'dan büyük olmayan bir tam sayı olmalı.",
   "scale.error.max": "En fazla 1 ile 16 arasında olmalı.",

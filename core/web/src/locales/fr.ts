@@ -1784,6 +1784,8 @@ export const fr: Messages = {
   "mcp.grant.allServers": "Tous, y compris ceux ajoutés plus tard",
   "mcp.grant.chosenServers": "Seulement ceux choisis ici",
   "mcp.grant.noServers": "Ce conteneur n'a pas encore de serveur MCP du bureau.",
+  "mcp.grant.serverPolicyHint":
+    "L'endroit où un serveur s'exécute est un réglage du groupe évolutif : il vaut pour tous les points de terminaison et pour /mcp, et l'enregistrer le change aussitôt.",
   "mcp.grant.serversLine": "Serveurs : {servers}",
   "mcp.grant.toolsOf": "{included} outils sur {count}",
   "mcp.grant.toolsHint":
@@ -1917,6 +1919,7 @@ export const fr: Messages = {
   "mcp.state.error": "Erreur",
   "mcp.state.pending": "Outils non lus",
   "mcp.state.stopped": "Conteneur arrêté",
+  "mcp.state.elsewhere": "S'exécute dans l'instance {number}",
   "mcp.server.add": "Ajouter un serveur",
   "mcp.server.addTo": "Ajouter un serveur à {name}",
   "mcp.server.test": "Tester",
@@ -1963,6 +1966,8 @@ export const fr: Messages = {
   "mcp.server.readAt": "lus le {date}",
   "mcp.server.noTools": "Aucun outil.",
   "mcp.server.toolsUnread": "Outils pas encore lus.",
+  "mcp.server.elsewhere":
+    "Son groupe évolutif l'exécute dans l'instance {number} seulement, pour toutes les instances : il ne démarre jamais ici et ses outils sont listés là-bas.",
   "mcp.server.envNames": "Environnement : {names}",
   "mcp.server.headerNames": "En-têtes : {names}",
   "mcp.server.cwdIn": "S'exécute dans {path}",
@@ -2273,6 +2278,12 @@ export const fr: Messages = {
   "scale.policy.shared": "Partagé",
   "scale.policy.new": "Nouveau par instance",
   "scale.policy.first": "La première le garde, les autres nouveau",
+  "scale.servers": "Serveurs MCP du bureau",
+  "scale.serversHint":
+    "Où chaque serveur du bureau s'exécute. Instance 1 seulement convient à un programme qui verrouille ce que les instances partagent, comme un projet Ghidra sur un volume partagé : l'instance 1 l'exécute une fois et ses outils servent toutes les instances. Un changement s'applique à toutes les instances aussitôt.",
+  "scale.serverPolicyOf": "Où {server} s'exécute",
+  "scale.serverPolicy.each": "Chaque instance",
+  "scale.serverPolicy.first": "Instance 1 seulement",
   "scale.summary": "Évolutif, jusqu'à {max}",
   "scale.error.min": "Garder doit être un nombre entier qui ne dépasse pas Au plus.",
   "scale.error.max": "Au plus doit être entre 1 et 16.",
