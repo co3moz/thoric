@@ -105,7 +105,7 @@ Its tools use instance 1's desktop, so a window it opens appears there, not in y
 ## Shrink when the work is done
 
 1. Make sure each worker's results are in a shared folder or handed to the user.
-2. `delete_instance(instance: N)` for every instance you created, then `get_job` until it completes. It deletes the instance with the volumes made for it; shared volumes stay.
+2. `delete_instance(instance: N)` for every instance you created, then `get_job` with `wait_seconds` until it completes. It deletes the instance with the volumes made for it; shared volumes stay.
 3. Leave alone instances you did not create (check their notes) and the `kept` ones, which an agent cannot delete and the set refuses anyway.
 
 **Numbers are reused.** A new instance takes the lowest free number, so after `delete_instance(3)` the next `create_instance` may be instance 3 again, for another agent. Drop a number once its instance is deleted, never hand a stale one to a subagent, and when you come back to a number after a long time, check with `list_instances` that its note is still yours.

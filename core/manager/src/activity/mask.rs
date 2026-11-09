@@ -6,6 +6,7 @@
 //! values, base64 payloads, headers, environment values and text typed into a desktop or a
 //! terminal are kept: a typed password or a token is never written down. A desktop server's tool
 //! is opaque to the manager, so its arguments keep their keys and sizes whatever it is called.
+//! The files a script takes with it keep their paths and options, and their contents as size alone.
 //!
 //! A kept text is cut at [`TEXT`] characters and a script at [`SCRIPT`], as
 //! `{"$truncated": "the start", "length": 9000}`: what `exec_container` runs is the first thing
@@ -46,6 +47,8 @@ pub(super) enum Keep {
     /// Desktop input actions: what is clicked, scrolled and pressed, with typed text and keys of a
     /// single character as their size.
     Actions,
+    /// A script's files: each one's path and options, its content as its type and size.
+    Files,
 }
 use Keep::*;
 
@@ -171,6 +174,9 @@ pub(super) fn policy(tool: &str) -> Option<&'static [Rule]> {
             ("script", Script, true),
             ("root", Text, true),
             ("timeout_seconds", Text, false),
+            ("wait_seconds", Text, false),
+            ("log_tail_bytes", Text, false),
+            ("files", Files, false),
         ],
         "import_image" => &[("reference", Text, true), ("name", Text, true)],
         // The compose and the icon stay out: the one may hold parameters' defaults, the other
@@ -492,7 +498,32 @@ fn keep_value(keep: Keep, value: &Value, secrets: &mut Vec<String>) -> Value {
                 })
                 .collect(),
         ),
-        (Keys | Actions, _) => masked(value, secrets),
+        (Files, Value::Array(files)) => Value::Array(
+            files
+                .iter()
+                .take(KEYS)
+                .map(|file| match file {
+                    Value::Object(file) => Value::Object(
+                        file.iter()
+                            .take(KEYS)
+                            .map(|(key, value)| {
+                                let kept = match (key.as_str(), value) {
+                                    ("path", Value::String(path)) => cut(path, TEXT),
+                                    ("encoding", Value::String(name)) => {
+                                        Value::String(super::clip(name, KEY))
+                                    }
+                                    ("replace", Value::Bool(_)) => value.clone(),
+                                    _ => masked(value, secrets),
+                                };
+                                (super::clip(key, KEY), kept)
+                            })
+                            .collect(),
+                    ),
+                    other => masked(other, secrets),
+                })
+                .collect(),
+        ),
+        (Keys | Actions | Files, _) => masked(value, secrets),
     }
 }
 

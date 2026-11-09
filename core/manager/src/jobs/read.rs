@@ -13,7 +13,7 @@ use crate::{
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
-use std::time::Duration;
+use std::{collections::HashMap, sync::Mutex, time::Duration};
 use tokio::{sync::broadcast::error::RecvError, time::Instant};
 
 /// The longest one read waits; the agent reads again to wait longer.
@@ -23,6 +23,8 @@ pub(crate) const MAX_WAIT: u64 = 300;
 pub(crate) const MCP_TAIL: usize = 4096;
 /// How often a waiting call reports progress to a client that asked for it.
 const PROGRESS_EVERY: Duration = Duration::from_secs(10);
+/// The jobs whose reads without a wait are counted; one more forgets them all rather than grow.
+const POLLED_JOBS: usize = 256;
 
 /// What a read of a job asks for beyond the job itself. Without any of them the answer is the
 /// whole job, as it always was.
@@ -82,6 +84,50 @@ pub(crate) async fn answer(
         value["cancellable"] = json!(true);
     }
     Ok(value)
+}
+
+/// How often each job that has not ended was read over MCP without a wait, in memory only: an
+/// agent that reads one again and again is told to wait instead.
+#[derive(Default)]
+pub(crate) struct Polls(Mutex<HashMap<String, u32>>);
+
+impl Polls {
+    /// Count one more read of the job `id` without a wait and say how many there were.
+    fn count(&self, id: &str) -> u32 {
+        let mut polls = self.0.lock().unwrap();
+        if polls.len() >= POLLED_JOBS && !polls.contains_key(id) {
+            polls.clear();
+        }
+        let count = polls.entry(id.to_owned()).or_default();
+        *count = count.saturating_add(1);
+        *count
+    }
+    fn forget(&self, id: &str) {
+        self.0.lock().unwrap().remove(id);
+    }
+}
+
+/// [`answer`] for the MCP tool `get_job`. From the second read in a row of a job that has not
+/// ended, without `wait_seconds`, the answer carries a `hint` to wait instead of polling.
+pub(crate) async fn mcp_answer(
+    app: &App,
+    id: &str,
+    read: &Read,
+    caller: Option<&Caller>,
+) -> Result<Value> {
+    let waited = read.wait_seconds.is_some_and(|wait| wait > 0);
+    let mut job = answer(app, id, read, caller).await?;
+    if waited || !job["finished_at"].is_null() {
+        app.polls.forget(id);
+        return Ok(job);
+    }
+    let reads = app.polls.count(id);
+    if reads > 1 {
+        job["hint"] = json!(format!(
+            "This job has not ended and was read {reads} times in a row without wait_seconds. Pass wait_seconds, up to {MAX_WAIT}, and one call answers as soon as the job ends."
+        ));
+    }
+    Ok(job)
 }
 
 /// The arguments of the MCP tool `get_job`: the job and [`Read`], with the end of the log,
