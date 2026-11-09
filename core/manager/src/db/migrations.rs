@@ -12,7 +12,7 @@ use rusqlite::{Connection, Transaction, TransactionBehavior};
 type Migration = fn(&Transaction) -> rusqlite::Result<()>;
 
 /// Migration `n` brings a database of version `n - 1` to version `n`.
-const MIGRATIONS: &[Migration] = &[records_and_activity, job_log];
+const MIGRATIONS: &[Migration] = &[records_and_activity, job_log, activity_repeats];
 
 /// Bring the database to the latest version this manager knows.
 pub(super) fn run(conn: &mut Connection) -> anyhow::Result<()> {
@@ -88,6 +88,16 @@ fn job_log(transaction: &Transaction) -> rusqlite::Result<()> {
             ends_at INTEGER NOT NULL
         );
         CREATE INDEX job_log_job ON job_log(job, ends_at);",
+    )
+}
+
+/// Version 3: a repeated read joins the row of the call before it instead of adding one; see
+/// `activity/merge.rs`. `repeats` counts the calls a row stands for beyond its first, and
+/// `last_at` is when the last of them began, empty for a row of one call.
+fn activity_repeats(transaction: &Transaction) -> rusqlite::Result<()> {
+    transaction.execute_batch(
+        "ALTER TABLE activity ADD COLUMN repeats INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE activity ADD COLUMN last_at INTEGER;",
     )
 }
 

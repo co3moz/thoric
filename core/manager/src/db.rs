@@ -27,7 +27,6 @@ impl Db {
         )?;
         migrations::run(&mut conn)
             .with_context(|| format!("Could not open the database {}", path.display()))?;
-        crate::activity::opened(&conn)?;
         job_log::opened(&conn)?;
         Ok(Self {
             conn: Mutex::new(conn),

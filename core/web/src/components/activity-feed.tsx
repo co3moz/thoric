@@ -5,6 +5,7 @@ import {
   RiEyeLine,
   RiLinkM,
   RiPencilLine,
+  RiRepeat2Line,
   RiShieldKeyholeLine,
   RiUserLine,
 } from "@remixicon/react"
@@ -14,6 +15,7 @@ import { ConceptIcon } from "@/components/concept"
 import { Badge } from "@/components/ui/badge"
 import {
   activityLabel,
+  callCount,
   callDuration,
   callerLabel,
   dayGroups,
@@ -23,7 +25,7 @@ import {
   type ActivityEntry,
   type ActivityKind,
 } from "@/lib/activity"
-import { t } from "@/lib/i18n"
+import { formatNumber, t } from "@/lib/i18n"
 
 const kindIcons: Record<ActivityKind, React.ReactNode> = {
   destructive: <RiAlertLine />,
@@ -149,6 +151,7 @@ function ActivityRow({
   onSelect: (entry: ActivityEntry) => void
 }) {
   const container = containerName ?? entry.container_name ?? entry.container_id?.slice(0, 8)
+  const calls = callCount(entry)
   return (
     <li className="relative before:absolute before:top-0 before:bottom-0 before:left-[1.625rem] before:w-px before:bg-border first:before:top-4 last:before:bottom-auto last:before:h-4 only:before:hidden">
       <button
@@ -168,6 +171,20 @@ function ActivityRow({
               )}
               {entry.tool}
             </span>
+            {calls > 1 && (
+              <Badge
+                variant="secondary"
+                className="px-1.5 tabular-nums"
+                title={
+                  entry.last_at
+                    ? t("activity.repeatedUntil", { time: exactTime(entry.last_at) })
+                    : undefined
+                }
+              >
+                <RiRepeat2Line />
+                {t("activity.calls", { count: formatNumber(calls) })}
+              </Badge>
+            )}
             <CallerBadge entry={entry} />
             {showContainer && container && (
               <span className="inline-flex min-w-0 items-center gap-1 text-xs text-muted-foreground">

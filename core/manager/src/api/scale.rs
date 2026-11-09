@@ -279,3 +279,36 @@ pub(crate) async fn list_instances(app: Arc<App>, name: &str) -> Result<Value> {
     answer["free"] = json!(set.max as usize - set.instances.len().min(set.max as usize));
     Ok(answer)
 }
+
+/// `GET /api/scale-sets/{name}/activity`: what agents did in each instance, counted from the
+/// kept rows of the agent activity log in one read: its calls, a repeated read's each, how many
+/// of them failed or were refused, and when the last began.
+pub async fn set_activity(
+    State(app): State<Arc<App>>,
+    Path(name): Path<String>,
+) -> Result<Json<Value>> {
+    let set = load(&app, &name)?;
+    let containers = set
+        .instances
+        .values()
+        .map(|instance| instance.container_id.as_str())
+        .collect::<Vec<_>>();
+    let tallies = crate::activity::by_container(&app.db, &containers)?;
+    let instances = set
+        .instances
+        .iter()
+        .map(|(number, instance)| {
+            let tally = tallies
+                .iter()
+                .find(|tally| tally.container_id == instance.container_id);
+            json!({
+                "instance": number,
+                "container_id": instance.container_id,
+                "calls": tally.map_or(0, |tally| tally.calls),
+                "errors": tally.map_or(0, |tally| tally.errors),
+                "last_at": tally.map(|tally| tally.last_at),
+            })
+        })
+        .collect::<Vec<_>>();
+    Ok(Json(json!({"instances": instances})))
+}

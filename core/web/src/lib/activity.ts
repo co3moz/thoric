@@ -25,8 +25,13 @@ export type ActivityEntry = {
   summary: string
   outcome: ActivityOutcome
   error: string | null
+  /** How long the call took; for a repeated read, the longest of its calls. */
   duration_ms: number
   job_id: string | null
+  /** How many more calls the row stands for: reads that repeated its call one after another. */
+  repeats?: number
+  /** When the last of those began, in Unix milliseconds; null for a row of one call. */
+  last_at?: number | null
 }
 
 export type ActivityPage = { items: ActivityEntry[]; next: number | null; kept: number }
@@ -67,6 +72,20 @@ export function activityPath(filters: ActivityFilters, before?: number, limit = 
   query.set("limit", String(limit))
   return `activity?${query}`
 }
+
+/** The formats the log downloads in. */
+export type ExportFormat = "csv" | "jsonl"
+
+/** The API path of the log as a file, narrowed as the page is. */
+export function exportPath(filters: ActivityFilters, format: ExportFormat) {
+  const query = new URLSearchParams(activityPath(filters).slice("activity?".length))
+  query.delete("limit")
+  query.set("format", format)
+  return `activity/export?${query}`
+}
+
+/** How many calls a row stands for: its own and the reads that repeated it. */
+export const callCount = (entry: Pick<ActivityEntry, "repeats">) => 1 + (entry.repeats ?? 0)
 
 export const filtersActive = (filters: ActivityFilters) =>
   !!(

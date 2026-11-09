@@ -1,6 +1,7 @@
 import * as React from "react"
 import {
   RiAlertLine,
+  RiDownloadLine,
   RiErrorWarningLine,
   RiFilterOffLine,
   RiPulseLine,
@@ -21,6 +22,12 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Empty,
   EmptyContent,
@@ -46,11 +53,13 @@ import {
   ADMINISTRATOR,
   callerFilter,
   exactTime,
+  exportPath,
   filterEndpoint,
   filtersActive,
   toolLabel,
   type ActivityEntry,
   type ActivityFilters,
+  type ExportFormat,
 } from "@/lib/activity"
 import { useActivity } from "@/lib/activity-queries"
 import { openDialog } from "@/lib/dialogs"
@@ -59,6 +68,16 @@ import { useContainers, useMcpEndpoints } from "@/lib/queries"
 import { navigate, replaceRoute, useRoute } from "@/lib/route"
 
 const ALL = "all"
+
+/** Lets the browser save the log as the manager streams it, under the name it gives. */
+function save(filters: ActivityFilters, format: ExportFormat) {
+  const link = document.createElement("a")
+  link.href = `/api/${exportPath(filters, format)}`
+  link.download = ""
+  document.body.append(link)
+  link.click()
+  link.remove()
+}
 
 /** `value`, once it has stayed the same for `ms`, so typing does not ask for every letter. */
 function useSettled<T>(value: T, ms: number) {
@@ -80,6 +99,7 @@ function Filters({
   onErrors,
   onDestructive,
   onClear,
+  shown,
   containerNames,
   containersLoaded,
   seen,
@@ -93,6 +113,8 @@ function Filters({
   onErrors: (value: boolean) => void
   onDestructive: (value: boolean) => void
   onClear?: () => void
+  /** What the list is narrowed to, which a download follows. */
+  shown: ActivityFilters
   containerNames: Map<string, string>
   /** Whether the container list was read, so one missing from it is gone. */
   containersLoaded: boolean
@@ -211,6 +233,22 @@ function Filters({
             {t("activity.filter.clear")}
           </Button>
         )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" title={t("activity.export.hint")}>
+              <RiDownloadLine data-icon="inline-start" />
+              {t("activity.export")}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuItem onSelect={() => save(shown, "csv")}>
+              {t("activity.export.csv")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => save(shown, "jsonl")}>
+              {t("activity.export.jsonl")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   )
@@ -287,6 +325,7 @@ export function ActivityPage() {
           onErrors={setErrors}
           onDestructive={setDestructive}
           onClear={active ? clear : undefined}
+          shown={filters}
           containerNames={containerNames}
           containersLoaded={!!containers}
           seen={entries}

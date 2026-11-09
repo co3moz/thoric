@@ -222,6 +222,13 @@ export const es: Messages = {
   "activity.loadOlder": "Cargar llamadas anteriores",
   "activity.end": "Esto es todo lo registrado.",
   "activity.kept": "Se guardan las {count} más recientes.",
+  "activity.calls": "{count} llamadas",
+  "activity.repeatedUntil": "Repetida hasta {time}",
+  "activity.export": "Descargar",
+  "activity.export.hint":
+    "Guarda el registro tal como está filtrado, con los argumentos enmascarados como aquí",
+  "activity.export.csv": "CSV, para una hoja de cálculo",
+  "activity.export.jsonl": "JSON Lines",
   "activity.empty.title": "Todavía no hay actividad de agentes",
   "activity.empty.description":
     "Cada llamada que un agente hace por MCP aparece aquí: quién llamó, qué tocó y cómo terminó.",
@@ -239,6 +246,10 @@ export const es: Messages = {
   "activity.detail.job": "Tarea",
   "activity.detail.openJob": "Abrir la tarea",
   "activity.detail.started": "Inicio",
+  "activity.detail.calls": "Llamadas",
+  "activity.detail.lastCall": "Última llamada",
+  "activity.detail.repeatsNote":
+    "Una lectura repetida llamada tras llamada es una sola fila. La duración es la de la llamada más larga.",
   "activity.detail.arguments": "Argumentos",
   "activity.detail.noArguments": "Sin argumentos.",
   "activity.detail.error": "Error",
@@ -1307,6 +1318,8 @@ export const es: Messages = {
   "settings.about.UPLOAD_MAX_MB": "El archivo más grande que acepta una subida, en MiB.",
   "settings.about.IMAGE_ARCHIVE_MAX_MB":
     "El archivo de imagen o volumen más grande que descomprime una importación, en MiB.",
+  "settings.about.ACTIVITY_KEEP":
+    "Cuántas filas guarda el registro de actividad de agentes, las más recientes.",
   "settings.about.TEMPLATES_URL":
     "La lista que lee la página Plantillas; none desactiva la página.",
   "settings.about.VOLUME_FILTER":
@@ -2337,4 +2350,11 @@ export const es: Messages = {
   "scale.setOf": "Grupo escalable {name}",
   "scale.count": "{count} de {max}",
   "scale.deleting": "Eliminando",
+  "scale.activity": "Llamadas de agentes en las instancias de {name}",
+  "scale.activity.open": "Abrir Actividad para la instancia {number}",
+  "scale.activity.instance": "#{number}",
+  "scale.activity.calls.one": "{count} llamada",
+  "scale.activity.calls.other": "{count} llamadas",
+  "scale.activity.errors.one": "{count} fallida",
+  "scale.activity.errors.other": "{count} fallidas",
 }

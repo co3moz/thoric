@@ -1,6 +1,8 @@
 //! Pins down the agent activity log as `/mcp` writes it: every call is recorded with its caller,
 //! container, kind and outcome whatever it returns, a token a tool returns is never kept, every
-//! tool has an argument policy, `GET /api/activity` filters and pages, and the guides say what is
+//! tool has an argument policy, `GET /api/activity` filters and pages and says how many rows the
+//! setting keeps, a job's read and cancel name the job's container without using it, a poll is
+//! one row, a scale set's route counts the calls of each instance, and the guides say what is
 //! kept.
 use super::*;
 use crate::{
@@ -244,7 +246,7 @@ async fn the_route_lists_the_newest_calls_with_their_filters_and_a_cursor() {
             outcome: "ok".into(),
             ..Default::default()
         };
-        store::insert(&app.db, &entry).unwrap();
+        store::insert(&app.db, &entry, KEPT).unwrap();
     }
     let (status, body) = get(&app, "/api/activity?container=c1&limit=1").await;
     assert_eq!(status, axum::http::StatusCode::OK, "{body}");
@@ -279,7 +281,34 @@ fn the_guides_say_what_is_recorded_and_how_much_is_kept() {
     ] {
         assert!(api.contains(filter), "docs/API.md must explain {filter}");
     }
+    // The download and what a repeated read leaves, which this release added.
+    assert!(
+        api.contains("| GET | `/api/activity/export` |")
+            && api.contains("`format`")
+            && api.contains("`jsonl`"),
+        "docs/API.md must describe the download"
+    );
+    for column in export::COLUMNS.trim_end().split(',') {
+        assert!(
+            api.contains(&format!("`{column}`")),
+            "docs/API.md must name the CSV column {column}"
+        );
+    }
+    assert!(api.contains("| GET | `/api/scale-sets/{name}/activity` |"));
     let guide = include_str!("../../../docs/MCP.md");
+    assert!(
+        guide.contains("`ACTIVITY_KEEP`")
+            && guide.contains(&format!(
+                "within {} minutes",
+                ["zero", "one", "two", "three", "four", "five", "six"]
+                    [(merge::WINDOW / 60_000) as usize]
+            )),
+        "docs/MCP.md must say how many rows are kept and which reads share one"
+    );
+    assert!(
+        include_str!("../../../docs/INSTALLATION.md").contains("| `ACTIVITY_KEEP` | `10000` |"),
+        "docs/INSTALLATION.md must explain ACTIVITY_KEEP"
+    );
     assert!(guide.contains("## Agent activity"));
     let kept = format!("{},{:03}", KEPT / 1000, KEPT % 1000);
     assert!(
@@ -298,4 +327,182 @@ fn the_guides_say_what_is_recorded_and_how_much_is_kept() {
         );
     }
     assert!(include_str!("../../../docs/USAGE.md").contains("**Activity**"));
+}
+
+fn job(id: &str, resource: Option<&str>) -> crate::model::Job {
+    crate::model::Job {
+        id: id.into(),
+        kind: "exec".into(),
+        resource: resource.map(Into::into),
+        status: "completed".into(),
+        created_at: 1,
+        finished_at: Some(2),
+        log: String::new(),
+        result: None,
+        progress: None,
+        stages: Vec::new(),
+        script: None,
+        name: None,
+    }
+}
+
+#[tokio::test]
+async fn a_jobs_read_and_cancel_name_the_container_the_job_belongs_to() {
+    let mut app = mcp_app();
+    Arc::get_mut(&mut app).unwrap().lifecycle =
+        crate::lifecycle::Activity::started(std::time::Duration::from_secs(3600));
+    app.db
+        .put(CONTAINERS, "c1", &container("c1", "Unity"))
+        .unwrap();
+    for (id, resource) in [
+        ("script", Some("container:c1")),
+        // Its container was deleted since.
+        ("gone", Some("container:c9")),
+        ("build", Some("image:i1")),
+        ("loose", None),
+    ] {
+        app.db.put("job", id, &job(id, resource)).unwrap();
+    }
+    for id in ["script", "gone", "build", "loose", "missing"] {
+        call(&app, "get_job", json!({"job_id": id})).await;
+    }
+    call(&app, "cancel_job", json!({"job_id": "script"})).await;
+    let rows = recorded(&app, 6).await;
+    let of = |tool: &str, id: &str| {
+        let row = rows
+            .iter()
+            .find(|row| row.tool == tool && row.arguments["job_id"] == id)
+            .unwrap_or_else(|| panic!("{tool} {id} was not recorded: {rows:?}"));
+        (row.container_id.clone(), row.container_name.clone())
+    };
+    let unity = (Some("c1".to_owned()), Some("Unity".to_owned()));
+    assert_eq!(of("get_job", "script"), unity);
+    // A cancel that is refused, since the job ended, still says whose job it was.
+    assert_eq!(of("cancel_job", "script"), unity);
+    assert_eq!(of("get_job", "gone"), (Some("c9".into()), None));
+    for id in ["build", "loose", "missing"] {
+        assert_eq!(of("get_job", id), (None, None), "{id}");
+    }
+    // So the log filtered by the container keeps the polls of its jobs.
+    let filter = store::Filter {
+        container: Some("c1".into()),
+        ..Default::default()
+    };
+    let tools: Vec<String> = store::query(&app.db, &filter)
+        .unwrap()
+        .into_iter()
+        .map(|row| row.tool)
+        .collect();
+    assert_eq!(tools, ["cancel_job", "get_job"]);
+    // Reading a job does not use its container, which an idle stop goes by.
+    assert!(app.lifecycle.idle_for("c1").unwrap() >= std::time::Duration::from_secs(3000));
+}
+
+#[tokio::test]
+async fn a_poll_over_mcp_is_one_row_and_a_call_in_between_starts_another() {
+    let app = mcp_app();
+    app.db
+        .put(CONTAINERS, "c1", &container("c1", "Unity"))
+        .unwrap();
+    app.db
+        .put("job", "script", &job("script", Some("container:c1")))
+        .unwrap();
+    for _ in 0..5 {
+        call(&app, "get_job", json!({"job_id": "script"})).await;
+    }
+    // The rows are written after each answer, so the last one is waited for.
+    let polled = loop {
+        let rows = recorded(&app, 1).await;
+        if rows[0].repeats == 4 {
+            break rows;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    };
+    assert_eq!(polled.len(), 1);
+    assert_eq!(polled[0].container_id.as_deref(), Some("c1"));
+    assert!(polled[0].last_at.is_some_and(|last| last >= polled[0].at));
+    // A read of something else leaves the run alone, and the caller's next call in that
+    // container ends it.
+    call(&app, "list_jobs", json!({})).await;
+    recorded(&app, 2).await;
+    call(&app, "list_windows", json!({"container_id": "c1"})).await;
+    recorded(&app, 3).await;
+    call(&app, "get_job", json!({"job_id": "script"})).await;
+    let rows = recorded(&app, 4).await;
+    assert_eq!(
+        rows.iter()
+            .map(|row| (row.tool.as_str(), row.repeats))
+            .collect::<Vec<_>>(),
+        [
+            ("get_job", 0),
+            ("list_windows", 0),
+            ("list_jobs", 0),
+            ("get_job", 4)
+        ]
+    );
+}
+
+#[tokio::test]
+async fn the_route_says_how_many_rows_the_setting_keeps() {
+    let mut app = crate::test_support::app(false);
+    Arc::get_mut(&mut app).unwrap().config.activity_keep = 250;
+    let (_, body) = get(&app, "/api/activity").await;
+    assert_eq!(body["kept"], 250);
+}
+
+#[tokio::test]
+async fn a_scale_sets_route_counts_the_calls_of_each_instance() {
+    use crate::scale::{Instance, SETS, Scaling, new_set};
+    let app = crate::test_support::app(false);
+    let mut set = new_set("re", &crate::test_support::spec(), &Scaling::default());
+    for number in 1..=3u32 {
+        set.instances.insert(
+            number,
+            Instance {
+                container_id: format!("c{number}"),
+                note: String::new(),
+            },
+        );
+    }
+    app.db.put(SETS, "re", &set).unwrap();
+    let row = |container: &str, tool: &str, at: u64, outcome: &str| Entry {
+        at,
+        endpoint: Some("re".into()),
+        credential: "endpoint_token".into(),
+        source: "tool".into(),
+        tool: tool.into(),
+        container_id: Some(container.into()),
+        kind: "read".into(),
+        arguments: json!({}),
+        outcome: outcome.into(),
+        ..Default::default()
+    };
+    // Instance 1 polled a job six times and ran a script that failed; instance 2 made one
+    // call; instance 3 none; and a container of no set is not the set's.
+    for at in (1_000..=6_000).step_by(1_000) {
+        app.calls
+            .record(&app.db, &row("c1", "get_job", at, "ok"), KEPT)
+            .unwrap();
+    }
+    for entry in [
+        row("c1", "exec_container", 7_000, "error"),
+        row("c2", "screenshot", 500, "ok"),
+        row("elsewhere", "screenshot", 9_000, "refused"),
+    ] {
+        app.calls.record(&app.db, &entry, KEPT).unwrap();
+    }
+    let (status, body) = get(&app, "/api/scale-sets/re/activity").await;
+    assert_eq!(status, axum::http::StatusCode::OK, "{body}");
+    assert_eq!(
+        body,
+        json!({"instances": [
+            {"instance": 1, "container_id": "c1", "calls": 7, "errors": 1, "last_at": 7_000},
+            {"instance": 2, "container_id": "c2", "calls": 1, "errors": 0, "last_at": 500},
+            {"instance": 3, "container_id": "c3", "calls": 0, "errors": 0, "last_at": null},
+        ]})
+    );
+    // The six polls are one row.
+    assert_eq!(recorded(&app, 4).await.len(), 4);
+    let (status, _) = get(&app, "/api/scale-sets/none/activity").await;
+    assert_eq!(status, axum::http::StatusCode::NOT_FOUND);
 }

@@ -8,10 +8,12 @@ import {
   activityPath,
   argumentRows,
   argumentText,
+  callCount,
   callDuration,
   callerFilter,
   callerLabel,
   dayGroups,
+  exportPath,
   filterEndpoint,
   filtersActive,
   isMasked,
@@ -187,4 +189,30 @@ test("input actions read one a line, with typed text and hidden keys masked", ()
   assert.equal(actionLines(["a"]), null)
   assert.equal(actionLines({ type: "click" }), null)
   assert.equal(actionLines([{ type: "click" }, { x: 1 }]), null)
+})
+
+test("the download follows the page's filters and leaves out its paging", () => {
+  assert.equal(exportPath({}, "csv"), "activity/export?format=csv")
+  const path = exportPath(
+    { container: "c1", caller: "endpoint:set", tool: " get_job ", errors: true, destructive: true },
+    "jsonl"
+  )
+  assert.deepEqual(Object.fromEntries(new URLSearchParams(path.slice("activity/export?".length))), {
+    container: "c1",
+    endpoint: "set",
+    tool: "get_job",
+    kind: "destructive",
+    outcome: "error,refused",
+    format: "jsonl",
+  })
+  // The guide lists the route and each parameter the page sends to it.
+  const api = readFileSync(new URL("../../../docs/API.md", import.meta.url), "utf8")
+  assert.ok(api.includes("| GET | `/api/activity/export` |"))
+  assert.ok(api.includes("`format`, `csv` (the default) or `jsonl`"))
+})
+
+test("a row counts its own call and the reads that repeated it", () => {
+  assert.equal(callCount({}), 1)
+  assert.equal(callCount({ repeats: 0 }), 1)
+  assert.equal(callCount({ repeats: 1000 }), 1001)
 })

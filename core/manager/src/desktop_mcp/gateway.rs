@@ -89,7 +89,7 @@ impl super::DesktopMcp {
         started.push_back(job.to_owned());
     }
     /// Whether the endpoint started the job.
-    pub(super) fn started_by(&self, endpoint: &str, job: &str) -> bool {
+    pub(crate) fn started_by(&self, endpoint: &str, job: &str) -> bool {
         self.jobs
             .lock()
             .unwrap()

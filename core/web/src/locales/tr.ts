@@ -219,6 +219,12 @@ export const tr: Messages = {
   "activity.loadOlder": "Daha eski çağrıları yükle",
   "activity.end": "Kaydedilen her şey bu kadar.",
   "activity.kept": "En yeni {count} çağrı saklanır.",
+  "activity.calls": "{count} çağrı",
+  "activity.repeatedUntil": "{time} anına kadar yinelendi",
+  "activity.export": "İndir",
+  "activity.export.hint": "Kaydı süzüldüğü haliyle kaydeder; argümanlar buradaki gibi maskelidir",
+  "activity.export.csv": "CSV, hesap tablosu için",
+  "activity.export.jsonl": "JSON Lines",
   "activity.empty.title": "Henüz ajan etkinliği yok",
   "activity.empty.description":
     "Bir ajanın MCP üzerinden yaptığı her araç çağrısı burada görünür: kimin çağırdığı, neye dokunduğu ve nasıl bittiği.",
@@ -236,6 +242,10 @@ export const tr: Messages = {
   "activity.detail.job": "İş",
   "activity.detail.openJob": "İşi aç",
   "activity.detail.started": "Başlangıç",
+  "activity.detail.calls": "Çağrılar",
+  "activity.detail.lastCall": "Son çağrı",
+  "activity.detail.repeatsNote":
+    "Art arda yinelenen bir okuma tek satırdır. Süre, en uzun çağrının süresidir.",
   "activity.detail.arguments": "Argümanlar",
   "activity.detail.noArguments": "Argüman yok.",
   "activity.detail.error": "Hata",
@@ -1296,6 +1306,7 @@ export const tr: Messages = {
   "settings.about.UPLOAD_MAX_MB": "Tek yüklemenin alabileceği en büyük dosya, MiB.",
   "settings.about.IMAGE_ARCHIVE_MAX_MB":
     "İçe aktarmanın açacağı en büyük imaj ya da volume arşivi, MiB.",
+  "settings.about.ACTIVITY_KEEP": "Ajan etkinliği kaydının sakladığı satır sayısı; en yenileri.",
   "settings.about.TEMPLATES_URL": "Şablonlar sayfasının okuduğu liste; none sayfayı kapatır.",
   "settings.about.VOLUME_FILTER":
     "Bir volume'un listelenip bağlanması için gereken etiket; none her volume'u listeler.",
@@ -2306,4 +2317,11 @@ export const tr: Messages = {
   "scale.setOf": "{name} ölçeklenebilir grubu",
   "scale.count": "{count} / {max}",
   "scale.deleting": "Siliniyor",
+  "scale.activity": "{name} örneklerindeki ajan çağrıları",
+  "scale.activity.open": "{number}. örnek için Etkinlik sayfasını aç",
+  "scale.activity.instance": "#{number}",
+  "scale.activity.calls.one": "{count} çağrı",
+  "scale.activity.calls.other": "{count} çağrı",
+  "scale.activity.errors.one": "{count} başarısız",
+  "scale.activity.errors.other": "{count} başarısız",
 }

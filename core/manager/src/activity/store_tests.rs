@@ -1,8 +1,14 @@
-//! Pins down the activity table: pruning keeps the newest calls and never gives an ID again, each
-//! filter narrows a page, pages follow each other by their cursor without a gap, and a filter value
-//! no row could have is refused.
+//! Pins down the activity table: pruning keeps the newest calls and never gives an ID again,
+//! `ACTIVITY_KEEP` decides how many stay, as rows arrive and when the manager starts, each filter
+//! narrows a page, pages follow each other by their cursor without a gap, a filter value no row
+//! could have is refused, and the calls of a set of containers are counted with their repeats.
 use super::*;
 use serde_json::json;
+
+/// A row of its own under the default `ACTIVITY_KEEP`.
+fn insert(db: &Db, entry: &Entry) -> anyhow::Result<i64> {
+    super::insert(db, entry, KEPT)
+}
 
 fn db() -> Db {
     Db::open(std::path::Path::new(":memory:")).unwrap()
@@ -46,30 +52,128 @@ fn pruning_keeps_the_newest_calls_and_never_gives_an_id_again() {
     assert_eq!(insert(&db, &entry("t30")).unwrap(), 31);
 }
 
-#[test]
-fn a_full_table_is_pruned_as_calls_arrive() {
-    let db = db();
-    let rows = |db: &Db| -> i64 {
-        db.connection()
-            .query_row("SELECT count(*) FROM activity", [], |row| row.get(0))
-            .unwrap()
-    };
+/// `count` rows as an older manager left them, written at once.
+fn filled(db: &Db, count: usize) {
     db.connection()
         .execute_batch(&format!(
-            "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < {})
+            "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < {count})
              INSERT INTO activity(at, credential, source, tool, kind, arguments, summary, outcome, duration_ms)
-             SELECT i, 'none', 'tool', 'old', 'read', '{{}}', '', 'ok', 0 FROM n",
-            KEPT + 10
+             SELECT i, 'none', 'tool', 'old', 'read', '{{}}', '', 'ok', 0 FROM n"
         ))
         .unwrap();
-    assert_eq!(rows(&db), (KEPT + 10) as i64);
-    // The next ID that is a multiple of PRUNE_EVERY prunes.
-    for _ in 0..PRUNE_EVERY {
-        insert(&db, &entry("new")).unwrap();
+}
+
+fn rows(db: &Db) -> usize {
+    db.connection()
+        .query_row("SELECT count(*) FROM activity", [], |row| {
+            row.get::<_, i64>(0)
+        })
+        .unwrap() as usize
+}
+
+#[test]
+fn a_full_table_is_pruned_to_the_setting_as_calls_arrive() {
+    for keep in [KEPT, 150] {
+        let db = db();
+        filled(&db, keep + 10);
+        assert_eq!(rows(&db), keep + 10);
+        // The next ID that is a multiple of PRUNE_EVERY prunes.
+        for _ in 0..PRUNE_EVERY {
+            super::insert(&db, &entry("new"), keep).unwrap();
+        }
+        let left = rows(&db);
+        assert!(
+            (keep..keep + PRUNE_EVERY as usize).contains(&left),
+            "{left} rows are left of {keep} to keep"
+        );
+        let newest = page(&db, Filter::default());
+        assert_eq!(newest[0].tool, "new");
     }
-    assert!(rows(&db) <= (KEPT + PRUNE_EVERY as usize) as i64);
-    let newest = page(&db, Filter::default());
-    assert_eq!(newest[0].tool, "new");
+}
+
+#[test]
+fn a_smaller_setting_drops_the_older_rows_when_the_manager_starts() {
+    let db = db();
+    filled(&db, 400);
+    trim(&db, 1000).unwrap();
+    assert_eq!(rows(&db), 400);
+    trim(&db, 100).unwrap();
+    assert_eq!(rows(&db), 100);
+    // The newest stay.
+    let oldest: i64 = db
+        .connection()
+        .query_row("SELECT min(id) FROM activity", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(oldest, 301);
+}
+
+#[test]
+fn the_setting_is_a_whole_number_within_its_bounds() {
+    assert_eq!(keep(None).unwrap(), 10_000);
+    // Compose passes an empty value for a line `.env` leaves out.
+    assert_eq!(keep(Some("")).unwrap(), KEPT);
+    assert_eq!(keep(Some("100")).unwrap(), 100);
+    assert_eq!(keep(Some("1000000")).unwrap(), 1_000_000);
+    for refused in ["99", "1000001", "0", "-5", "many", "1e4", " 500"] {
+        let error = keep(Some(refused)).unwrap_err();
+        assert!(
+            format!("{error:#}")
+                .contains("ACTIVITY_KEEP must be a whole number from 100 to 1000000"),
+            "{refused}: {error:#}"
+        );
+    }
+}
+
+#[test]
+fn the_calls_of_containers_are_counted_with_their_repeats_errors_and_last_call() {
+    let db = db();
+    let row = |container: &str, at: u64, outcome: &str| {
+        let mut row = entry("get_job");
+        row.container_id = Some(container.into());
+        row.at = at;
+        row.outcome = outcome.into();
+        insert(&db, &row).unwrap()
+    };
+    let polled = row("c1", 1000, "ok");
+    row("c1", 2000, "error");
+    row("c1", 3000, "refused");
+    row("c2", 500, "ok");
+    row("other", 9000, "error");
+    // A read that repeated twice more, the last at 7000.
+    assert!(repeat(&db, polled, 6000, 5).unwrap());
+    assert!(repeat(&db, polled, 7000, 50).unwrap());
+    assert!(repeat(&db, polled, 6500, 9).unwrap());
+    let mut tallies = by_container(&db, &["c1", "c2", "never"]).unwrap();
+    tallies.sort_by(|a, b| a.container_id.cmp(&b.container_id));
+    assert_eq!(
+        tallies,
+        [
+            Tally {
+                container_id: "c1".into(),
+                calls: 6,
+                errors: 2,
+                last_at: 7000
+            },
+            Tally {
+                container_id: "c2".into(),
+                calls: 1,
+                errors: 0,
+                last_at: 500
+            },
+        ]
+    );
+    assert!(by_container(&db, &[]).unwrap().is_empty());
+    // The row keeps its first call's time, the last one's and the longest duration.
+    let first = page(&db, Filter::default())
+        .into_iter()
+        .find(|row| row.id == polled)
+        .unwrap();
+    assert_eq!(
+        (first.at, first.last_at, first.repeats, first.duration_ms),
+        (1000, Some(7000), 3, 50)
+    );
+    // A row that was pruned takes no repeat.
+    assert!(!repeat(&db, 999, 1, 1).unwrap());
 }
 
 #[test]

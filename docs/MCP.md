@@ -445,7 +445,7 @@ The manager records every tool call an agent makes, on `/mcp` and on every endpo
 - the time it began and how long it took;
 - the caller: `/mcp` or the endpoint, the credential it showed (the endpoint's token, the MCP token, none with `MCP_AUTH_MODE=none`, the dashboard's inspector, or a transfer link, which names the caller whose `create_transfer` issued it), and the name and version its client gives itself;
 - the tool, and for a desktop server's tool the server;
-- the container it worked on, with the name it had then;
+- the container it worked on, with the name it had then; for `get_job` and `cancel_job`, which name a job, the container that job belongs to, so the log of one container, or of one instance of a scale set, keeps the polls of its jobs;
 - its arguments, masked as below, and a one-line summary of them;
 - how it ended: a result, an error the tool reported with the first 300 characters of its text, or a refusal before any tool ran, such as an unknown tool or an argument its schema does not take; and the job it started.
 
@@ -460,7 +460,9 @@ What is kept of the arguments:
 - A desktop server's tool is opaque to Thoric, so its arguments keep their names and sizes and never their values, whatever the tool is called.
 - An error text loses every masked value it quotes before it is kept.
 
-The newest 10,000 calls are kept in the manager's database, so they survive a restart, and older ones are removed as new ones arrive. Recording never fails or holds up a call: the row is written after the call has answered, and one that cannot be written is logged and lost.
+A read that repeats the call before it does not get a row of its own: an agent that polls `get_job` a thousand times leaves one row that says so, with the time of the first call, the time of the last and the longest of them, instead of a thousand that bury what it did in between. A call joins the row before it only when both are the same read: a Thoric tool that only reads, answered without an error and without starting a job, called by the same caller (the endpoint or `/mcp`, the credential and the client) on the same container with the same arguments as they are kept, and begun within six minutes of the one before, which covers a `get_job` that waits its five. An error, another argument, another tool, a change, a desktop server's tool or a transfer link always has its own row, and whatever that caller does on that container in between ends the run, so the rows stay in the order things happened. The counters of [`/metrics`](INSTALLATION.md#prometheus-metrics) and the manager's own log still count every call.
+
+The newest 10,000 rows are kept in the manager's database, or as many as `ACTIVITY_KEEP` says, from 100 to 1,000,000, so they survive a restart, and older ones are removed as new ones arrive. `GET /api/activity/export`, **Download** on the Activity page, saves the log, as it is filtered, as CSV or JSON lines, with the arguments masked as in the list. Recording never fails or holds up a call: the row is written after the call has answered, and one that cannot be written is logged and lost.
 
 Not recorded are other MCP messages, such as `tools/list`; requests through a container's [proxied ports](#reach-a-server-inside-the-desktop), which carry a service's own traffic rather than single actions, so audit a server reached that way by its own means; a transfer link that is unknown, spent or expired, since nothing ran; the dashboard's own HTTP requests, which a person makes; and the desktop servers the MCP inspector starts in a process of its own. The inspector's calls to `/mcp` and to an endpoint go through the same handlers and are recorded with `inspector` as their credential, apart from any agent's.
 

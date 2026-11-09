@@ -1957,6 +1957,22 @@ try:
     assert any(c["tool"] == "container_diagnostics" and c["outcome"] == "refused" for c in calls), calls
     assert all(c["endpoint"] == "acceptance-mcp" for c in api("activity?container=" + env_id + "&caller=endpoint")["items"])
     print("PASS the agent activity log records an endpoint's calls with masked server arguments", flush=True)
+    # The log downloads as it lists: the endpoint's rows as CSV and as JSON lines, masked alike.
+    listed = api("activity?endpoint=acceptance-mcp&limit=200")["items"]
+    sheet = api("activity/export?endpoint=acceptance-mcp", raw=True).decode().splitlines()
+    assert sheet[0].startswith("id,at,last_at,repeats,endpoint,") and len(sheet) >= len(listed) + 1, sheet[:2]
+    lines = [json.loads(line) for line in api("activity/export?format=jsonl&endpoint=acceptance-mcp", raw=True).decode().splitlines()]
+    assert [line["id"] for line in lines][:len(listed)] == [c["id"] for c in listed] or len(lines) > len(listed), lines[:2]
+    assert all(line["endpoint"] == "acceptance-mcp" for line in lines) and '"over http"' not in json.dumps(lines) and "over http" not in "\n".join(sheet)
+    # A job's polls are one row that counts them and names the job's container.
+    polled = mcp_job(tool("exec_container", {"container_id": env_id, "script": "true"}))["id"]
+    for _ in range(5): tool("get_job", {"job_id": polled})
+    def poll_row():
+        rows = [c for c in api(f"activity?container={env_id}&tool=get_job&limit=200")["items"] if c["arguments"].get("job_id") == polled and c["endpoint"] is None]
+        return rows if rows and sum(1 + c["repeats"] for c in rows) >= 5 else None
+    rows = wait_for(poll_row, 15)
+    assert len(rows) < 5 and all(c["container_id"] == env_id for c in rows) and any(c["repeats"] and c["last_at"] >= c["at"] for c in rows), rows
+    print("PASS the agent activity log downloads masked, and a job's polls are one row on the job's container", flush=True)
     try:
         mcp("tools/list", token=scoped); raise AssertionError("an endpoint token opened the administrator's channel")
     except urllib.error.HTTPError as error:

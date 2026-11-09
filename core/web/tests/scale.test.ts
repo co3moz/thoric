@@ -4,6 +4,7 @@ import assert from "node:assert/strict"
 import { staleKeys } from "../src/lib/events"
 import { pendingContainers } from "../src/lib/pending"
 import {
+  activeInstances,
   bySet,
   entryCount,
   mustStayWritable,
@@ -199,4 +200,19 @@ test("the sidebar lists running containers first to last, a set's instances unde
   )
   assert.equal(entryCount(entries), 6)
   assert.equal(entryCount(entries.slice(0, 2)), 4)
+})
+
+test("a set's activity lists the instances that took calls, by their numbers", () => {
+  const item = (instance: number, calls: number) => ({
+    instance,
+    container_id: `c${instance}`,
+    calls,
+    errors: 0,
+    last_at: calls ? 1000 : null,
+  })
+  assert.deepEqual(
+    activeInstances([item(3, 2), item(1, 0), item(2, 412)]).map((entry) => entry.instance),
+    [2, 3]
+  )
+  assert.deepEqual(activeInstances(undefined), [])
 })

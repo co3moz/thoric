@@ -19,7 +19,7 @@ pub(crate) use images::{
 };
 pub(crate) use scale::{
     MakeScalable, NewInstance, UpdateSet, create_instance, delete_instance, delete_set,
-    list_instances, make_scalable, set, sets, update_set,
+    list_instances, make_scalable, set, set_activity, sets, update_set,
 };
 
 use crate::{App, error::Result, jobs, model::*};
