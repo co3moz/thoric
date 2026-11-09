@@ -295,7 +295,7 @@ impl ThoricMcp {
             "get_changes" => {
                 Box::pin(changes::changes(&self.app, &id.unwrap(), &parse(args)?)).await?
             }
-            "list_jobs" => api::jobs(state).await?.0,
+            "list_jobs" => api::jobs(state, Query(parse(args)?)).await?.0,
             "cancel_job" => {
                 jobs::cancel::cancel(state, Path(string(&args, "job_id")?))
                     .await?

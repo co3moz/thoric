@@ -1,6 +1,7 @@
 import * as React from "react"
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
+import { ScriptsSwitch } from "@/components/scripts-switch"
 import { useIsMobile } from "@/hooks/use-mobile"
 import {
   Card,
@@ -28,7 +29,8 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { jobActivity } from "@/lib/format"
 import { formatDate, plural, t } from "@/lib/i18n"
-import { useJobs } from "@/lib/queries"
+import { useShowScripts } from "@/lib/job-history"
+import { useJobHistory } from "@/lib/queries"
 
 const chartConfig = () =>
   ({
@@ -52,13 +54,17 @@ const during = {
 const day = (value: string) =>
   formatDate(new Date(`${value}T00:00:00`).getTime() / 1000, { month: "short", day: "numeric" })
 
-/** Finished jobs per day: how busy the manager has been and whether operations succeed. */
+/**
+ * Finished jobs per day: how busy the manager has been and whether operations succeed. The
+ * manager counts every job that ends, so the range is whole however many jobs it still keeps.
+ */
 export function ChartAreaInteractive() {
   const isMobile = useIsMobile()
   const [range, setRange] = React.useState("30")
-  const jobs = useJobs().data
+  const scripts = useShowScripts()
   const days = isMobile ? 7 : Number(range)
-  const data = React.useMemo(() => jobActivity(jobs ?? [], days), [jobs, days])
+  const hours = useJobHistory(days).data?.hours
+  const data = React.useMemo(() => jobActivity(hours ?? [], days, scripts), [hours, days, scripts])
   const total = data.reduce((sum, point) => sum + point.completed + point.failed, 0)
   const options = ranges()
   const selected = options.find((item) => item.value === String(days))?.label ?? options[2].label
@@ -77,7 +83,8 @@ export function ChartAreaInteractive() {
           </span>
           <span className="@[540px]/card:hidden">{selected}</span>
         </CardDescription>
-        <CardAction>
+        <CardAction className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
+          <ScriptsSwitch />
           <ToggleGroup
             type="single"
             value={String(days)}

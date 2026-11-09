@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
@@ -26,7 +27,8 @@ import {
   stateLabel,
 } from "@/lib/format"
 import { plural, t } from "@/lib/i18n"
-import { useContainers, useImages, useJobs } from "@/lib/queries"
+import { setShowScripts, useShowScripts } from "@/lib/job-history"
+import { useContainers, useImages, useJobList, useJobs } from "@/lib/queries"
 import { href } from "@/lib/route"
 import type { Job } from "@/lib/types"
 
@@ -94,13 +96,16 @@ export function ActiveJobsBadge() {
 
 /**
  * The jobs at the top right of every page: the number in progress on the button, the latest jobs
- * in its menu with their logs a click away, and the whole list on the jobs page.
+ * in its menu with their logs a click away, with or without the scripts among them, and the
+ * whole list on the jobs page.
  */
 export function JobsMenu({ labelFrom = "sm" }: { labelFrom?: keyof typeof buttonLabels }) {
-  const jobs = useJobs()
+  const scripts = useShowScripts()
+  const jobs = useJobList(scripts)
   const containers = useContainers(false).data
   const images = useImages(false).data
-  const active = jobs.data?.filter(jobActive).length ?? 0
+  // The button counts every job in progress, as the sidebar does, whatever the menu lists.
+  const active = useJobs().data?.filter(jobActive).length ?? 0
   const recent = React.useMemo(() => {
     const names = new Map(containers?.map((container) => [container.id, container.spec.name]))
     const imageNames = new Map(images?.map((image) => [image.id, image.name]))
@@ -146,6 +151,14 @@ export function JobsMenu({ labelFrom = "sm" }: { labelFrom?: keyof typeof button
           </p>
         )}
         <DropdownMenuSeparator />
+        <DropdownMenuCheckboxItem
+          checked={scripts}
+          onCheckedChange={setShowScripts}
+          // The menu stays open, so the list is seen to change.
+          onSelect={(event) => event.preventDefault()}
+        >
+          {t("jobs.showScripts")}
+        </DropdownMenuCheckboxItem>
         <DropdownMenuItem asChild>
           <a href={href({ page: "jobs" })}>
             <RiListCheck3 />

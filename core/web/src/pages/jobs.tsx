@@ -10,6 +10,7 @@ import {
   type DataColumn,
 } from "@/components/data-table"
 import { ListFailed, listFailed, PageBody } from "@/components/page"
+import { ScriptsSwitch } from "@/components/scripts-switch"
 import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
@@ -25,7 +26,8 @@ import {
   shortDate,
 } from "@/lib/format"
 import { t } from "@/lib/i18n"
-import { useContainers, useImages, useJobs } from "@/lib/queries"
+import { useShowScripts } from "@/lib/job-history"
+import { useContainers, useImages, useJobList } from "@/lib/queries"
 import type { Job } from "@/lib/types"
 
 type Row = Job & { target: string }
@@ -115,9 +117,9 @@ const views = {
 } satisfies Record<string, (job: Job) => boolean>
 type View = keyof typeof views
 
-/** The latest 100 manager jobs, each with its log. */
+/** The latest 100 manager jobs, each with its log, with or without the scripts among them. */
 export function JobsPage() {
-  const jobs = useJobs()
+  const jobs = useJobList(useShowScripts())
   const containers = useContainers().data
   const images = useImages().data
   const [view, setView] = React.useState<View>("all")
@@ -144,7 +146,7 @@ export function JobsPage() {
   return (
     <PageBody>
       <Tabs value={view} onValueChange={change} className="w-full flex-col justify-start gap-6">
-        <div className="flex items-center justify-between px-4 lg:px-6">
+        <div className="flex items-center justify-between gap-4 px-4 lg:px-6">
           <ViewTabs
             value={view}
             onChange={change}
@@ -162,6 +164,7 @@ export function JobsPage() {
               },
             ]}
           />
+          <ScriptsSwitch />
         </div>
         <TabsContent
           value={view}

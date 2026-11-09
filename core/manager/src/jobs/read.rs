@@ -63,6 +63,7 @@ pub(crate) async fn answer(
     caller: Option<&Caller>,
 ) -> Result<Value> {
     read.checked()?;
+    super::history::kept(app, id)?;
     if let Some(wait) = read.wait_seconds.filter(|wait| *wait > 0) {
         until_ended(app, id, Duration::from_secs(wait), caller).await?;
     }

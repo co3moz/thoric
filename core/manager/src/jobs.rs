@@ -12,14 +12,12 @@ use std::{
 };
 
 pub(crate) mod cancel;
+pub(crate) mod history;
 pub(crate) mod read;
 pub(crate) mod retry;
 
 /// A job's result for a caller that waits for it: the value it returned, or its error message.
 pub(crate) type Outcome = tokio::sync::oneshot::Receiver<std::result::Result<Value, String>>;
-
-/// How many jobs are kept once finished, newest first; the dashboard lists the latest 100.
-pub(crate) const KEPT_JOBS: usize = 500;
 
 /// A resource's lock. Work that changes or replaces the resource, such as a container's reset,
 /// its settings or its delete, takes it alone with [`ResourceLock::lock`]; work that only uses
@@ -431,9 +429,7 @@ pub(crate) fn finish(
     {
         crate::notify::send(app, crate::notify::notices::job_failed(app, &job));
     }
-    if let Err(e) = app.db.prune_jobs(KEPT_JOBS) {
-        tracing::debug!("Job history: {e:#}");
-    }
+    history::ended(app, &job);
     reported
 }
 

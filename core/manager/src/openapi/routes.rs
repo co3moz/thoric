@@ -736,7 +736,18 @@ pub(super) fn all() -> Vec<Route> {
             MCP,
             "Start a server again and read its tools.",
         ),
-        get("/api/jobs", JOBS, "The latest 100 job summaries."),
+        get(
+            "/api/jobs",
+            JOBS,
+            "The latest 100 job summaries, of every kind unless `kind` names some or `scripts=false` leaves the script jobs out.",
+        )
+        .query::<jobs::history::Listed>(),
+        get(
+            "/api/jobs/history",
+            JOBS,
+            "How many jobs ended in each hour of the last `days` days, by class and by how they ended; the counts outlive the job records.",
+        )
+        .query::<jobs::history::Counted>(),
         get(
             "/api/jobs/{id}",
             JOBS,
