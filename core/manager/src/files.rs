@@ -119,21 +119,8 @@ pub async fn write(
     Path(id): Path<String>,
     Json(body): Json<WriteFile>,
 ) -> Result<Json<Value>> {
-    let (directory, name) = split_path(&body.path)?;
-    let data = match body.encoding {
-        Encoding::Utf8 => body.data.as_bytes().to_vec(),
-        Encoding::Base64 => {
-            if body.data.len() > FILE_LIMIT.div_ceil(3) * 4 {
-                return Err(anyhow::anyhow!("File writes are limited to 512 KiB").into());
-            }
-            STANDARD
-                .decode(&body.data)
-                .map_err(|_| anyhow::anyhow!("data must be valid standard base64"))?
-        }
-    };
-    if data.len() > FILE_LIMIT {
-        return Err(anyhow::anyhow!("File writes are limited to 512 KiB").into());
-    }
+    split_path(&body.path)?;
+    let data = body.encoding.decode(&body.data)?;
     let size = data.len();
     let _guard = app.share(&format!("container:{id}")).await?;
     let env = app.container(&id)?;
@@ -141,19 +128,56 @@ pub async fn write(
     if container["State"]["Running"] != true {
         return Err(anyhow::anyhow!("Start the container before writing files").into());
     }
+    let cid = container["Id"].as_str().context("Missing container ID")?;
+    deliver(&app, cid, &body.path, data, body.replace).await?;
+    Ok(Json(
+        json!({"path":body.path,"bytes":size,"download_url":download_url(&id, &body.path)}),
+    ))
+}
+impl Encoding {
+    /// The bytes `data` stands for, at most [`FILE_LIMIT`] of them.
+    pub(crate) fn decode(&self, data: &str) -> anyhow::Result<Vec<u8>> {
+        let bytes = match self {
+            Encoding::Utf8 => data.as_bytes().to_vec(),
+            Encoding::Base64 => {
+                if data.len() > FILE_LIMIT.div_ceil(3) * 4 {
+                    bail!("File writes are limited to 512 KiB");
+                }
+                STANDARD
+                    .decode(data)
+                    .map_err(|_| anyhow::anyhow!("data must be valid standard base64"))?
+            }
+        };
+        if bytes.len() > FILE_LIMIT {
+            bail!("File writes are limited to 512 KiB");
+        }
+        Ok(bytes)
+    }
+}
+/// Write `data` to `path` in the running container `cid`, whose lock the caller shares, as
+/// `write_file` writes it: atomically as the desktop user, a new file with mode 0600, missing
+/// folders created, no symlink followed, and over an existing file only with `replace`.
+pub(crate) async fn deliver(
+    app: &App,
+    cid: &str,
+    path: &str,
+    data: Vec<u8>,
+    replace: bool,
+) -> Result<()> {
+    let (directory, name) = split_path(path)?;
     let args = [
         "exec",
         "--interactive",
         "--user",
         "1001:1001",
-        container["Id"].as_str().context("Missing container ID")?,
+        cid,
         "python3",
         "-c",
         include_str!("../helpers/upload_file.py"),
         directory,
         name,
-        &size.to_string(),
-        if body.replace { "true" } else { "false" },
+        &data.len().to_string(),
+        if replace { "true" } else { "false" },
         "600",
     ]
     .map(str::to_owned);
@@ -168,9 +192,7 @@ pub async fn write(
     if !output.status.success() {
         return Err(Error::helper(&output));
     }
-    Ok(Json(
-        json!({"path":body.path,"bytes":size,"download_url":download_url(&id, &body.path)}),
-    ))
+    Ok(())
 }
 
 pub(crate) const FILE_OPS: &str = include_str!("../helpers/file_ops.py");
