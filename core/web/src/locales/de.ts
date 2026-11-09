@@ -1832,6 +1832,21 @@ export const de: Messages = {
     "Öffnen Sie die Werkzeuge eines Bereichs oder Servers und wählen Sie eines ab, um es auszulassen.",
   "mcp.grant.excluded.one": "{count} Werkzeug ausgelassen",
   "mcp.grant.excluded.other": "{count} Werkzeuge ausgelassen",
+  "mcp.grant.profile": "Werkzeugprofil",
+  "mcp.grant.profileHint":
+    "Schränkt die Werkzeuge der Bereiche unten ein. Desktop-MCP-Server werden für sich gewählt.",
+  "mcp.grant.profileLine": "Profil: {profile}",
+  "mcp.grant.profileEmpty": "Keine Werkzeuge in diesem Profil",
+  "mcp.grant.total":
+    "Angebotene Werkzeuge: {count}, {thoric} von Thoric und {servers} von Desktop-MCP-Servern",
+  "mcp.profile.full": "Vollständig",
+  "mcp.profile.full.description": "Jedes Werkzeug der Bereiche.",
+  "mcp.profile.headless": "Ohne Bildschirm",
+  "mcp.profile.headless.description":
+    "Skripte, Terminals, Dateien, Anwendungen und Prozesse. Nichts, was den Bildschirm braucht.",
+  "mcp.profile.desktop": "Desktop",
+  "mcp.profile.desktop.description":
+    "Bildschirm, Eingabe, Anwendungen, Dateien und Skripte, ohne die selten genutzten Werkzeuge.",
   "mcp.scopes.all": "Alle Container-Werkzeuge",
   "mcp.scopes.none": "Keine Container-Werkzeuge",
   "mcp.servers.all": "alle, auch spätere",

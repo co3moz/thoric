@@ -274,6 +274,11 @@ async fn a_backup_comes_back_with_its_files_and_identity_but_no_tokens() {
     let set_endpoint: Endpoint = app.db.get(ENDPOINTS, "re").unwrap();
     assert_eq!(set_endpoint.set().map(|(_, set)| set), Some("re"));
     assert_eq!(set_endpoint.token_hash, None);
+    // Its grant comes back as it was saved, its tool profile too.
+    assert_eq!(
+        set_endpoint.grants[0].profile,
+        crate::desktop_mcp::Profile::Headless
+    );
 
     // Created from its files with its identity, and not started.
     let calls = calls(&dir);

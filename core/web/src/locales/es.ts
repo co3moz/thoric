@@ -1814,6 +1814,21 @@ export const es: Messages = {
     "Abre las herramientas de un ámbito o de un servidor y desmarca una para dejarla fuera.",
   "mcp.grant.excluded.one": "{count} herramienta excluida",
   "mcp.grant.excluded.other": "{count} herramientas excluidas",
+  "mcp.grant.profile": "Perfil de herramientas",
+  "mcp.grant.profileHint":
+    "Reduce las herramientas de los ámbitos de abajo. Los servidores MCP del escritorio se eligen aparte.",
+  "mcp.grant.profileLine": "Perfil: {profile}",
+  "mcp.grant.profileEmpty": "Ninguna herramienta en este perfil",
+  "mcp.grant.total":
+    "Herramientas ofrecidas: {count}, {thoric} de Thoric y {servers} de servidores MCP del escritorio",
+  "mcp.profile.full": "Completo",
+  "mcp.profile.full.description": "Todas las herramientas de los ámbitos.",
+  "mcp.profile.headless": "Sin pantalla",
+  "mcp.profile.headless.description":
+    "Scripts, terminales, archivos, aplicaciones y procesos. Nada que necesite la pantalla.",
+  "mcp.profile.desktop": "Escritorio",
+  "mcp.profile.desktop.description":
+    "Pantalla, entrada, aplicaciones, archivos y scripts, sin las herramientas poco usadas.",
   "mcp.scopes.all": "Todas las herramientas del contenedor",
   "mcp.scopes.none": "Ninguna herramienta del contenedor",
   "mcp.servers.all": "todos, también los que se añadan después",

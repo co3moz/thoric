@@ -74,6 +74,9 @@ pub struct MakeScalable {
     /// Give the set an MCP endpoint, `/mcp/<set>`, whose tools take `instance`.
     #[serde(default = "default_true")]
     pub mcp_endpoint: bool,
+    /// The tool profile of that endpoint: `full`, the default, `headless` or `desktop`.
+    #[serde(default)]
+    pub mcp_profile: crate::desktop_mcp::Profile,
 }
 
 /// `POST /api/scale-sets`: make an existing container scalable, as instance 1 of a new set whose
@@ -95,7 +98,7 @@ pub async fn make_scalable(
         &body.container_id,
         &name,
         &body.scaling,
-        body.mcp_endpoint,
+        body.mcp_endpoint.then_some(body.mcp_profile),
     )
     .await?;
     let containers: Vec<Container> = app.db.list(CONTAINERS)?;

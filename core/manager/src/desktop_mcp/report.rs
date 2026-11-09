@@ -67,6 +67,7 @@ pub(super) fn report(app: &App, container_id: &str) -> Value {
                 "has_token": endpoint.token_hash.is_some(),
                 "alias": grant.alias,
                 "scopes": grant.scopes,
+                "profile": grant.profile,
                 "servers": grant.servers,
                 "excluded_tools": grant.excluded_tools,
             });

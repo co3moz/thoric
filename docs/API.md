@@ -64,7 +64,7 @@ A transfer ends when its client stops. A download of an image, volume or folder 
 | POST | `/api/backup/restore` | Stream a backup with optional `size` and restore it; returns a `restore` job once the whole backup has arrived. |
 | GET | `/api/usage` | CPU, memory, disk and network use of every container once a second for the last 30 minutes, with the host's GPU; `since` returns only newer samples. See [resource usage](#resource-usage). |
 | GET | `/api/containers` | Managed containers, state and health, with `health_detail`, why an unhealthy desktop is; see [desktop health](#desktop-health). |
-| POST | `/api/containers` | Create a container, with values for its image's [compose](#composes) in `parameters`; returns a job. `mcp_endpoint: false` leaves out its own [MCP endpoint](#desktop-mcp-servers-and-endpoints). |
+| POST | `/api/containers` | Create a container, with values for its image's [compose](#composes) in `parameters`; returns a job. `mcp_endpoint: false` leaves out its own [MCP endpoint](#desktop-mcp-servers-and-endpoints), and `mcp_profile` (`full`, the default, `headless` or `desktop`) is that endpoint's tool profile. |
 | GET | `/api/containers/{id}` | One container's configuration, state and health. |
 | POST | `/api/containers/{id}/action` | Start, stop or restart; returns a job, which a start or restart ends once the [desktop is ready](#desktop-readiness). |
 | POST | `/api/containers/{id}/retry` | Retry partial setup or a compose setup that did not finish; returns a job, which ends once the [desktop is ready](#desktop-readiness). |
@@ -75,7 +75,7 @@ A transfer ends when its client stops. A download of an image, volume or folder 
 | POST | `/api/containers/{id}/snapshot` | Save filesystem changes as an image; returns a job. |
 | POST | `/api/containers/{id}/duplicate` | Make a new container with the container's files and settings under a new `name` ([duplicate](#duplicate-a-container)); returns a job. |
 | GET | `/api/scale-sets` | The [scale sets](#scalable-containers) with their instances. |
-| POST | `/api/scale-sets` | Make an existing container scalable: `container_id` becomes instance 1 of a new set; `scaling` as below, `mcp_endpoint: false` leaves out the set's endpoint. |
+| POST | `/api/scale-sets` | Make an existing container scalable: `container_id` becomes instance 1 of a new set; `scaling` as below, `mcp_endpoint: false` leaves out the set's endpoint and `mcp_profile` names its tool profile. |
 | GET | `/api/scale-sets/{name}` | A set with its instances and `slots`, the template's volumes with their policies. |
 | PUT | `/api/scale-sets/{name}` | Change `min`, `max`, `idle_delete_minutes`, `volumes` and `servers` of a set; the template stays. |
 | DELETE | `/api/scale-sets/{name}` | Delete a set with its instances, the volumes made for them and its endpoint; returns a job. The set answers `deleting` until the job ends, and nothing creates, deletes or changes its instances meanwhile. |
@@ -166,7 +166,7 @@ A transfer ends when its client stops. A download of an image, volume or folder 
 | GET, POST | `/api/containers/{id}/mcp/servers` | Read a running desktop's servers again and list them, or register one of source `container` and read its tools. |
 | DELETE | `/api/containers/{id}/mcp/servers/{name}` | Remove a server the desktop user registered; `409` for one the image declares. |
 | POST | `/api/containers/{id}/mcp/servers/{name}/refresh` | Start the server again and read its tools. |
-| GET | `/api/mcp/scopes` | The scopes an endpoint can grant, with their tools, and the `default` a container's own endpoint gets. |
+| GET | `/api/mcp/scopes` | The scopes an endpoint can grant, with their tools, and the `default` a container's own endpoint gets; `profiles`, each tool profile with the tools it keeps, `job_scopes`, the scopes that bring `get_job`, and `set_tools`, what a scale set's endpoint always offers. |
 | GET, POST | `/api/mcp/endpoints` | List the MCP endpoints, or create one from `name` and `grants`; creating returns its `token` once. |
 | PUT, DELETE | `/api/mcp/endpoints/{name}` | Replace an endpoint's `grants`, or delete it and end its sessions. |
 | POST, DELETE | `/api/mcp/endpoints/{name}/token` | Create or replace an endpoint's token, returned once, or revoke it. |
@@ -870,10 +870,11 @@ An endpoint is created with:
 ```json
 {"name": "chrome-dev",
  "grants": [{"container_id": "...", "alias": "chrome-dev", "scopes": ["view", "input", "files_read"], "servers": "all",
+             "profile": "desktop",
              "excluded_tools": ["container_diagnostics", "chrome__browser_run_code_unsafe"]}]}
 ```
 
-`alias` defaults to the container's name and names it in the tools of an endpoint of several containers; `servers` is `"all"` or a list of server names; scopes are those of [the MCP guide](MCP.md#mcp-endpoints-for-one-agent). `excluded_tools`, optional and empty by default, names tools left out although their scope or server is granted, as the endpoint exposes them for that container alone: a container tool's own name, which must be one of the granted scopes', or `SERVER__TOOL`, the `exposed` name of the server lists, kept whether or not the server is known now. Each grant is returned with its list, empty when nothing is left out. The answer is `{"endpoint": {...}, "token": "bsk_..."}`; the token is not shown again, only `has_token` and `token_created_at`. A container created with `mcp_endpoint` true, the default, gets an endpoint with `automatic: true` and no token, which its deletion removes; an endpoint left without containers keeps its name and token. `/mcp/{name}` answers `404` with MCP disabled or for an unknown name, `401` without the endpoint's or the MCP token and `403` for a foreign `Origin`.
+`alias` defaults to the container's name and names it in the tools of an endpoint of several containers; `servers` is `"all"` or a list of server names; scopes are those of [the MCP guide](MCP.md#mcp-endpoints-for-one-agent). `profile`, optional, is the grant's tool profile, `full` (the default), `headless` or `desktop`, which narrows the container tools of its scopes as the guide describes; each grant is returned with it, and one saved before profiles reads as `full`. `excluded_tools`, optional and empty by default, names tools left out although their scope or server is granted, as the endpoint exposes them for that container alone: a container tool's own name, which must be one of the granted scopes', or `SERVER__TOOL`, the `exposed` name of the server lists, kept whether or not the server is known now. Each grant is returned with its list, empty when nothing is left out. The answer is `{"endpoint": {...}, "token": "bsk_..."}`; the token is not shown again, only `has_token` and `token_created_at`. A container created with `mcp_endpoint` true, the default, gets an endpoint with `automatic: true` and no token, which its deletion removes; an endpoint left without containers keeps its name and token. `/mcp/{name}` answers `404` with MCP disabled or for an unknown name, `401` without the endpoint's or the MCP token and `403` for a foreign `Origin`.
 
 ### The MCP inspector
 

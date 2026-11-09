@@ -1,5 +1,6 @@
 import { test } from "bun:test"
 import assert from "node:assert/strict"
+import { readFileSync } from "node:fs"
 
 import {
   defaultAlias,
@@ -9,6 +10,7 @@ import {
   grantDraft,
   grantRequests,
   imageServers,
+  inProfile,
   isServerTool,
   localUrl,
   newGrant,
@@ -16,6 +18,9 @@ import {
   parseEnv,
   parseHeaders,
   parseLines,
+  profileDescription,
+  profileLabel,
+  PROFILES,
   readServerDeclarations,
   scopeSummary,
   serverApi,
@@ -24,7 +29,9 @@ import {
   serverRequest,
   serversByContainer,
   serversSummary,
+  serverToolCount,
   SCOPES,
+  thoricTools,
   toolGroups,
 } from "../src/lib/mcp"
 import type { DesktopServer, EndpointTool } from "../src/lib/types"
@@ -51,6 +58,7 @@ test("grants are sent with their scopes in order and the servers they include", 
     container_name: "Unity",
     alias: "unity",
     scopes: ["view", "input"],
+    profile: "full",
     all: true,
     servers: [],
     excluded: [],
@@ -86,11 +94,167 @@ test("grants are sent with their scopes in order and the servers they include", 
       container_name: "Unity",
       alias: "u",
       scopes: ["view", "power"],
+      // A grant from before profiles, or from a manager without them, offers every tool.
+      profile: "full",
       all: false,
       servers: ["x"],
       excluded: ["container_action"],
     }
   )
+})
+
+test("a grant's profile is sent unless it is full, and comes back into the form", () => {
+  const draft = newGrant({ id: "c1", name: "Unity" }, ["view"], [])
+  assert.ok(!("profile" in grantRequests([draft])[0]))
+  assert.equal(grantRequests([{ ...draft, profile: "headless" }])[0].profile, "headless")
+  assert.equal(
+    grantDraft({
+      container_id: "c1",
+      container_name: "Unity",
+      alias: "u",
+      scopes: ["view"],
+      profile: "desktop",
+      servers: "all",
+      excluded_tools: [],
+    }).profile,
+    "desktop"
+  )
+  // The forms list every profile the catalog names, `full` first, as the manager's default is.
+  assert.deepEqual(PROFILES, ["full", "headless", "desktop"])
+  for (const profile of PROFILES) {
+    assert.ok(profileLabel(profile) && profileLabel(profile) !== profile)
+    assert.ok(profileDescription(profile))
+  }
+  // One a newer manager added is shown as it calls it.
+  assert.equal(profileLabel("kiosk"), "kiosk")
+  assert.equal(profileDescription("kiosk"), "")
+})
+
+test("the tools a grant offers are counted by the manager's lists", () => {
+  const scopes = {
+    scopes: [
+      { id: "view" as const, tools: ["get_container", "screenshot", "list_processes"] },
+      { id: "commands" as const, tools: ["exec_container", "open_terminal"] },
+      { id: "scale" as const, tools: ["create_instance"] },
+    ],
+    default: ["view" as const],
+    set_tools: ["list_instances"],
+    job_scopes: ["commands" as const, "scale" as const],
+    profiles: [
+      {
+        id: "full" as const,
+        tools: [
+          "get_container",
+          "screenshot",
+          "list_processes",
+          "exec_container",
+          "open_terminal",
+          "create_instance",
+          "list_instances",
+          "get_job",
+        ],
+      },
+      {
+        id: "headless" as const,
+        tools: [
+          "get_container",
+          "list_processes",
+          "exec_container",
+          "open_terminal",
+          "create_instance",
+          "list_instances",
+          "get_job",
+        ],
+      },
+      {
+        id: "desktop" as const,
+        tools: [
+          "get_container",
+          "screenshot",
+          "exec_container",
+          "create_instance",
+          "list_instances",
+          "get_job",
+        ],
+      },
+    ],
+  }
+  const draft = newGrant({ id: "c1", name: "Unity" }, ["view", "commands"], [])
+  // `get_job` comes with a scope whose tools return a job.
+  assert.deepEqual(thoricTools(draft, scopes, "full"), [
+    "get_container",
+    "screenshot",
+    "list_processes",
+    "exec_container",
+    "open_terminal",
+    "get_job",
+  ])
+  assert.deepEqual(thoricTools(draft, scopes, "headless"), [
+    "get_container",
+    "list_processes",
+    "exec_container",
+    "open_terminal",
+    "get_job",
+  ])
+  assert.deepEqual(thoricTools(draft, scopes, "desktop"), [
+    "get_container",
+    "screenshot",
+    "exec_container",
+    "get_job",
+  ])
+  assert.deepEqual(thoricTools({ ...draft, scopes: ["view"] }, scopes, "full"), [
+    "get_container",
+    "screenshot",
+    "list_processes",
+  ])
+  // A tool left out by name is not counted, in whatever profile.
+  assert.deepEqual(
+    thoricTools({ ...draft, excluded: ["get_job", "get_container"] }, scopes, "desktop"),
+    ["screenshot", "exec_container"]
+  )
+  // A scale set's endpoint always has its own tools, and `scale` brings jobs too.
+  assert.deepEqual(thoricTools({ ...draft, set: "re", scopes: ["scale"] }, scopes, "headless"), [
+    "list_instances",
+    "create_instance",
+    "get_job",
+  ])
+  // Without the manager's lists nothing is counted, and without its profiles nothing is narrowed.
+  assert.deepEqual(thoricTools(draft, undefined, "headless"), [])
+  assert.ok(inProfile("headless", "screenshot"))
+  assert.ok(inProfile("headless", "screenshot", { scopes: [], default: [] }))
+  assert.ok(!inProfile("headless", "screenshot", scopes))
+  assert.ok(inProfile("full", "a_tool_of_tomorrow", scopes))
+  assert.ok(!inProfile("desktop", "a_tool_of_tomorrow", scopes))
+
+  // Desktop servers' tools: those of the servers included, without the ones left out.
+  const servers = [
+    {
+      name: "ghidra",
+      tools: [
+        { name: "decompile", exposed: "ghidra__decompile", description: "" },
+        { name: "rename", exposed: "ghidra__rename", description: "" },
+      ],
+    },
+    { name: "chrome", tools: [{ name: "click", exposed: "chrome__click", description: "" }] },
+  ]
+  assert.equal(serverToolCount(draft, servers), 3)
+  assert.equal(serverToolCount({ ...draft, all: false, servers: ["chrome"] }, servers), 1)
+  assert.equal(serverToolCount({ ...draft, excluded: ["ghidra__rename"] }, servers), 2)
+  assert.equal(serverToolCount({ ...draft, all: false, servers: [] }, servers), 0)
+})
+
+// The manager's own list is `Profile::ALL` in core/manager/src/desktop_mcp/profiles.rs, whose
+// tests hold it to PROFILES and the catalog; from here, a profile the manager no longer has.
+test("every profile the forms list is one the manager has", () => {
+  const source = readFileSync(
+    new URL("../../manager/src/desktop_mcp/profiles.rs", import.meta.url),
+    "utf8"
+  )
+  for (const profile of PROFILES)
+    assert.ok(
+      source.includes(`=> "${profile}",`),
+      `core/manager/src/desktop_mcp/profiles.rs has no profile ${profile}`
+    )
 })
 
 test("tools a grant leaves out are sent once each, container tools only with their scope", () => {

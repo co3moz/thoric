@@ -1979,6 +1979,18 @@ try:
         assert "Unknown tool" in reply["error"]["message"], reply
     assert tool("update_mcp_endpoint",{"name":"acceptance-mcp","grants":[{"container_id":env_id,"scopes":["view"],"servers":"all","excluded_tools":["desktop_input"]}]}, allow_error=True)["isError"]
     print("PASS an endpoint leaves single container and server tools out by name", flush=True)
+    # A tool profile narrows the scopes' tools without naming them: headless offers nothing of the
+    # screen, a call to such a tool is as unknown as an excluded one, and the servers stay.
+    profiled = tool("update_mcp_endpoint",{"name":"acceptance-mcp","grants":[{"container_id":env_id,"scopes":["view","input"],"profile":"headless","servers":"all"}]})["structuredContent"]
+    assert profiled["grants"][0]["profile"] == "headless", profiled
+    offered = {t["name"] for t in endpoint_call("acceptance-mcp", scoped, session, "tools/list")["tools"]}
+    assert {"get_container","list_processes","request_human","echo__echo"} <= offered and not offered & {"screenshot","desktop_input","list_windows","find_text"}, offered
+    _, reply = endpoint_post("acceptance-mcp", scoped, {"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"screenshot","arguments":{}}}, session)
+    assert "Unknown tool" in reply["error"]["message"], reply
+    assert tool("update_mcp_endpoint",{"name":"acceptance-mcp","grants":[{"container_id":env_id,"scopes":["view"],"profile":"everything","servers":"all"}]}, allow_error=True)["isError"]
+    restored = tool("update_mcp_endpoint",{"name":"acceptance-mcp","grants":[{"container_id":env_id,"scopes":["view"],"servers":"all","excluded_tools":["container_diagnostics","echo__echo"]}]})["structuredContent"]
+    assert restored["grants"][0]["profile"] == "full", restored
+    print("PASS an endpoint's tool profile narrows its container tools", flush=True)
     # The agent activity log names the endpoint, its token and the container of every call, keeps
     # a desktop server's arguments as their size only and records a refused tool as refused.
     def endpoint_calls():
