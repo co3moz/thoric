@@ -89,9 +89,10 @@ export function MakeScalableDialog({ id, ...props }: DialogProps & { id: string 
   const targets = scalingTargets([...item.spec.mounts, ...(item.setup?.mounts ?? [])])
   return (
     <Dialog {...props}>
-      <DialogContent className="sm:max-w-xl">
+      {/* The dialog stays inside the window: its fields scroll and the buttons stay in view. */}
+      <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col sm:max-w-xl">
         <form
-          className="flex flex-col gap-4"
+          className="flex min-h-0 flex-col gap-4"
           onSubmit={submit(async () => {
             checked(draft)
             const set = await api<ScaleSet>("scale-sets", {
@@ -109,28 +110,30 @@ export function MakeScalableDialog({ id, ...props }: DialogProps & { id: string 
             <DialogTitle>{t("scale.makeTitle", { name: item.spec.name })}</DialogTitle>
             <DialogDescription>{t("scale.makeDescription")}</DialogDescription>
           </DialogHeader>
-          <ScalingFields
-            draft={draft}
-            onChange={setDraft}
-            targets={targets}
-            servers={servers}
-            name={item.spec.name}
-          />
-          <Field>
-            <SwitchTile
-              icon={RiPlugLine}
-              label={t("scale.endpoint")}
-              checked={endpoint}
-              onCheckedChange={setEndpoint}
-              describedBy={hint}
+          <div className="-mx-4 flex min-h-0 flex-col gap-4 overflow-y-auto px-4 py-1">
+            <ScalingFields
+              draft={draft}
+              onChange={setDraft}
+              targets={targets}
+              servers={servers}
+              name={item.spec.name}
             />
-            <FieldDescription id={hint} className="text-xs">
-              {t("scale.endpointHint")}
-            </FieldDescription>
-          </Field>
-          {endpoint && (
-            <ProfileSelect id={`${hint}-profile`} value={profile} onChange={setProfile} />
-          )}
+            <Field>
+              <SwitchTile
+                icon={RiPlugLine}
+                label={t("scale.endpoint")}
+                checked={endpoint}
+                onCheckedChange={setEndpoint}
+                describedBy={hint}
+              />
+              <FieldDescription id={hint} className="text-xs">
+                {t("scale.endpointHint")}
+              </FieldDescription>
+            </Field>
+            {endpoint && (
+              <ProfileSelect id={`${hint}-profile`} value={profile} onChange={setProfile} />
+            )}
+          </div>
           <FieldError>{error}</FieldError>
           <Footer busy={busy} label={t("scale.make")} />
         </form>
