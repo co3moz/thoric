@@ -22,8 +22,9 @@ use rmcp::{
     ErrorData, RoleServer, ServerHandler,
     model::{
         CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, CustomRequest,
-        CustomResult, Implementation, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
-        ReadResourceRequestParams, ReadResourceResponse, ServerCapabilities, ServerConfig, Tool,
+        CustomResult, GetSkillRequestParams, GetSkillResult, Implementation, ListResourcesResult,
+        ListSkillsResult, ListToolsResult, PaginatedRequestParams, ReadResourceRequestParams,
+        ReadResourceResponse, ServerCapabilities, ServerConfig, Tool,
     },
     service::RequestContext,
     transport::{
@@ -177,12 +178,29 @@ impl ServerHandler for ThoricMcp {
     ) -> Result<ReadResourceResponse, ErrorData> {
         skills::mcp::read(&skills::mcp::offered(skills::Server::Root), &request.uri).map(Into::into)
     }
+    async fn list_skills(
+        &self,
+        request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListSkillsResult, ErrorData> {
+        skills::mcp::list(&skills::mcp::offered(skills::Server::Root), request)
+    }
+    async fn get_skill(
+        &self,
+        request: GetSkillRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<GetSkillResult, ErrorData> {
+        skills::mcp::get(&skills::mcp::offered(skills::Server::Root), &request.uri)
+    }
     async fn on_custom_request(
         &self,
         request: CustomRequest,
         _context: RequestContext<RoleServer>,
     ) -> Result<CustomResult, ErrorData> {
-        skills::mcp::request(&skills::mcp::offered(skills::Server::Root), request)
+        Err(skills::mcp::unread(
+            &skills::mcp::offered(skills::Server::Root),
+            &request,
+        ))
     }
     async fn list_tools(
         &self,
