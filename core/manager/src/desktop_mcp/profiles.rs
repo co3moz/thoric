@@ -61,6 +61,7 @@ const CORE: &[&str] = &[
     "list_files",
     "read_file",
     "download_file",
+    "search_files",
     "write_file",
     "upload_file",
     "move_file",

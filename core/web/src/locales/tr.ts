@@ -1808,7 +1808,7 @@ export const tr: Messages = {
   "mcp.scope.applications.description":
     "Uygulamaları başlatma ve durdurma, günlüklerini ve ölçümlerini okuma.",
   "mcp.scope.files_read": "Dosya okuma",
-  "mcp.scope.files_read.description": "Dosyaları listeleme, okuma ve indirme.",
+  "mcp.scope.files_read.description": "Dosyaları listeleme, arama, okuma ve indirme.",
   "mcp.scope.files_write": "Dosya yazma",
   "mcp.scope.files_write.description":
     "Dosyaları yazma, yükleme, taşıma, silme ve ekran görüntüsü kaydetme.",

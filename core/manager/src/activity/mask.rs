@@ -319,6 +319,19 @@ pub(super) fn policy(tool: &str) -> Option<&'static [Rule]> {
             ("height", Text, false),
         ],
         "list_files" => &[("path", Text, true), ("limit", Text, false)],
+        // What is searched for is the agent's own words about the desktop's files, as a process
+        // search's are, one line and bounded: the first thing anyone reading the log looks for.
+        "search_files" => &[
+            ("pattern", Text, true),
+            ("name", Text, true),
+            ("path", Text, true),
+            ("literal", Text, false),
+            ("case_sensitive", Text, false),
+            ("max_results", Text, false),
+            ("context", Text, false),
+            ("include_ignored", Text, false),
+            ("max_seconds", Text, false),
+        ],
         "move_file" => &[
             ("source", Text, true),
             ("destination", Text, true),

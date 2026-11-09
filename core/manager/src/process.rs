@@ -63,11 +63,34 @@ pub async fn capture(
     capture_input(command, timeout, limit, overflow, None).await
 }
 pub async fn capture_input(
+    command: Command,
+    timeout: Duration,
+    limit: usize,
+    overflow: Overflow,
+    input: Option<Vec<u8>>,
+) -> Result<Output> {
+    run(command, timeout, limit, overflow, input, false).await
+}
+/// Like [`capture_input`], but stdin stays open after the input until the command has ended, for
+/// a helper that takes its closing as the sign that nobody waits for its answer: ending the
+/// Docker CLI on a timeout, or with a request that was dropped, closes it and stops the helper
+/// inside the container, which killing the CLI alone does not.
+pub async fn capture_held(
+    command: Command,
+    timeout: Duration,
+    limit: usize,
+    overflow: Overflow,
+    input: Vec<u8>,
+) -> Result<Output> {
+    run(command, timeout, limit, overflow, Some(input), true).await
+}
+async fn run(
     mut command: Command,
     timeout: Duration,
     limit: usize,
     overflow: Overflow,
     input: Option<Vec<u8>>,
+    hold: bool,
 ) -> Result<Output> {
     let mut child = command
         .kill_on_drop(true)
@@ -91,12 +114,19 @@ pub async fn capture_input(
             async move {
                 // A process that exits before consuming its input closes the pipe. Its exit
                 // status and stderr describe that better than the resulting EPIPE.
-                if let (Some(mut stdin), Some(input)) = (stdin, input)
-                    && let Err(e) = deliver(&mut stdin, &input).await
-                {
+                let (Some(mut stdin), Some(input)) = (stdin, input) else {
+                    return Ok::<_, anyhow::Error>(None);
+                };
+                let delivered = if hold {
+                    stdin.write_all(&input).await
+                } else {
+                    deliver(&mut stdin, &input).await
+                };
+                if let Err(e) = delivered {
                     tracing::debug!("Process input was not fully delivered: {e}");
                 }
-                Ok::<_, anyhow::Error>(())
+                // Held open by the join until the command has ended, when asked to.
+                Ok(hold.then_some(stdin))
             }
         )?;
         Ok::<_, anyhow::Error>(Output {

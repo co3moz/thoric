@@ -108,7 +108,13 @@ impl Scope {
                 "sample_metrics",
                 "kill_process",
             ],
-            Scope::FilesRead => &["list_files", "read_file", "download_file", "get_changes"],
+            Scope::FilesRead => &[
+                "list_files",
+                "search_files",
+                "read_file",
+                "download_file",
+                "get_changes",
+            ],
             Scope::FilesWrite => &[
                 "write_file",
                 "upload_file",
