@@ -220,6 +220,9 @@ def endpoint_lines(endpoint):
     else:
         servers = "No desktop servers"
     result = ["Container tools: " + (", ".join(scopes) if scopes else "none"), servers]
+    profile = endpoint.get("profile") or "full"
+    if profile != "full":
+        result.insert(1, "Tool profile: %s" % profile.capitalize())
     excluded = endpoint.get("excluded_tools") or []
     if excluded:
         result.append("Left out: %d tool%s" % (len(excluded), "" if len(excluded) == 1 else "s"))

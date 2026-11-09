@@ -1806,6 +1806,21 @@ export const en = {
   "mcp.grant.toolsHint": "Open the tools of a scope or a server and untick one to leave it out.",
   "mcp.grant.excluded.one": "{count} tool left out",
   "mcp.grant.excluded.other": "{count} tools left out",
+  "mcp.grant.profile": "Tool profile",
+  "mcp.grant.profileHint":
+    "Narrows the tools of the scopes below. Desktop MCP servers are chosen on their own.",
+  "mcp.grant.profileLine": "Profile: {profile}",
+  "mcp.grant.profileEmpty": "No tools in this profile",
+  "mcp.grant.total":
+    "Tools offered: {count}, {thoric} from Thoric and {servers} from desktop MCP servers",
+  "mcp.profile.full": "Full",
+  "mcp.profile.full.description": "Every tool of the scopes.",
+  "mcp.profile.headless": "Headless",
+  "mcp.profile.headless.description":
+    "Scripts, terminals, files, applications and processes. Nothing that needs the screen.",
+  "mcp.profile.desktop": "Desktop",
+  "mcp.profile.desktop.description":
+    "Screen, input, applications, files and scripts, without the rarely used tools.",
   "mcp.scopes.all": "All container tools",
   "mcp.scopes.none": "No container tools",
   "mcp.servers.all": "all, including later ones",

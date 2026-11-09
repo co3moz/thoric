@@ -122,12 +122,12 @@ pub(super) fn set_template() -> Template {
     }
 }
 
-/// The endpoint made for the scale set `set`, with a token hash.
+/// The endpoint made for the scale set `set`, with a token hash and the `headless` tool profile.
 pub(super) fn set_endpoint(name: &str, set: &str) -> Endpoint {
     serde_json::from_value(json!({
         "name": name,
         "automatic": true,
-        "grants": [{"set": set, "alias": set, "scopes": ["view", "scale"], "servers": "all"}],
+        "grants": [{"set": set, "alias": set, "scopes": ["view", "scale"], "profile": "headless", "servers": "all"}],
         "token_hash": "cd".repeat(32),
         "created_at": 2,
     }))

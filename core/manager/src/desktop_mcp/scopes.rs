@@ -3,6 +3,7 @@
 use super::{
     endpoints::{Endpoint, Grant},
     placement::Placement,
+    profiles::Profile,
     registry::ServerRecord,
     servers::records,
 };
@@ -428,7 +429,7 @@ fn instance_server_tool(
 /// in one instance alone has that instance's tools, which take no instance.
 fn set_catalog(app: &App, grant: &Grant, set: &str) -> Vec<Entry> {
     let mut entries: Vec<Entry> = Vec::new();
-    if !grant.excludes(LIST_INSTANCES)
+    if grant.offers(LIST_INSTANCES)
         && let Some(tool) = crate::mcp::listed_tool(LIST_INSTANCES)
     {
         entries.push(Entry {
@@ -444,7 +445,7 @@ fn set_catalog(app: &App, grant: &Grant, set: &str) -> Vec<Entry> {
             continue;
         }
         for name in scope.tools() {
-            if grant.excludes(name) {
+            if !grant.offers(name) {
                 continue;
             }
             let Some(tool) = crate::mcp::listed_tool(name) else {
@@ -488,7 +489,7 @@ fn set_catalog(app: &App, grant: &Grant, set: &str) -> Vec<Entry> {
             .and_then(|scale_set| scale_set.runs_in(server))
     };
     if grant.scopes.iter().any(|scope| scope.has_jobs())
-        && !grant.excludes("get_job")
+        && grant.offers("get_job")
         && let Some(mut tool) = crate::mcp::listed_tool("get_job")
     {
         tool.description = Some("Read a job that a tool of this endpoint started, such as create_instance, exec_container or container_action: its status, bounded log and result. Wait for completed, failed or interrupted; a queued job is not finished.".into());
@@ -563,7 +564,8 @@ fn server_tool(
 }
 
 /// Every tool of an endpoint, in a stable order: container tools by scope, `get_job`, then the
-/// tools of the desktop servers by container and server. A tool a grant leaves out is not offered
+/// tools of the desktop servers by container and server. A container tool a grant's profile does
+/// not keep, or a tool a grant leaves out by name, is not offered
 /// for that container: on an endpoint of several containers it keeps the others, and it is gone
 /// once every grant leaves it out.
 pub(crate) fn catalog(app: &App, endpoint: &Endpoint) -> Vec<Entry> {
@@ -591,7 +593,7 @@ pub(crate) fn catalog(app: &App, endpoint: &Endpoint) -> Vec<Entry> {
             };
             let containers: Vec<(String, String)> = granted
                 .iter()
-                .filter(|grant| !grant.excludes(name))
+                .filter(|grant| grant.offers(name))
                 .map(|grant| (grant.alias.clone(), grant.container_id.clone()))
                 .collect();
             if containers.is_empty() {
@@ -611,7 +613,7 @@ pub(crate) fn catalog(app: &App, endpoint: &Endpoint) -> Vec<Entry> {
         .grants
         .iter()
         .filter(|grant| {
-            grant.scopes.iter().any(|scope| scope.has_jobs()) && !grant.excludes("get_job")
+            grant.scopes.iter().any(|scope| scope.has_jobs()) && grant.offers("get_job")
         })
         .map(|grant| grant.container_id.clone())
         .collect();
@@ -692,5 +694,11 @@ pub(crate) fn describe() -> Value {
             .collect::<Vec<_>>(),
         "default": Scope::DEFAULT.iter().map(|scope| scope.id()).collect::<Vec<_>>(),
         "set_tools": [LIST_INSTANCES],
+        // `get_job` comes with any scope whose tools return a job.
+        "job_scopes": Scope::ALL.iter().filter(|scope| scope.has_jobs()).map(|scope| scope.id()).collect::<Vec<_>>(),
+        "profiles": Profile::ALL
+            .iter()
+            .map(|profile| json!({"id": profile.id(), "tools": profile.tools()}))
+            .collect::<Vec<_>>(),
     })
 }

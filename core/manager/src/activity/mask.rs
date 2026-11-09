@@ -119,6 +119,7 @@ pub(super) fn policy(tool: &str) -> Option<&'static [Rule]> {
             ("groups", Whole, false),
             ("aliases", Whole, false),
             ("mcp_endpoint", Text, false),
+            ("mcp_profile", Text, false),
             ("cpus", Text, false),
             ("memory_mb", Text, false),
             ("shm_mb", Text, false),

@@ -45,7 +45,9 @@ import {
   type ScaleSet,
   type ScalingDraft,
 } from "@/lib/scale"
+import type { McpProfile } from "@/lib/types"
 import { useSubmit } from "./container-dialogs"
+import { ProfileSelect } from "./profile-select"
 import { ScalingFields } from "./scaling-fields"
 import { Footer } from "./simple-dialogs"
 import type { DialogProps } from "./side-drawer"
@@ -79,7 +81,8 @@ export function MakeScalableDialog({ id, ...props }: DialogProps & { id: string 
     enabled: true,
   }))
   const [endpoint, setEndpoint] = React.useState(true)
-  useDraft({ draft, endpoint })
+  const [profile, setProfile] = React.useState<McpProfile>("full")
+  useDraft({ draft, endpoint, profile })
   const { busy, error, submit } = useSubmit()
   const hint = React.useId()
   if (!item) return null
@@ -95,6 +98,7 @@ export function MakeScalableDialog({ id, ...props }: DialogProps & { id: string 
               container_id: id,
               scaling: scalingBody(draft),
               mcp_endpoint: endpoint,
+              ...(endpoint && profile !== "full" ? { mcp_profile: profile } : {}),
             })
             await refreshed()
             closeDialog()
@@ -124,6 +128,9 @@ export function MakeScalableDialog({ id, ...props }: DialogProps & { id: string 
               {t("scale.endpointHint")}
             </FieldDescription>
           </Field>
+          {endpoint && (
+            <ProfileSelect id={`${hint}-profile`} value={profile} onChange={setProfile} />
+          )}
           <FieldError>{error}</FieldError>
           <Footer busy={busy} label={t("scale.make")} />
         </form>

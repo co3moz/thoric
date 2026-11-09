@@ -66,7 +66,7 @@ pub(crate) async fn make_set(
     parameters: BTreeMap<String, String>,
     proxy_password: Option<String>,
     scaling: &Scaling,
-    endpoint: bool,
+    endpoint: Option<crate::desktop_mcp::Profile>,
 ) -> Result<Option<String>> {
     // A compose the image's record names is checked now, so a policy of a volume it does not
     // mount is refused before anything is made.
@@ -100,7 +100,7 @@ pub(crate) async fn make_set_of(
     id: &str,
     name: &str,
     scaling: &Scaling,
-    endpoint: bool,
+    endpoint: Option<crate::desktop_mcp::Profile>,
 ) -> Result<(ScaleSet, Option<String>)> {
     let container = app.container(id)?;
     let sets = super::all(app)?;
@@ -151,13 +151,13 @@ pub(crate) async fn make_set_of(
     Ok((set, endpoint))
 }
 
-/// Save a new set with its template and, when asked, its MCP endpoint, refusing a name another
-/// set has.
+/// Save a new set with its template and, when a tool profile is named for it, its MCP endpoint,
+/// refusing a name another set has.
 async fn save_new(
     app: &Arc<App>,
     set: &mut ScaleSet,
     template: &Template,
-    endpoint: bool,
+    endpoint: Option<crate::desktop_mcp::Profile>,
 ) -> Result<Option<String>> {
     let lock = lock(app, &set.name);
     let _held = lock.lock().await;
@@ -169,9 +169,9 @@ async fn save_new(
     }
     app.db.put(TEMPLATES, &set.name.clone(), template)?;
     app.db.put(SETS, &set.name.clone(), &*set)?;
-    if endpoint {
+    if let Some(profile) = endpoint {
         // The set is made either way; an endpoint can still be made for it later.
-        match crate::desktop_mcp::set_endpoint(app, &set.name).await {
+        match crate::desktop_mcp::set_endpoint(app, &set.name, profile).await {
             Ok(name) => {
                 set.endpoint = Some(name);
                 app.db.put(SETS, &set.name.clone(), &*set)?;

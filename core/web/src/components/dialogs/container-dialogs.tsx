@@ -64,13 +64,14 @@ import {
   scalingTargets,
   type ScalingDraft,
 } from "@/lib/scale"
-import type { Settings, SettingsPreview, Volume } from "@/lib/types"
+import type { McpProfile, Settings, SettingsPreview, Volume } from "@/lib/types"
 import { mountableVolumes } from "@/lib/volume-files"
 import { FormSections, sectionedDialog, type FormSection } from "./form-sections"
 import { identityBody, identityDraft, IdentityFields, type IdentityDraft } from "./identity-fields"
 import { LifecycleFields } from "./lifecycle-fields"
 import { MountFields } from "./mount-fields"
 import { NetworkFields } from "./network-fields"
+import { ProfileSelect } from "./profile-select"
 import { ScalingFields } from "./scaling-fields"
 import { ScreenFields } from "./screen-fields"
 import { SetupFields } from "./setup-fields"
@@ -207,9 +208,10 @@ export function CreateContainerDialog({ image, ...props }: DialogProps & { image
   const [values, setValues] = React.useState<Record<string, string>>({})
   const servers = imageServers(images, chosen)
   const [endpoint, setEndpoint] = React.useState(true)
+  const [profile, setProfile] = React.useState<McpProfile>("full")
   const [scaling, setScaling] = React.useState<ScalingDraft>(() => scalingDraft())
   const [section, setSection] = React.useState("basics")
-  useDraft({ name, selected, draft, lifecycle, values, endpoint, scaling })
+  useDraft({ name, selected, draft, lifecycle, values, endpoint, profile, scaling })
   const { busy, error, submit } = useSubmit()
   const id = React.useId()
   const missing = compose ? missingValues(compose, values).reduce((sum, n) => sum + n, 0) : 0
@@ -271,6 +273,7 @@ export function CreateContainerDialog({ image, ...props }: DialogProps & { image
               {t("create.mcpEndpointHint")}
             </FieldDescription>
           </Field>
+          {endpoint && <ProfileSelect id={`${id}-profile`} value={profile} onChange={setProfile} />}
         </FieldGroup>
       ),
     },
@@ -346,6 +349,7 @@ export function CreateContainerDialog({ image, ...props }: DialogProps & { image
               ...lifecycleBody(lifecycle),
               ...(compose ? { parameters: parameterBody(compose, values) } : {}),
               mcp_endpoint: endpoint,
+              ...(endpoint && profile !== "full" ? { mcp_profile: profile } : {}),
               ...(scaling.enabled ? { scaling: scalingBody(scaling) } : {}),
             })
           })}

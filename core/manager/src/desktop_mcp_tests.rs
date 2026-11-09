@@ -5,6 +5,7 @@
 use super::{
     client::{Exec, MAX_TOOLS, check_tool_list, exec_args, read_line, relayed},
     endpoints::{ENDPOINTS, Endpoint, Grant, GrantRequest, Servers, grants, slug_of, summary},
+    profiles::Profile,
     registry::{
         Declaration, SERVERS, ServerRecord, ServerSpec, Source, check_declarations, found,
         loopback_url, merged, split_query, substitute,
@@ -84,6 +85,7 @@ pub(super) fn grant(container_id: &str, alias: &str, scopes: &[Scope]) -> Grant 
         set: None,
         alias: alias.into(),
         scopes: scopes.to_vec(),
+        profile: Profile::Full,
         servers: Servers::All,
         excluded_tools: Vec::new(),
     }
@@ -821,6 +823,7 @@ fn excluded_tools_are_checked_against_the_scopes_and_kept_for_servers_not_known_
         set: None,
         alias: None,
         scopes: scopes.to_vec(),
+        profile: Profile::Full,
         servers: Servers::All,
         excluded_tools: excluded.iter().map(|name| (*name).to_owned()).collect(),
     };
@@ -963,6 +966,7 @@ fn grants_name_existing_containers_once_with_their_own_aliases() {
         set: None,
         alias: alias.map(str::to_owned),
         scopes: vec![Scope::View, Scope::View],
+        profile: Profile::Full,
         servers: Servers::All,
         excluded_tools: Vec::new(),
     };
@@ -1001,9 +1005,14 @@ async fn a_new_containers_endpoint_is_named_after_it_and_leaves_with_it() {
     let two = container("c2", "Chrome dev");
     app.db.put(CONTAINERS, "c1", &one).unwrap();
     app.db.put(CONTAINERS, "c2", &two).unwrap();
-    assert_eq!(automatic_endpoint(&app, &one).await.unwrap(), "chrome-dev");
     assert_eq!(
-        automatic_endpoint(&app, &two).await.unwrap(),
+        automatic_endpoint(&app, &one, Profile::Full).await.unwrap(),
+        "chrome-dev"
+    );
+    assert_eq!(
+        automatic_endpoint(&app, &two, Profile::Headless)
+            .await
+            .unwrap(),
         "chrome-dev-2"
     );
     let own: Endpoint = app.db.get(ENDPOINTS, "chrome-dev").unwrap();
@@ -2210,6 +2219,7 @@ fn set_grant(scopes: &[Scope]) -> Grant {
         set: Some("re".into()),
         alias: "re".into(),
         scopes: scopes.to_vec(),
+        profile: Profile::Full,
         servers: Servers::All,
         excluded_tools: Vec::new(),
     }
@@ -2340,6 +2350,7 @@ fn the_scale_scope_is_for_an_endpoint_of_a_scale_set_alone() {
         set: set.map(str::to_owned),
         alias: None,
         scopes: scopes.to_vec(),
+        profile: Profile::Full,
         servers: Servers::All,
         excluded_tools: vec!["list_instances".into()],
     };
@@ -2929,4 +2940,295 @@ async fn without_the_administrators_token_an_endpoints_calls_are_recorded_as_its
     // The endpoint opened with its own token, which the log says: `none` is for an
     // installation that opens /mcp without one.
     assert_eq!(rows[0].credential, "endpoint_token", "{rows:?}");
+}
+
+#[test]
+fn a_profile_narrows_the_container_tools_and_leaves_the_servers_alone() {
+    let app = app(false);
+    app.db
+        .put(CONTAINERS, "c1", &container("c1", "Chrome dev"))
+        .unwrap();
+    server(&app, "c1", "playwright", &["browser_navigate"]);
+    let every = Scope::ALL
+        .into_iter()
+        .filter(|scope| *scope != Scope::Scale)
+        .collect::<Vec<_>>();
+    let mut full = endpoint("full", vec![grant("c1", "chrome-dev", &every)]);
+    let everything = names(&app, &full);
+    full.grants[0].profile = Profile::Headless;
+    let headless = names(&app, &full);
+    full.grants[0].profile = Profile::Desktop;
+    let desktop = names(&app, &full);
+    // Each is what full offers, narrowed, in the same order.
+    for narrowed in [&headless, &desktop] {
+        assert!(narrowed.len() < everything.len());
+        assert_eq!(
+            everything
+                .iter()
+                .filter(|name| narrowed.contains(name))
+                .collect::<Vec<_>>(),
+            narrowed.iter().collect::<Vec<_>>()
+        );
+        // A desktop server's tools are chosen with `servers`, not by a profile.
+        assert!(narrowed.contains(&"playwright__browser_navigate".to_owned()));
+        assert!(narrowed.contains(&"get_job".to_owned()));
+    }
+    for (name, in_headless, in_desktop) in [
+        ("exec_container", true, true),
+        ("write_file", true, true),
+        ("open_terminal", true, false),
+        ("list_processes", true, false),
+        ("screenshot", false, true),
+        ("desktop_input", false, true),
+        ("start_recording", false, false),
+        ("gamepad_input", false, false),
+    ] {
+        assert!(everything.contains(&name.to_owned()), "{name}");
+        assert_eq!(headless.contains(&name.to_owned()), in_headless, "{name}");
+        assert_eq!(desktop.contains(&name.to_owned()), in_desktop, "{name}");
+    }
+    // The deny list still applies on top of a profile.
+    full.grants[0].profile = Profile::Headless;
+    full.grants[0].excluded_tools = vec!["exec_container".into(), "get_job".into()];
+    let fewer = names(&app, &full);
+    assert!(!fewer.contains(&"exec_container".to_owned()));
+    assert!(!fewer.contains(&"get_job".to_owned()));
+    assert_eq!(fewer.len(), headless.len() - 2);
+    // On an endpoint of two containers a tool stays for the grant whose profile keeps it.
+    app.db
+        .put(CONTAINERS, "c2", &container("c2", "Unity"))
+        .unwrap();
+    let mut two = endpoint(
+        "two",
+        vec![
+            grant("c1", "chrome-dev", &[Scope::View]),
+            grant("c2", "unity", &[Scope::View]),
+        ],
+    );
+    two.grants[0].profile = Profile::Headless;
+    let shot = catalog(&app, &two)
+        .into_iter()
+        .find(|entry| entry.tool.name == "screenshot")
+        .unwrap();
+    assert_eq!(
+        shot.target,
+        Target::Thoric {
+            tool: "screenshot",
+            containers: vec![("unity".into(), "c2".into())],
+        }
+    );
+    two.grants[1].profile = Profile::Headless;
+    assert!(!names(&app, &two).contains(&"screenshot".to_owned()));
+}
+
+#[test]
+fn a_profile_narrows_a_scale_sets_endpoint_too() {
+    let app = app(false);
+    app.db
+        .put(CONTAINERS, "c1", &container("c1", "re-1"))
+        .unwrap();
+    scale_set(&app, &[(1, "c1")], 4);
+    server(&app, "c1", "ghidra", &["decompile"]);
+    let mut set = endpoint("re", vec![set_grant(&Scope::ALL)]);
+    let everything = names(&app, &set);
+    set.grants[0].profile = Profile::Headless;
+    let headless = names(&app, &set);
+    assert!(headless.len() < everything.len());
+    for kept in [
+        "list_instances",
+        "create_instance",
+        "delete_instance",
+        "get_job",
+        "exec_container",
+        "read_file",
+        "ghidra__decompile",
+    ] {
+        assert!(headless.contains(&kept.to_owned()), "{kept}");
+    }
+    for gone in ["screenshot", "desktop_input", "capture_audio", "find_text"] {
+        assert!(everything.contains(&gone.to_owned()), "{gone}");
+        assert!(!headless.contains(&gone.to_owned()), "{gone}");
+    }
+}
+
+#[tokio::test]
+async fn a_grant_keeps_its_profile_and_one_from_before_reads_as_full() {
+    let app = app(false);
+    app.db
+        .put(CONTAINERS, "c1", &container("c1", "Chrome dev"))
+        .unwrap();
+    // A record written before profiles: every tool of its scopes, and saved again as it was.
+    let old: Grant = serde_json::from_value(
+        json!({"container_id":"c1","alias":"a","scopes":["view"],"servers":"all"}),
+    )
+    .unwrap();
+    assert_eq!(old.profile, Profile::Full);
+    assert!(
+        !serde_json::to_value(&old)
+            .unwrap()
+            .as_object()
+            .unwrap()
+            .contains_key("profile")
+    );
+    assert_eq!(
+        summary(&app, &endpoint("old", vec![old]))["grants"][0]["profile"],
+        "full"
+    );
+    // A request names one, the record keeps it and the summary shows it with the tool count.
+    let Json(created) = create_endpoint(
+        State(app.clone()),
+        Json(
+            serde_json::from_value(json!({"name":"worker","grants":[{"container_id":"c1","scopes":["view","commands"],"profile":"headless","servers":"all"}]}))
+                .unwrap(),
+        ),
+    )
+    .await
+    .unwrap();
+    assert_eq!(created["endpoint"]["grants"][0]["profile"], "headless");
+    let saved: Endpoint = app.db.get(ENDPOINTS, "worker").unwrap();
+    assert_eq!(saved.grants[0].profile, Profile::Headless);
+    assert_eq!(
+        serde_json::to_value(&saved).unwrap()["grants"][0]["profile"],
+        "headless"
+    );
+    assert_eq!(created["endpoint"]["tool_count"], names(&app, &saved).len());
+    // An update without one returns to full, as it replaces the grants.
+    let Json(updated) = update_endpoint(
+        State(app.clone()),
+        Path("worker".into()),
+        Json(
+            serde_json::from_value(json!({"grants":[{"container_id":"c1","scopes":["view","commands"],"servers":"all"}]}))
+                .unwrap(),
+        ),
+    )
+    .await
+    .unwrap();
+    assert_eq!(updated["grants"][0]["profile"], "full");
+    assert!(
+        updated["tool_count"].as_u64().unwrap()
+            > created["endpoint"]["tool_count"].as_u64().unwrap()
+    );
+    // A profile this release does not know is refused where the request is read.
+    assert!(
+        serde_json::from_value::<CreateEndpoint>(json!({"name":"x","grants":[{"container_id":"c1","scopes":["view"],"profile":"everything","servers":"all"}]}))
+            .is_err()
+    );
+    // An excluded tool the profile leaves out anyway is still accepted, so a change of profile
+    // keeps the choice.
+    let request: GrantRequest = serde_json::from_value(
+        json!({"container_id":"c1","scopes":["view"],"profile":"headless","servers":"all","excluded_tools":["screenshot"]}),
+    )
+    .unwrap();
+    let made = grants(&app, vec![request]).unwrap();
+    assert_eq!(made[0].excluded_tools, ["screenshot"]);
+    assert_eq!(made[0].profile, Profile::Headless);
+}
+
+#[tokio::test]
+async fn an_automatic_endpoint_takes_the_profile_its_creation_names() {
+    let app = app(false);
+    let one = container("c1", "Worker");
+    app.db.put(CONTAINERS, "c1", &one).unwrap();
+    scale_set(&app, &[(1, "c1")], 4);
+    let own = automatic_endpoint(&app, &one, Profile::Desktop)
+        .await
+        .unwrap();
+    let own: Endpoint = app.db.get(ENDPOINTS, &own).unwrap();
+    assert_eq!(own.grants[0].profile, Profile::Desktop);
+    let of_set = set_endpoint(&app, "re", Profile::Headless).await.unwrap();
+    let of_set: Endpoint = app.db.get(ENDPOINTS, &of_set).unwrap();
+    assert_eq!(of_set.grants[0].profile, Profile::Headless);
+    assert!(of_set.grants[0].scales());
+    assert!(!names(&app, &of_set).contains(&"screenshot".to_owned()));
+}
+
+#[tokio::test]
+async fn the_scopes_route_lists_each_profiles_tools() {
+    let described = scopes_list().await.0;
+    let profiles = described["profiles"].as_array().unwrap();
+    assert_eq!(
+        profiles
+            .iter()
+            .map(|profile| profile["id"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        ["full", "headless", "desktop"]
+    );
+    for (profile, listed) in Profile::ALL.iter().zip(profiles) {
+        let tools: Vec<&str> = listed["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|tool| tool.as_str().unwrap())
+            .collect();
+        assert_eq!(tools, profile.tools());
+        // What the form counts with is what the endpoint offers.
+        for scope in Scope::ALL {
+            for name in scope.tools() {
+                assert_eq!(tools.contains(name), profile.includes(name), "{name}");
+            }
+        }
+    }
+    assert_eq!(
+        described["job_scopes"],
+        json!(["commands", "power", "scale"])
+    );
+}
+
+#[tokio::test]
+async fn a_tool_outside_the_profile_is_unknown_on_the_endpoint() {
+    let app = mcp_app();
+    app.db
+        .put(CONTAINERS, "c1", &container("c1", "Chrome dev"))
+        .unwrap();
+    let Json(created) = create_endpoint(
+        State(app.clone()),
+        Json(
+            serde_json::from_value(json!({"name":"worker","grants":[{"container_id":"c1","scopes":["view","input"],"profile":"headless","servers":"all"}]}))
+                .unwrap(),
+        ),
+    )
+    .await
+    .unwrap();
+    let token = created["token"].as_str().unwrap().to_owned();
+    let session = open_session(&app, "/mcp/worker", &token).await;
+    let (_, _, body) = call(
+        app.clone(),
+        "/mcp/worker",
+        Some(&token),
+        Some(&session),
+        json!({"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}),
+    )
+    .await;
+    let tools: Vec<&str> = body["result"]["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t["name"].as_str().unwrap())
+        .collect();
+    assert!(
+        tools.contains(&"get_container") && tools.contains(&"request_human"),
+        "{tools:?}"
+    );
+    assert!(
+        !tools.contains(&"screenshot") && !tools.contains(&"desktop_input"),
+        "{tools:?}"
+    );
+    // Called anyway, it is as unknown as an excluded one.
+    for name in ["screenshot", "desktop_input"] {
+        let (_, _, body) = call(
+            app.clone(),
+            "/mcp/worker",
+            Some(&token),
+            Some(&session),
+            json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":name,"arguments":{}}}),
+        )
+        .await;
+        assert!(
+            body["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("Unknown tool"),
+            "{body}"
+        );
+    }
 }

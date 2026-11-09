@@ -1809,6 +1809,21 @@ export const fr: Messages = {
     "Ouvrez les outils d'une portée ou d'un serveur et décochez-en un pour l'écarter.",
   "mcp.grant.excluded.one": "{count} outil écarté",
   "mcp.grant.excluded.other": "{count} outils écartés",
+  "mcp.grant.profile": "Profil d'outils",
+  "mcp.grant.profileHint":
+    "Restreint les outils des portées ci-dessous. Les serveurs MCP du bureau se choisissent à part.",
+  "mcp.grant.profileLine": "Profil : {profile}",
+  "mcp.grant.profileEmpty": "Aucun outil dans ce profil",
+  "mcp.grant.total":
+    "Outils proposés : {count}, {thoric} de Thoric et {servers} des serveurs MCP du bureau",
+  "mcp.profile.full": "Complet",
+  "mcp.profile.full.description": "Tous les outils des portées.",
+  "mcp.profile.headless": "Sans écran",
+  "mcp.profile.headless.description":
+    "Scripts, terminaux, fichiers, applications et processus. Rien qui ait besoin de l'écran.",
+  "mcp.profile.desktop": "Bureau",
+  "mcp.profile.desktop.description":
+    "Écran, saisie, applications, fichiers et scripts, sans les outils rarement utilisés.",
   "mcp.scopes.all": "Tous les outils du conteneur",
   "mcp.scopes.none": "Aucun outil du conteneur",
   "mcp.servers.all": "tous, y compris ceux ajoutés plus tard",

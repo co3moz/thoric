@@ -1,6 +1,7 @@
 //! MCP endpoints: which containers an endpoint covers, with which scopes and desktop servers, and
 //! the token that opens it.
 use super::{
+    profiles::Profile,
     registry::{server_name, slug},
     scopes::{Scope, catalog, describe},
 };
@@ -91,6 +92,10 @@ pub(crate) struct Grant {
     /// The container's name on the endpoint, which its tools take when it covers several.
     pub alias: String,
     pub scopes: Vec<Scope>,
+    /// Which of the scopes' tools the grant offers. A record from before profiles has none and
+    /// reads as `full`, every tool of its scopes, which is also not written.
+    #[serde(default, skip_serializing_if = "Profile::is_full")]
+    pub profile: Profile,
     pub servers: Servers,
     /// Tools left out although their scope or server is granted, by the name the endpoint gives
     /// them for this container alone: a container tool's own name, such as
@@ -112,6 +117,11 @@ impl Grant {
     /// Whether the grant leaves out the tool of this name.
     pub fn excludes(&self, name: &str) -> bool {
         self.excluded_tools.iter().any(|excluded| excluded == name)
+    }
+    /// Whether the grant offers the container tool `name` of a scope it has: its profile keeps
+    /// it and its deny list does not name it.
+    pub fn offers(&self, name: &str) -> bool {
+        self.profile.includes(name) && !self.excludes(name)
     }
     /// Whether the grant has the `scale` scope, which only a grant of a scale set may have.
     pub fn scales(&self) -> bool {
@@ -220,6 +230,9 @@ pub(crate) struct GrantRequest {
     #[serde(default)]
     pub alias: Option<String>,
     pub scopes: Vec<Scope>,
+    /// Which of the scopes' tools the grant offers: `full`, the default, `headless` or `desktop`.
+    #[serde(default)]
+    pub profile: Profile,
     pub servers: Servers,
     #[serde(default)]
     pub excluded_tools: Vec<String>,
@@ -286,6 +299,7 @@ pub(crate) fn grants(app: &App, requested: Vec<GrantRequest>) -> anyhow::Result<
             set: None,
             alias,
             scopes,
+            profile: request.profile,
             servers: request.servers,
             excluded_tools,
         });
@@ -315,6 +329,7 @@ fn set_grant(app: &App, request: GrantRequest) -> anyhow::Result<Grant> {
         alias: slug_of(&set, 24, "set"),
         set: Some(set),
         scopes,
+        profile: request.profile,
         servers: request.servers,
         excluded_tools,
     })
@@ -393,6 +408,7 @@ pub(crate) fn summary(app: &App, endpoint: &Endpoint) -> Value {
             "container_name": app.container(&grant.container_id).map(|c| c.spec.name).unwrap_or_default(),
             "alias": grant.alias,
             "scopes": grant.scopes,
+            "profile": grant.profile,
             "servers": grant.servers,
             "excluded_tools": grant.excluded_tools,
         })).collect::<Vec<_>>(),
@@ -596,9 +612,13 @@ pub async fn scopes_list() -> Json<Value> {
     Json(describe())
 }
 
-/// Give a new container an endpoint of its own, named after it, with the default scopes, all its
-/// desktop servers and no token yet. Returns its name.
-pub(crate) async fn automatic_endpoint(app: &App, container: &Container) -> anyhow::Result<String> {
+/// Give a new container an endpoint of its own, named after it, with the default scopes, the
+/// tools of `profile` among them, all its desktop servers and no token yet. Returns its name.
+pub(crate) async fn automatic_endpoint(
+    app: &App,
+    container: &Container,
+    profile: Profile,
+) -> anyhow::Result<String> {
     let lock = app.resource_lock("mcp-endpoints");
     let _guard = lock.lock().await;
     // An endpoint is saved under its name, and one that does not read keeps its name too.
@@ -614,6 +634,7 @@ pub(crate) async fn automatic_endpoint(app: &App, container: &Container) -> anyh
             set: None,
             alias: slug_of(&container.spec.name, 24, "desktop"),
             scopes: Scope::DEFAULT.to_vec(),
+            profile,
             servers: Servers::All,
             excluded_tools: Vec::new(),
         }],
@@ -627,8 +648,9 @@ pub(crate) async fn automatic_endpoint(app: &App, container: &Container) -> anyh
 }
 
 /// Give a scale set an endpoint of its own, named after it, with the default scopes, `scale`,
-/// all its instances' desktop servers and no token yet. Returns its name.
-pub(crate) async fn set_endpoint(app: &App, set: &str) -> anyhow::Result<String> {
+/// the tools of `profile` among them, all its instances' desktop servers and no token yet.
+/// Returns its name.
+pub(crate) async fn set_endpoint(app: &App, set: &str, profile: Profile) -> anyhow::Result<String> {
     let lock = app.resource_lock("mcp-endpoints");
     let _guard = lock.lock().await;
     let taken = app.db.ids(ENDPOINTS)?;
@@ -645,6 +667,7 @@ pub(crate) async fn set_endpoint(app: &App, set: &str) -> anyhow::Result<String>
             set: Some(set.into()),
             alias: slug_of(set, 24, "set"),
             scopes,
+            profile,
             servers: Servers::All,
             excluded_tools: Vec::new(),
         }],

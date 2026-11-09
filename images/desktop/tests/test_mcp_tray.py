@@ -127,6 +127,12 @@ class RowsTest(unittest.TestCase):
         self.assertEqual(lines, ["Container tools: View, Read files", "Servers: chrome", "Left out: 1 tool",
                                  "No token yet: only the administrator's MCP token opens it"])
         self.assertIn("All desktop servers", tray.endpoint_lines({"servers": "all", "has_token": True}))
+        # A tool profile is named unless it is the full one, which an older manager does not send.
+        narrowed = tray.endpoint_lines({"scopes": ["view"], "profile": "headless", "servers": "all",
+                                        "has_token": True})
+        self.assertEqual(narrowed[:2], ["Container tools: View", "Tool profile: Headless"])
+        self.assertFalse(any("profile" in line for line in tray.endpoint_lines(
+            {"scopes": ["view"], "profile": "full", "servers": "all", "has_token": True})))
 
     def test_the_listing_comes_from_the_command(self):
         def run(argv, **_options):

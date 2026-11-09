@@ -23,7 +23,7 @@ Call `list_instances` before anything else, and again whenever you are unsure wh
 
 The endpoint's own instructions also name the shared folders and the per-instance ones. Read both before you plan, because the plan depends on which folders are shared.
 
-Check the tool list too. Your client may put the MCP server's name in front of each tool, such as `re_create_instance` in OpenCode or `mcp__re__create_instance` in Claude Code; they are the same tools. `create_instance` and `delete_instance` exist only when the endpoint has the `scale` scope, and `exec_container` and the terminal tools only with `commands`, which a set's endpoint does not get by default. Work with what is offered instead of assuming.
+Check the tool list too. Your client may put the MCP server's name in front of each tool, such as `re_create_instance` in OpenCode or `mcp__re__create_instance` in Claude Code; they are the same tools. `create_instance` and `delete_instance` exist only when the endpoint has the `scale` scope, and `exec_container` and the terminal tools only with `commands`, which a set's endpoint does not get by default. An endpoint can also carry a tool profile: a headless one offers no screenshot, window or input tools, and a desktop one no terminals or diagnostics. Work with what is offered instead of assuming.
 
 ## Decide whether to grow
 

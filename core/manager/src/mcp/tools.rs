@@ -150,6 +150,7 @@ pub(super) static TOOLS: LazyLock<Vec<Tool>> = LazyLock::new(|| {
                 "ports":ports_schema(),
                 "groups":group_schemas().0,"aliases":group_schemas().1,
                 "mcp_endpoint":{"type":"boolean","default":true,"description":"Create an MCP endpoint at /mcp/NAME for the new container, named after it, with every scope but commands and all its desktop MCP servers, without a token of its own yet (create_mcp_endpoint_token)."},
+                "mcp_profile":profile_schema("The tool profile of that endpoint, or of the set's endpoint with scaling"),
                 "cpus":{"type":["number","null"],"exclusiveMinimum":0},"memory_mb":{"type":["integer","null"],"minimum":256},
                 "shm_mb":{"type":"integer","minimum":64,"default":512},
                 "tmp_mb":{"type":"integer","minimum":64,"default":512,"description":"Size of /tmp in MiB. It is a tmpfs that keeps its files in memory, counted against memory_mb, so large or growing files such as logs belong in a volume or the home folder instead."},
@@ -596,6 +597,15 @@ fn declarations_schema() -> Value {
     json!({"type":"array","maxItems":crate::desktop_mcp::DECLARATION_LIMIT,"items":schema(Value::Object(fields), &["name"]),"description":"The MCP servers the image declares for its desktops, written to /etc/thoric/mcp.d: a template's mcp as it is. Each has a name and either command with args, env and cwd, or url with headers, as register_mcp_server takes them; the desktops built from the image run them as the desktop user, and their MCP endpoints offer the servers' tools."})
 }
 
+/// A grant's tool profile, which `what` introduces.
+fn profile_schema(what: &str) -> Value {
+    let ids: Vec<&str> = crate::desktop_mcp::Profile::ALL
+        .iter()
+        .map(|profile| profile.id())
+        .collect();
+    json!({"type":"string","enum":ids,"default":"full","description":format!("{what}: full, every tool of the scopes; headless, scripts, terminals, files, applications, processes and jobs without the screen, input, windows, clipboard, recordings, audio and gamepad tools; or desktop, the screen and input with applications, files and scripts, without terminals, diagnostics, metrics, processes, recordings, audio and the gamepad. A tool a later release adds follows the profile. Desktop servers' tools are not part of it.")})
+}
+
 /// Desktop MCP servers and the MCP endpoints that publish them.
 fn desktop_mcp_tools(id: Value) -> [Tool; 9] {
     let server = server_name_schema();
@@ -604,6 +614,7 @@ fn desktop_mcp_tools(id: Value) -> [Tool; 9] {
         "container_id":{"type":"string","minLength":1},
         "alias":{"type":"string","pattern":"^[a-z0-9][a-z0-9-]{0,23}$","description":"The container's name on the endpoint, which its tools take as container when it covers several; defaults to the container's name."},
         "scopes":{"type":"array","uniqueItems":true,"items":{"type":"string","enum":["view","input","applications","files_read","files_write","commands","media","power"]},"description":"Groups of container tools: view (screenshots, windows, accessibility tree, reading the clipboard, waits, status and logs), input (mouse, keyboard, setting the clipboard, windows, gamepad, request_human), applications, files_read, files_write, commands (scripts and terminals as the desktop user, never root; with sudo that is root inside the container), media (recordings, artifacts, audio) and power (start, stop, restart). Deleting or changing a container is never part of one."},
+        "profile":profile_schema("Which of the scopes' container tools the endpoint offers for this container"),
         "servers":{"anyOf":[{"type":"string","enum":["all"]},{"type":"array","items":server.clone()}],"description":"The desktop MCP servers whose tools the endpoint offers: \"all\", also those declared later, or these names."},
         "excluded_tools":{"type":"array","maxItems":1024,"uniqueItems":true,"items":{"type":"string","pattern":"^[A-Za-z0-9_-]{1,64}$"},"description":"Tools left out although their scope or server is granted, named as the endpoint exposes them for this container alone: a container tool's own name, such as application_diagnostics, which must belong to the granted scopes, or SERVER__TOOL for a desktop server's tool, as list_mcp_servers reports it in exposed, kept whether or not the server is known now. Empty or absent leaves everything in, also tools a server adds later."}
     }), &["container_id","scopes","servers"])});
@@ -665,7 +676,7 @@ fn desktop_mcp_tools(id: Value) -> [Tool; 9] {
         ),
         tool(
             "create_mcp_endpoint",
-            "Create an MCP endpoint at /mcp/NAME for an agent that should reach only these containers, with only these scopes and desktop servers, instead of this administrator channel; excluded_tools leaves single tools of those out. Returns the endpoint and its bearer token, shown this once. This administrator token opens every endpoint as well.",
+            "Create an MCP endpoint at /mcp/NAME for an agent that should reach only these containers, with only these scopes and desktop servers, instead of this administrator channel; profile narrows the scopes' tools to what an agent without a screen (headless) or one that drives the screen (desktop) needs, and excluded_tools leaves single tools out. Returns the endpoint and its bearer token, shown this once. This administrator token opens every endpoint as well.",
             json!({"name": endpoint, "grants": grants}),
             &["name", "grants"],
             false,
@@ -674,7 +685,7 @@ fn desktop_mcp_tools(id: Value) -> [Tool; 9] {
         ),
         tool(
             "update_mcp_endpoint",
-            "Replace the containers, scopes, desktop servers and excluded tools of an MCP endpoint. Its name, path and token stay; agents connected to it see the new tool list.",
+            "Replace the containers, scopes, tool profile, desktop servers and excluded tools of an MCP endpoint. Its name, path and token stay; agents connected to it see the new tool list.",
             json!({"name": endpoint, "grants": grants}),
             &["name", "grants"],
             false,

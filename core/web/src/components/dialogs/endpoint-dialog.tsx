@@ -60,11 +60,17 @@ import {
   endpointUrl,
   grantDraft,
   grantRequests,
+  inProfile,
   newGrant,
   orderScopes,
+  profileDescription,
+  profileLabel,
+  PROFILES,
   scopeDescription,
   scopeLabel,
   SCOPES,
+  serverToolCount,
+  thoricTools,
   type GrantDraft,
 } from "@/lib/mcp"
 import { api } from "@/lib/api"
@@ -84,7 +90,14 @@ import {
   type ScaleSet,
   type ServerPolicy,
 } from "@/lib/scale"
-import type { ContainerItem, DesktopServer, McpScope, McpScopes, ServerTool } from "@/lib/types"
+import type {
+  ContainerItem,
+  DesktopServer,
+  McpProfile,
+  McpScope,
+  McpScopes,
+  ServerTool,
+} from "@/lib/types"
 import { useSubmit } from "./container-dialogs"
 import { ServerPolicySelect } from "./scaling-fields"
 import type { DialogProps } from "./side-drawer"
@@ -216,6 +229,10 @@ function GrantFields({
       exposed: tool,
       description: "",
     }))
+  // The profiles this release knows, and the grant's own when a newer manager gave it another.
+  const profiles = [...new Set<McpProfile>([...PROFILES, draft.profile])]
+  const thoric = thoricTools(draft, scopes, draft.profile).length
+  const fromServers = serverToolCount(draft, servers)
   // Servers chosen earlier stay listed after they were removed, so they can be taken out, and so
   // does a set's server that runs in instance 1 alone while no instance 1 reads it.
   const names = [
@@ -231,12 +248,17 @@ function GrantFields({
         ? orderScopes([...draft.scopes, scope])
         : draft.scopes.filter((other) => other !== scope),
     })
-  const toggleServer = (server: string, on: boolean) =>
+  // Unticking a server while all are included chooses the others, so a whole server goes in one
+  // click.
+  const toggleServer = (server: string, on: boolean) => {
+    const chosen = draft.all ? names : draft.servers
     set({
+      all: false,
       servers: on
-        ? names.filter((other) => other === server || draft.servers.includes(other))
-        : draft.servers.filter((other) => other !== server),
+        ? names.filter((other) => other === server || chosen.includes(other))
+        : chosen.filter((other) => other !== server),
     })
+  }
   const setExcluded = (excluded: string[]) => set({ excluded })
 
   return (
@@ -275,6 +297,45 @@ function GrantFields({
         <FieldDescription className="text-xs">{t("mcp.grant.aliasHint")}</FieldDescription>
       </Field>
       <FieldSet className="gap-3">
+        <FieldLegend variant="label" className="mb-0" id={`${id}-profile`}>
+          {t("mcp.grant.profile")}
+        </FieldLegend>
+        {/* One choice per profile, each with the Thoric tools it leaves of the scopes below. */}
+        <RadioGroup
+          aria-labelledby={`${id}-profile`}
+          value={draft.profile}
+          onValueChange={(value) => set({ profile: value as McpProfile })}
+          className="sm:grid-cols-3"
+        >
+          {profiles.map((profile) => (
+            <Label
+              key={profile}
+              className={cn(
+                "items-start rounded-xl border p-3 font-normal",
+                draft.profile === profile && "border-primary"
+              )}
+            >
+              <RadioGroupItem value={profile} className="mt-0.5" />
+              <span className="flex min-w-0 flex-col gap-1 leading-snug">
+                <span className="flex flex-wrap items-baseline justify-between gap-x-2">
+                  <span className="font-medium">{profileLabel(profile)}</span>
+                  {scopes && (
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      {plural(thoricTools(draft, scopes, profile).length, {
+                        one: "mcp.tools.one",
+                        other: "mcp.tools.other",
+                      })}
+                    </span>
+                  )}
+                </span>
+                <span className="text-xs text-muted-foreground">{profileDescription(profile)}</span>
+              </span>
+            </Label>
+          ))}
+        </RadioGroup>
+        <FieldDescription className="text-xs">{t("mcp.grant.profileHint")}</FieldDescription>
+      </FieldSet>
+      <FieldSet className="gap-3">
         <FieldLegend variant="label" className="mb-0">
           {t("mcp.grant.scopes")}
         </FieldLegend>
@@ -284,7 +345,9 @@ function GrantFields({
           {offered.map((scope) => {
             const Icon = scopeIcon(scope)
             const on = draft.scopes.includes(scope)
-            const tools = toolsOf(scope)
+            const all = toolsOf(scope)
+            // Only the tools the profile keeps can be left out one by one.
+            const tools = all.filter((tool) => inProfile(draft.profile, tool.name, scopes))
             const description = scopeDescription(scope)
             return (
               <li key={scope} className="px-3 py-2.5">
@@ -310,6 +373,9 @@ function GrantFields({
                         excluded={draft.excluded}
                         onChange={setExcluded}
                       />
+                    )}
+                    {on && all.length > 0 && !tools.length && (
+                      <p className="text-xs text-muted-foreground">{t("mcp.grant.profileEmpty")}</p>
                     )}
                   </FieldContent>
                 </Field>
@@ -345,19 +411,18 @@ function GrantFields({
             {t("mcp.grant.chosenServers")}
           </Label>
         </RadioGroup>
-        {/* The servers, each with a checkbox when they are chosen here, and under an included one
-            its tools as the manager last read them, behind their count. */}
+        {/* The servers, each with a checkbox that takes it out whole, and under each its tools as
+            the manager last read them: behind their count for an included one, the count alone
+            for one left out. */}
         {names.length ? (
           <ul className="flex flex-col gap-2 pl-6">
             {names.map((server) => {
               const record = servers.find((entry) => entry.name === server)
               const included = draft.all || draft.servers.includes(server)
-              const label = draft.all ? (
-                <code className="font-mono text-xs leading-none">{server}</code>
-              ) : (
+              const label = (
                 <Label className="flex items-center gap-2 font-normal">
                   <Checkbox
-                    checked={draft.servers.includes(server)}
+                    checked={included}
                     onCheckedChange={(checked) => toggleServer(server, checked === true)}
                   />
                   <code className="font-mono text-xs">{server}</code>
@@ -378,6 +443,14 @@ function GrantFields({
                     </div>
                   ) : (
                     label
+                  )}
+                  {!included && !!record?.tools.length && (
+                    <p className="pl-6 text-xs text-muted-foreground">
+                      {plural(record.tools.length, {
+                        one: "mcp.tools.one",
+                        other: "mcp.tools.other",
+                      })}
+                    </p>
                   )}
                   {included &&
                     record &&
@@ -410,6 +483,15 @@ function GrantFields({
           <FieldDescription className="text-xs">{t("mcp.grant.serverPolicyHint")}</FieldDescription>
         )}
       </FieldSet>
+      {scopes && (
+        <p className="text-xs text-muted-foreground tabular-nums" aria-live="polite">
+          {t("mcp.grant.total", {
+            count: formatNumber(thoric + fromServers),
+            thoric: formatNumber(thoric),
+            servers: formatNumber(fromServers),
+          })}
+        </p>
+      )}
     </div>
   )
 }
@@ -472,6 +554,7 @@ export function EndpointDialog({ name: existing, ...props }: DialogProps & { nam
           container_name: set,
           alias: defaultAlias(set),
           scopes: orderScopes([...(scopes?.default ?? ["view"]), "scale"]),
+          profile: "full",
           all: true,
           servers: [],
           excluded: [],
