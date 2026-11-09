@@ -15,6 +15,6 @@ Thoric uses the components below to provide its browser desktop, GPU rendering a
 | [Docker CLI and Buildx](https://github.com/docker/cli) | Apache-2.0, Copyright Docker, Inc. The manager image copies the `docker` and `docker-buildx` binaries from a Docker 28 `docker:<version>-cli` image, the release `core/manager/Dockerfile` names. |
 | [Tesseract OCR](https://github.com/tesseract-ocr/tesseract) | Apache-2.0. The manager image installs Debian's `tesseract-ocr` with its English data, `tesseract-ocr-eng`, to read the text on desktops' screens for `find_text` and `wait_for_condition`. Each package keeps its license and copyright under `/usr/share/doc` in the image. |
 | [Moby](https://github.com/moby/moby) seccomp profile | Apache-2.0. `images/desktop/seccomp.json` is Docker's default seccomp profile with one rule added, so browser sandboxes can create user namespaces. |
-| [Rust MCP SDK (rmcp)](https://github.com/modelcontextprotocol/rust-sdk) 3.5.1 | Apache-2.0. Provides the embedded MCP protocol and HTTP transport. |
+| [Rust MCP SDK (rmcp)](https://github.com/modelcontextprotocol/rust-sdk) 3.9.0 | Apache-2.0. Provides the embedded MCP protocol and HTTP transport. |
 
 The dashboard's **Dependencies** page lists every interface package, crate, image, system package, tool and workflow action a release is built from, with the license each package names; the manager image's build makes that list and refuses to finish when a package that ships names none.

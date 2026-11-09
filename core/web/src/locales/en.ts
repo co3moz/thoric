@@ -1510,7 +1510,7 @@ export const en = {
   "spec.kvmUnavailable": "This Docker host has no /dev/kvm.",
   "spec.turnedOffList": "Turned off for this installation: {features}.",
   "spec.gpuUnavailable": "This host has no GPU for desktops; the Management page says why.",
-  "spec.volumeFirst": "Create a volume first.",
+  "spec.createVolume": "Create new volume…",
   "spec.mount": "Mount",
   "spec.volume": "Volume",
   "spec.mountPath": "Mount path",
