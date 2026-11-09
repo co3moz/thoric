@@ -14,7 +14,7 @@ The name is a nod to Thor.
 
 ## What you can do
 
-- **Built-in MCP agent integration** with 88 tools: commands, files, what changed in a container's files, the clipboard, one-time transfer links for large files, mouse and keyboard, screenshots, text read off the screen, windows, applications, every process with its CPU and memory use, recordings, audio, terminals, accessibility trees, a virtual gamepad and a way to ask a person for help with a CAPTCHA or a sign-in.
+- **Built-in MCP agent integration** with 89 tools: commands, files, a bounded search of their names and contents, what changed in a container's files, the clipboard, one-time transfer links for large files, mouse and keyboard, screenshots, text read off the screen, windows, applications, every process with its CPU and memory use, recordings, audio, terminals, accessibility trees, a virtual gamepad and a way to ask a person for help with a CAPTCHA or a sign-in.
 - **MCP servers inside a desktop**, declared by a template or registered while it runs from the dashboard, a terminal or the desktop's tray, and **MCP endpoints** at `/mcp/<name>` that give an agent only some containers, some of Thoric's tools and those servers' tools, with a token of their own.
 - **GPU acceleration** for Linux graphics applications, verified in WSL2 with an NVIDIA GPU. On a Linux host, NVIDIA GPUs through the NVIDIA Container Toolkit and AMD and Intel GPUs (experimental) are supported but not verified yet; see [GPU on a Linux host](docs/INSTALLATION.md#gpu-on-a-linux-host).
 - **Separate containers with custom settings**: resolution, CPU, memory, internet, sound and microphone.

@@ -19,6 +19,9 @@ use serde_json::{Value, json};
 use std::{process::Stdio, sync::Arc, time::Duration};
 use tokio::io::AsyncReadExt;
 
+mod search;
+pub use search::{SearchFiles, search, search_files};
+
 pub const FILE_LIMIT: usize = 512 * 1024;
 #[derive(Default, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]

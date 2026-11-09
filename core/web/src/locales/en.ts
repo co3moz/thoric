@@ -1820,7 +1820,7 @@ export const en = {
   "mcp.scope.applications.description":
     "Launch and stop applications, and read their logs and metrics.",
   "mcp.scope.files_read": "Read files",
-  "mcp.scope.files_read.description": "List, read and download files.",
+  "mcp.scope.files_read.description": "List, search, read and download files.",
   "mcp.scope.files_write": "Write files",
   "mcp.scope.files_write.description":
     "Write, upload, move and delete files, and save screenshots.",

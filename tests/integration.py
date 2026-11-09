@@ -664,7 +664,7 @@ try:
     except urllib.error.HTTPError as error:
         assert error.code == 401
     assert mcp("initialize", {"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"acceptance","version":"1"}})["serverInfo"]["name"] == "thoric"
-    assert len(mcp("tools/list")["tools"]) == 88
+    assert len(mcp("tools/list")["tools"]) == 89
     assert tool("get_system")["structuredContent"]["connected"]
     assert stdio_tool("get_system")["structuredContent"]["connected"]
     print("PASS MCP authentication, negotiation and discovery", flush=True)
@@ -1358,7 +1358,23 @@ try:
     docker("exec", "--user", "desktop", container, "ln", "-s", "/home/desktop/agent-files", "/home/desktop/agent-link")
     assert tool("write_file", {"container_id":env_id,"path":"/home/desktop/agent-link/blocked.txt","data":"blocked"}, allow_error=True)["isError"]
     assert tool("read_file", {"container_id":env_id,"path":"/home/desktop/agent-link/hello.txt"}, allow_error=True)["isError"]
-    print("PASS MCP/HTTP execution, exit failures, timeout, bounded file read/write, upload and screenshot", flush=True)
+    # A bounded search instead of grep in a script job: by content and by name, never through a
+    # link, and ended by its time, in the desktop too, when a pattern backtracks without end.
+    searched = tool("search_files", {"container_id":env_id,"path":"/home/desktop/agent-files","pattern":"Upd.ted"})["structuredContent"]
+    assert [(m["path"], m["line"], m["text"]) for m in searched["matches"]] == [("/home/desktop/agent-files/hello.txt", 1, "Updated")], searched
+    assert searched["binary_skipped"] == 1 and not searched["truncated"], searched
+    named = api(f"containers/{env_id}/files/search", {"path":"/home/desktop","name":"agent*"})
+    assert {(e["path"], e["type"]) for e in named["files"]} >= {("/home/desktop/agent-files","directory"),("/home/desktop/agent-link","symlink"),("/home/desktop/agent-files/agent.bin","file")}, named
+    assert not any(e["path"].startswith("/home/desktop/agent-link/") for e in named["files"]), named
+    assert tool("search_files", {"container_id":env_id,"path":"/home/desktop/agent-link","pattern":"Updated"}, allow_error=True)["isError"]
+    assert tool("search_files", {"container_id":env_id,"path":"/home/desktop","pattern":"(unclosed"}, allow_error=True)["isError"]
+    assert tool("search_files", {"container_id":env_id,"path":"/home/desktop"}, allow_error=True)["isError"]
+    tool("write_file", {"container_id":env_id,"path":"/home/desktop/agent-files/endless.txt","data":"a"*64+"!\n"})
+    endless = tool("search_files", {"container_id":env_id,"path":"/home/desktop/agent-files","pattern":"(a+)+$","max_seconds":1})["structuredContent"]
+    assert endless["truncated"] and endless["truncated_by"] == "time", endless
+    assert b"FILE_BYTES" not in docker("exec", container, "ps", "-eo", "args"), "a search must not outlive its time"
+    tool("delete_file", {"container_id":env_id,"path":"/home/desktop/agent-files/endless.txt"})
+    print("PASS MCP/HTTP execution, exit failures, timeout, bounded file read/write, search, upload and screenshot", flush=True)
     # What changed in the container's own files: the agent's files and a system file root deleted are
     # listed, a file written and deleted again is not, and the session's own files only when asked.
     tool("write_file", {"container_id":env_id,"path":"/home/desktop/agent-files/gone.txt","data":"brief"})
