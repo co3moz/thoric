@@ -131,7 +131,7 @@ Audio uses authenticated WebSockets carrying 48 kHz float32 PCM: stereo output a
 
 The database records immutable image IDs so later tag changes do not change an existing container's base. Operations on the same container are serialized, while unrelated containers and image builds can proceed independently.
 
-Standard Docker CLI operations have a 120-second timeout; image builds and commits have a one-hour timeout, and a compose setup step its own `timeout_seconds` plus two minutes, at least an hour. Job logs retain their last 256 KiB, and the job list returns the latest 100 entries without loading their full logs.
+Standard Docker CLI operations have a 120-second timeout; image builds and commits have a one-hour timeout, and a compose setup step its own `timeout_seconds` plus two minutes, at least an hour. Job logs retain their last 256 KiB, and the job list returns the latest 100 entries without loading their full logs. Finished jobs are kept by class, the newest 1000 scripts (`SCRIPT_KINDS` in `core/manager/src/jobs/history.rs`, which `core/web/src/lib/job-history.ts` repeats) and the newest 500 of every other kind, and the `job_counts` table keeps how many ended in each hour for 92 days.
 
 Uploads stream through bounded staging before delivery as UID/GID 1001:1001. Destinations must remain within the desktop home, writable mounted volumes or the folders the container's compose names, and never under a read-only mount; `core/web/src/lib/desktop-paths.ts` mirrors that rule for the upload dialog. The receiver rejects symlink traversal and writes completed files atomically. Preserve these constraints when changing the upload path.
 

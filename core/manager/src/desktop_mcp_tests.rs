@@ -1599,6 +1599,25 @@ async fn get_job_reads_only_the_jobs_the_endpoint_started_in_its_containers() {
     )
     .await;
     assert_eq!(body["result"]["structuredContent"]["id"], started, "{body}");
+    // Once the job history no longer keeps it, the read says so, and a job's id the endpoint
+    // does not know may have been pruned too; neither is a bare missing record.
+    app.db.remove("job", &started).unwrap();
+    for (job, said) in [
+        (started.as_str(), "ended and its record is no longer kept"),
+        ("0123456789abcdef0123456789abcdef", "If it ran earlier"),
+    ] {
+        let (_, _, body) = call(
+            app.clone(),
+            "/mcp/chrome-dev",
+            Some(ADMIN),
+            Some(&session),
+            json!({"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"get_job","arguments":{"job_id":job}}}),
+        )
+        .await;
+        assert_eq!(body["result"]["isError"], true, "{body}");
+        let text = body["result"]["content"][0]["text"].as_str().unwrap();
+        assert!(text.contains(said), "{job}: {text}");
+    }
 }
 
 #[test]
@@ -2055,11 +2074,12 @@ async fn the_administrator_calls_a_desktop_servers_tool_by_its_own_name() {
 fn one_endpoints_jobs_never_push_out_anothers() {
     let mcp = DesktopMcp::default();
     mcp.started("quiet", "theirs");
-    for number in 0..1000 {
+    for number in 0..=super::gateway::STARTED_JOBS {
         mcp.started("busy", &format!("job-{number}"));
     }
     assert!(mcp.started_by("quiet", "theirs"));
-    assert!(mcp.started_by("busy", "job-999"));
+    assert!(mcp.started_by("busy", &format!("job-{}", super::gateway::STARTED_JOBS)));
+    assert!(mcp.started_by("busy", "job-1"));
     assert!(!mcp.started_by("busy", "job-0"));
     assert!(!mcp.started_by("busy", "theirs"));
 }

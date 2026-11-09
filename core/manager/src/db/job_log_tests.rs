@@ -194,7 +194,11 @@ fn a_job_pruned_removed_or_gone_takes_its_chunks() {
         db.append_job_log(id, &format!("{id}\n")).unwrap();
     }
     db.remove("job", "removed").unwrap();
-    assert_eq!(db.prune_jobs(1).unwrap(), 1);
+    let keep = crate::jobs::history::Kept {
+        scripts: 1,
+        others: 1,
+    };
+    assert_eq!(db.prune_jobs(keep).unwrap(), 1);
     let left: Vec<String> = {
         let conn = db.connection();
         let mut statement = conn.prepare("SELECT DISTINCT job FROM job_log").unwrap();

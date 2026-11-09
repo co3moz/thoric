@@ -75,8 +75,13 @@ pub async fn create_volume(
     app.new_volume(&body.name).await?;
     Ok(Json(json!({"name":body.name})))
 }
-pub async fn jobs(State(app): State<Arc<App>>) -> Result<Json<Value>> {
-    let jobs = app.db.jobs_summary()?;
+/// `GET /api/jobs`: the newest 100 jobs without their logs, of every kind unless
+/// [`jobs::history::Listed`] names some or leaves the scripts out.
+pub async fn jobs(
+    State(app): State<Arc<App>>,
+    Query(listed): Query<jobs::history::Listed>,
+) -> Result<Json<Value>> {
+    let jobs = app.db.jobs_listed(&listed.filter()?)?;
     Ok(Json(json!(jobs)))
 }
 /// `GET /api/jobs/{id}`: the job with its whole log, or as [`jobs::read::Read`] asks for it.

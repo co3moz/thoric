@@ -1,6 +1,7 @@
 //! Pins down the schema versions: a new database and one from before versions both end at the
 //! latest version with what they held, a job's log in its record included, a database a newer
-//! release migrated is refused and left as it was, and a migration that fails changes nothing.
+//! release migrated is refused and left as it was, a migration that fails changes nothing, and the
+//! job counts start from the ended jobs the database still has.
 use super::*;
 use crate::db::Db;
 use std::path::{Path, PathBuf};
@@ -58,12 +59,12 @@ fn a_new_database_starts_at_the_latest_version() {
     assert_eq!(version(&conn), MIGRATIONS.len() as i64);
     let tables: i64 = conn
         .query_row(
-            "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('records', 'activity', 'job_log')",
+            "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('records', 'activity', 'job_log', 'job_counts')",
             [],
             |row| row.get(0),
         )
         .unwrap();
-    assert_eq!(tables, 3);
+    assert_eq!(tables, 4);
 }
 
 #[test]
@@ -93,6 +94,59 @@ fn a_database_from_before_versions_keeps_what_it_held() {
         assert!(db.jobs_summary().unwrap()[0].log.is_empty());
     }
     std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn the_job_counts_start_from_the_ended_jobs_a_database_still_has() {
+    let mut conn = Connection::open_in_memory().unwrap();
+    run_these(&mut conn, &MIGRATIONS[..2]).unwrap();
+    let job = |id: &str, kind: &str, status: &str, finished: Option<u64>| {
+        let data = serde_json::json!({"id": id, "kind": kind, "resource": null, "status": status, "created_at": 1, "finished_at": finished, "log": "", "result": null});
+        conn.execute(
+            "INSERT INTO records(kind, id, data) VALUES('job', ?1, ?2)",
+            [id, &data.to_string()],
+        )
+        .unwrap();
+    };
+    job("a", "exec", "completed", Some(7200));
+    job("b", "exec", "completed", Some(7300));
+    job("c", "exec", "failed", Some(10_799));
+    job("d", "build", "interrupted", Some(7200));
+    job("e", "build", "completed", Some(10_800));
+    job("running", "exec", "running", None);
+    // A record that does not read and one that is not a job's are not counted and fail nothing.
+    conn.execute_batch(
+        "INSERT INTO records(kind, id, data) VALUES('job', 'broken', 'not json');
+        INSERT INTO records(kind, id, data) VALUES('image', 'i', '{\"kind\":\"exec\",\"status\":\"completed\",\"finished_at\":7200}');",
+    )
+    .unwrap();
+    run_these(&mut conn, MIGRATIONS).unwrap();
+    let mut statement = conn
+        .prepare(
+            "SELECT hour, class, completed, failed, interrupted FROM job_counts ORDER BY hour, class",
+        )
+        .unwrap();
+    let counts: Vec<(i64, String, i64, i64, i64)> = statement
+        .query_map([], |row| {
+            Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+            ))
+        })
+        .unwrap()
+        .map(Result::unwrap)
+        .collect();
+    assert_eq!(
+        counts,
+        [
+            (2, "other".to_string(), 0, 0, 1),
+            (2, "script".to_string(), 2, 1, 0),
+            (3, "other".to_string(), 1, 0, 0),
+        ]
+    );
 }
 
 #[test]

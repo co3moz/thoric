@@ -82,7 +82,6 @@ pub(super) fn policy(tool: &str) -> Option<&'static [Rule]> {
         | "list_containers"
         | "list_images"
         | "list_volumes"
-        | "list_jobs"
         | "list_mcp_endpoints"
         | "list_mcp_servers"
         | "get_container"
@@ -207,6 +206,7 @@ pub(super) fn policy(tool: &str) -> Option<&'static [Rule]> {
         "create_volume" | "delete_volume" => &[("name", Text, true)],
         "copy_volume" => &[("volume", Text, true), ("name", Text, true)],
         "get_usage" => &[("seconds", Text, false)],
+        "list_jobs" => &[("kind", Text, true), ("scripts", Text, false)],
         "cancel_job" => &[("job_id", Text, true)],
         "get_job" => &[
             ("job_id", Text, true),

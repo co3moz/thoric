@@ -17,6 +17,7 @@ import {
 import { jobName, jobTarget } from "./format"
 import { HUMAN_REQUESTS, newRequests, withRequest } from "./human"
 import { t } from "./i18n"
+import { isScript, OTHER_JOBS } from "./job-history"
 import { queryClient } from "./queries"
 import { navigate, parseRoute } from "./route"
 import type { ContainerItem, HumanRequest, ImageItem, Job, Session } from "./types"
@@ -104,7 +105,7 @@ function announceRequest(request: HumanRequest) {
 function handle(event: ServerEvent) {
   if (event.type === "job") {
     const { job } = event
-    refresh(staleKeys(job))
+    refresh(isScript(job) ? staleKeys(job) : [...staleKeys(job), OTHER_JOBS])
     void queryClient.invalidateQueries(
       { queryKey: ["jobs", job.id], exact: true },
       { cancelRefetch: false }
@@ -113,9 +114,8 @@ function handle(event: ServerEvent) {
     if (errors.size > 100) errors.delete(errors.keys().next().value!)
     if (job.finished_at !== null) announce(job)
   } else if (event.type === "job-progress") {
-    queryClient.setQueryData<Job[]>(["jobs"], (jobs) =>
-      withProgress(jobs, event.id, event.progress)
-    )
+    for (const key of ["jobs", OTHER_JOBS])
+      queryClient.setQueryData<Job[]>([key], (jobs) => withProgress(jobs, event.id, event.progress))
     queryClient.setQueryData<Job>(
       ["jobs", event.id],
       (job) => job && { ...job, progress: event.progress }
@@ -147,7 +147,7 @@ async function sessionHolds() {
 }
 
 /** The lists the stream keeps current, which poll slowly while it is up. */
-const streamed = ["jobs", HUMAN_REQUESTS[0]]
+const streamed = ["jobs", OTHER_JOBS, HUMAN_REQUESTS[0]]
 /** The lists Docker's own events keep current, which poll slowly while those reach the page. */
 const watched = ["containers", "images", "volumes", "system"]
 

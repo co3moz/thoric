@@ -12,7 +12,7 @@ use rusqlite::{Connection, Transaction, TransactionBehavior};
 type Migration = fn(&Transaction) -> rusqlite::Result<()>;
 
 /// Migration `n` brings a database of version `n - 1` to version `n`.
-const MIGRATIONS: &[Migration] = &[records_and_activity, job_log];
+const MIGRATIONS: &[Migration] = &[records_and_activity, job_log, job_counts];
 
 /// Bring the database to the latest version this manager knows.
 pub(super) fn run(conn: &mut Connection) -> anyhow::Result<()> {
@@ -88,6 +88,34 @@ fn job_log(transaction: &Transaction) -> rusqlite::Result<()> {
             ends_at INTEGER NOT NULL
         );
         CREATE INDEX job_log_job ON job_log(job, ends_at);",
+    )
+}
+
+/// Version 3: how many jobs ended in each hour, by class and by how they ended, which outlives
+/// the job records; see `db/job_history.rs`. `hour` is the hour since the Unix epoch a job ended
+/// in, and `class` is `script` for a script job (`exec`) and `other` for the rest. The counts
+/// start from the ended jobs the database still has.
+fn job_counts(transaction: &Transaction) -> rusqlite::Result<()> {
+    transaction.execute_batch(
+        "CREATE TABLE job_counts(
+            hour INTEGER NOT NULL,
+            class TEXT NOT NULL,
+            completed INTEGER NOT NULL DEFAULT 0,
+            failed INTEGER NOT NULL DEFAULT 0,
+            interrupted INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY(hour, class)
+        ) WITHOUT ROWID;
+        INSERT INTO job_counts(hour, class, completed, failed, interrupted)
+        SELECT CAST(json_extract(data, '$.finished_at') AS INTEGER) / 3600,
+            CASE WHEN json_extract(data, '$.kind') = 'exec' THEN 'script' ELSE 'other' END,
+            SUM(json_extract(data, '$.status') = 'completed'),
+            SUM(json_extract(data, '$.status') = 'failed'),
+            SUM(json_extract(data, '$.status') NOT IN ('completed', 'failed'))
+        FROM records
+        WHERE kind = 'job' AND json_valid(data)
+            AND json_type(data, '$.finished_at') = 'integer'
+            AND json_type(data, '$.status') = 'text'
+        GROUP BY 1, 2;",
     )
 }
 
