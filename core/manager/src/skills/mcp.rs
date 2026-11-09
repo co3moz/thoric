@@ -2,19 +2,24 @@
 //! `skill://<name>/SKILL.md`, and `skills/list` and `skills/get` give a skill's frontmatter, size
 //! and digest. Few clients know the extension yet, while most let the model read a resource, so
 //! the server's instructions also name each skill's URI and when to read it, the pointer the
-//! extension allows.
+//! extension allows. rmcp routes `skills/list` and `skills/get` to a server handler's
+//! `list_skills` and `get_skill`, which answer with `list` and `get`; it answers them itself, as
+//! unknown methods, on a server that declares no skills, and refuses an entry that breaks the
+//! extension's rules.
 use super::{MARKDOWN, SKILLS, Server, Skill};
 use rmcp::{
     ErrorData,
     model::{
-        CustomRequest, CustomResult, ErrorCode, ListResourcesResult, ReadResourceResult, Resource,
-        ResourceContents, ResourcesCapability, ServerCapabilities,
+        CustomRequest, ErrorCode, GetSkillResult, ListResourcesResult, ListSkillsResult,
+        PaginatedRequestParams, ReadResourceResult, Resource, ResourceContents,
+        ResourcesCapability, SKILLS_EXTENSION_ID, ServerCapabilities, SkillFrontmatter,
+        SkillResource, SkillResources,
     },
 };
-use serde_json::{Map, Value, json};
+use serde_json::Map;
 
 /// The extension's name in a server's capabilities.
-pub(crate) const EXTENSION: &str = "io.modelcontextprotocol/skills";
+pub(crate) const EXTENSION: &str = SKILLS_EXTENSION_ID;
 
 /// The skills `server` offers.
 pub(crate) fn offered(server: Server) -> Vec<&'static Skill> {
@@ -91,49 +96,56 @@ pub(crate) fn read(skills: &[&Skill], uri: &str) -> Result<ReadResourceResult, E
     ]))
 }
 
-/// A skill as `skills/list` and `skills/get` give it: its frontmatter and its one file, with
+/// A skill as `skills/list` and `skills/get` give it: its whole frontmatter and its one file, with
 /// that file's digest and size.
-fn entry(skill: &Skill) -> Value {
+fn entry(skill: &Skill) -> rmcp::model::Skill {
     let uri = uri(skill);
-    json!({
-        "uri": uri,
-        "frontmatter": skill.frontmatter,
-        "resources": [{"uri": uri, "digest": skill.digest, "size": skill.size()}],
-    })
+    let frontmatter = skill
+        .frontmatter
+        .iter()
+        .filter(|(key, _)| !matches!(key.as_str(), "name" | "description"))
+        .fold(
+            SkillFrontmatter::new(skill.name, skill.description.clone()),
+            |frontmatter, (key, value)| frontmatter.with_field(key.clone(), value.clone()),
+        );
+    let file = SkillResource::new(uri.clone(), skill.digest.clone(), skill.size());
+    rmcp::model::Skill::new(uri, frontmatter, SkillResources::Files(vec![file]))
 }
 
-/// A request rmcp does not know: `skills/list` and `skills/get` on a server that offers skills,
-/// and method-not-found for anything else, as without the extension.
-pub(crate) fn request(
+/// `skills/list`: every skill the server offers, on one page.
+pub(crate) fn list(
     skills: &[&Skill],
-    request: CustomRequest,
-) -> Result<CustomResult, ErrorData> {
-    let missing = || ErrorData::new(ErrorCode::METHOD_NOT_FOUND, request.method.clone(), None);
-    if skills.is_empty() {
-        return Err(missing());
+    request: Option<PaginatedRequestParams>,
+) -> Result<ListSkillsResult, ErrorData> {
+    if request.is_some_and(|request| request.cursor.is_some()) {
+        return Err(ErrorData::invalid_params(
+            "This skill list has no next page",
+            None,
+        ));
     }
-    match request.method.as_str() {
-        "skills/list" => Ok(CustomResult::new(json!({
-            "resultType": "complete",
-            "skills": skills.iter().map(|skill| entry(skill)).collect::<Vec<_>>(),
-        }))),
-        "skills/get" => {
-            let uri = request
-                .params
-                .as_ref()
-                .and_then(|params| params.get("uri"))
-                .and_then(Value::as_str)
-                .ok_or_else(|| {
-                    ErrorData::invalid_params(
-                        "skills/get takes the uri of a skill's SKILL.md",
-                        None,
-                    )
-                })?;
-            Ok(CustomResult::new(json!({
-                "resultType": "complete",
-                "skill": entry(named(skills, uri)?),
-            })))
-        }
-        _ => Err(missing()),
+    Ok(ListSkillsResult::with_all_items(
+        skills.iter().map(|skill| entry(skill)).collect(),
+    ))
+}
+
+/// `skills/get`: the offered skill whose `SKILL.md` is at `uri`.
+pub(crate) fn get(skills: &[&Skill], uri: &str) -> Result<GetSkillResult, ErrorData> {
+    Ok(GetSkillResult::new(entry(named(skills, uri)?)))
+}
+
+/// What a request rmcp could not read as one it knows is answered with. `skills/list` and
+/// `skills/get` come here only when their parameters do not read, such as `skills/get` without a
+/// `uri`, which on a server that offers skills is invalid parameters, `-32602`; any other method
+/// is unknown, as without the extension.
+pub(crate) fn unread(skills: &[&Skill], request: &CustomRequest) -> ErrorData {
+    let takes = match request.method.as_str() {
+        _ if skills.is_empty() => None,
+        "skills/list" => Some("at most a cursor"),
+        "skills/get" => Some("the uri of a skill's SKILL.md"),
+        _ => None,
+    };
+    match takes {
+        Some(takes) => ErrorData::invalid_params(format!("{} takes {takes}", request.method), None),
+        None => ErrorData::new(ErrorCode::METHOD_NOT_FOUND, request.method.clone(), None),
     }
 }

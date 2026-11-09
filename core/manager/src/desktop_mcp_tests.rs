@@ -2460,6 +2460,47 @@ async fn a_set_endpoint_works_on_the_instance_its_number_names() {
     );
 }
 
+/// A folder that instance 1 alone writes is named apart from those every instance changes, so an
+/// agent knows to publish files there from instance 1.
+#[tokio::test]
+async fn a_set_endpoint_names_the_folders_only_instance_one_writes() {
+    let app = mcp_app();
+    app.db
+        .put(CONTAINERS, "c1", &container("c1", "re-1"))
+        .unwrap();
+    scale_set(&app, &[(1, "c1")], 2);
+    let mut set: crate::scale::ScaleSet = app.db.get(crate::scale::SETS, "re").unwrap();
+    set.volumes.insert(
+        "/home/desktop/analysis".into(),
+        crate::scale::VolumePolicy::FirstWrites,
+    );
+    app.db.put(crate::scale::SETS, "re", &set).unwrap();
+    app.db
+        .put(
+            ENDPOINTS,
+            "re",
+            &endpoint("re", vec![set_grant(&[Scope::View, Scope::Scale])]),
+        )
+        .unwrap();
+    let (status, _, body) = call(
+        app.clone(),
+        "/mcp/re",
+        Some(ADMIN),
+        None,
+        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let instructions = body["result"]["instructions"].as_str().unwrap();
+    assert!(
+        instructions.contains("instance 1 alone writes and the others read only")
+            && instructions.contains("from instance 1: /home/desktop/analysis.")
+            && instructions.contains("each instance's own: /home/desktop/.config/chrome-agent.")
+            && !instructions.contains("every instance shares:"),
+        "{instructions}"
+    );
+}
+
 /// A set's endpoint serves the scale set skill and names it in its instructions, so an agent that
 /// never installed it still reads it before it grows the set; a container's endpoint has no use
 /// for it and declares no resources.

@@ -4,7 +4,8 @@
 //! so an instance starts from the image and its compose setup, never from another instance's
 //! files. What instances share are volumes: each volume of the template is mounted by every
 //! instance (`shared`), or each instance gets an empty one of its own (`new`), or the first keeps
-//! the template's and the others get their own (`first`). Each desktop MCP server of the template
+//! the template's and the others get their own (`first`), or every instance mounts the template's
+//! and only the first may write there (`first_writes`). Each desktop MCP server of the template
 //! runs in every instance (`each`), or in instance 1 alone for all of them (`first`), for a server
 //! that holds what only one copy may hold, such as a project on a shared volume with a lock file.
 //!
@@ -50,6 +51,10 @@ pub(crate) enum VolumePolicy {
     New,
     /// The template's volume for instance 1, an empty one of its own for the others.
     First,
+    /// The template's volume in every instance, which instance 1 mounts to read and write and
+    /// the others read-only, so they see what it keeps there and cannot change it. Docker mounts
+    /// it read-only, which root in a desktop without `SYS_ADMIN` cannot undo.
+    FirstWrites,
 }
 
 /// Where the instances run a desktop MCP server of the template.
@@ -193,7 +198,7 @@ pub(crate) struct Scaling {
     #[serde(default)]
     pub idle_delete_minutes: u32,
     /// What each volume becomes in an instance, by the folder it is mounted at: `shared`, the
-    /// default, `new` or `first`.
+    /// default, `new`, `first` or `first_writes`.
     #[serde(default)]
     pub volumes: BTreeMap<String, VolumePolicy>,
     /// Where each desktop MCP server runs, by its name: `each`, the default, in every instance,
@@ -215,11 +220,25 @@ impl Scaling {
         if let Some(name) = &self.set {
             set_name(name)?;
         }
-        for target in self.volumes.keys() {
-            crate::model::mount_target(target)?;
-        }
+        check_policies(&self.volumes)?;
         check_servers(&self.servers)
     }
+}
+
+/// Volume policies a request may give: each for a folder a volume can be mounted at, and never
+/// `first_writes`, which mounts the volume read-only after instance 1, for the desktop home or a
+/// folder of its configuration, which the session writes; a container's own volume may not be
+/// read-only there either.
+pub(crate) fn check_policies(volumes: &BTreeMap<String, VolumePolicy>) -> Result<()> {
+    for (target, policy) in volumes {
+        crate::model::mount_target(target)?;
+        if *policy == VolumePolicy::FirstWrites && crate::model::must_stay_writable(target) {
+            bail!(
+                "{target} must stay writable in every instance, so only instance 1 writing there cannot be chosen; the desktop home and its configuration folders are written by the session"
+            );
+        }
+    }
+    Ok(())
 }
 
 /// Server policies a request may give: at most [`SERVER_POLICY_LIMIT`], each for a valid server

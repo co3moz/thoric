@@ -2300,12 +2300,13 @@ export const fr: Messages = {
     "Une instance au-delà de celles que le groupe garde, que rien n'a utilisée pendant ce temps, est supprimée avec les volumes créés pour elle.",
   "scale.volumes": "Volumes des nouvelles instances",
   "scale.volumesHint":
-    "Partagé monte le même volume dans chaque instance, si bien que chacune voit ce que les autres y écrivent. Nouveau par instance donne à chacune un volume vide à elle, supprimé avec elle. Première garde le volume pour l'instance 1 et en donne de nouveaux aux autres.",
+    "Partagé monte le même volume dans chaque instance, si bien que chacune voit ce que les autres y écrivent. Nouveau par instance donne à chacune un volume vide à elle, supprimé avec elle. Première garde le volume pour l'instance 1 et en donne de nouveaux aux autres. Partagé, seule la première écrit le monte aussi dans chaque instance, en lecture seule sauf dans l'instance 1 : les autres voient ses fichiers sans pouvoir les modifier. Les instances existantes gardent ce qu'elles montent.",
   "scale.noVolumes": "Le conteneur ne monte aucun volume, ses instances ne partagent donc rien.",
   "scale.policyOf": "Ce que les nouvelles instances reçoivent à {target}",
   "scale.policy.shared": "Partagé",
   "scale.policy.new": "Nouveau par instance",
   "scale.policy.first": "La première le garde, les autres nouveau",
+  "scale.policy.first_writes": "Partagé, seule la première écrit",
   "scale.servers": "Serveurs MCP du bureau",
   "scale.serversHint":
     "Où chaque serveur du bureau s'exécute. Instance 1 seulement convient à un programme qui verrouille ce que les instances partagent, comme un projet Ghidra sur un volume partagé : l'instance 1 l'exécute une fois et ses outils servent toutes les instances. Un changement s'applique à toutes les instances aussitôt.",
@@ -2336,6 +2337,7 @@ export const fr: Messages = {
   "scale.note": "Note",
   "scale.notePlaceholder": "À quoi elle sert, par exemple l'agent qui y travaille",
   "scale.setPolicy": "Choix du groupe : {policy}",
+  "scale.firstWritesInstance": "En lecture seule après l'instance 1, même si Partagé est choisi.",
   "scale.addInstance": "Ajouter une instance",
   "scale.deleteTitle": "Supprimer le groupe évolutif {name} ?",
   "scale.deleteDescription":

@@ -253,6 +253,11 @@ export function NewInstanceDialog({ name, ...props }: DialogProps & { name: stri
                         {slot.label && (
                           <span className="text-xs text-muted-foreground">{slot.label}</span>
                         )}
+                        {slot.policy === "first_writes" && (
+                          <span className="text-xs text-muted-foreground">
+                            {t("scale.firstWritesInstance")}
+                          </span>
+                        )}
                       </div>
                       <Select
                         value={choices[slot.target] ?? "policy"}

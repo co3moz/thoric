@@ -17,7 +17,7 @@ import { IDLE_PRESETS, MAX_IDLE_MINUTES, minutesText } from "@/lib/lifecycle"
 import { ConceptIcon } from "@/components/concept"
 import {
   MAX_INSTANCES,
-  POLICIES,
+  policiesFor,
   SERVER_POLICIES,
   SET_NAME_PATTERN,
   setNameOf,
@@ -208,7 +208,7 @@ export function ScalingFields({
                       </SelectTrigger>
                       <SelectContent>
                         <SelectGroup>
-                          {POLICIES.map((policy) => (
+                          {policiesFor(target).map((policy) => (
                             <SelectItem key={policy} value={policy}>
                               {t(`scale.policy.${policy}`)}
                             </SelectItem>

@@ -2,6 +2,7 @@
 while root owns them and nothing else is in them, kept as they are once they hold anything, and
 never reached through a symlink."""
 
+import errno
 import importlib.util
 import os
 from pathlib import Path
@@ -82,6 +83,27 @@ class PrepareTest(unittest.TestCase):
         (hub / "notes").write_text("")
         self.assertEqual(self.prepare(target, owned), 2)
         self.assertEqual(self.prepare(target, {**owned, home: 0}), 1)
+
+    def test_a_read_only_mount_point_keeps_its_owner(self):
+        # A scale set's instance after the first mounts the volume only instance 1 writes
+        # read-only; its setup still runs, and there is nothing to hand over.
+        target = self.root / "volume"
+        target.mkdir()
+        owners = Owners({target: 0})
+
+        def read_only(fd, uid, gid):
+            raise OSError(errno.EROFS, "Read-only file system")
+
+        with mock.patch.object(paths.os, "fstat", owners.fstat), mock.patch.object(paths.os, "fchown", read_only):
+            paths.prepare(str(target), DESKTOP)
+
+        # Any other failure still stops the setup.
+        def denied(fd, uid, gid):
+            raise OSError(errno.EACCES, "Permission denied")
+
+        with mock.patch.object(paths.os, "fstat", owners.fstat), mock.patch.object(paths.os, "fchown", denied):
+            with self.assertRaises(OSError):
+                paths.prepare(str(target), DESKTOP)
 
     def test_a_symlink_on_the_way_is_refused(self):
         (self.root / "elsewhere").mkdir()

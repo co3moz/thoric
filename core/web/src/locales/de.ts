@@ -2305,12 +2305,13 @@ export const de: Messages = {
     "Eine Instanz über die behaltenen hinaus, die so lange niemand benutzt hat, wird mit den für sie erstellten Volumes gelöscht.",
   "scale.volumes": "Volumes neuer Instanzen",
   "scale.volumesHint":
-    "Gemeinsam bindet in jeder Instanz dasselbe Volume ein, sodass jede sieht, was die anderen dort schreiben. Neu je Instanz gibt jeder ein eigenes leeres Volume, das mit ihr gelöscht wird. Erste behält das Volume für Instanz 1 und gibt den anderen neue.",
+    "Gemeinsam bindet in jeder Instanz dasselbe Volume ein, sodass jede sieht, was die anderen dort schreiben. Neu je Instanz gibt jeder ein eigenes leeres Volume, das mit ihr gelöscht wird. Erste behält das Volume für Instanz 1 und gibt den anderen neue. Gemeinsam, nur die erste schreibt bindet es ebenfalls in jede Instanz ein, außer in Instanz 1 schreibgeschützt, sodass die anderen ihre Dateien sehen, aber nicht ändern können. Bestehende Instanzen behalten, was sie einbinden.",
   "scale.noVolumes": "Der Container bindet kein Volume ein, seine Instanzen teilen also nichts.",
   "scale.policyOf": "Was neue Instanzen unter {target} bekommen",
   "scale.policy.shared": "Gemeinsam",
   "scale.policy.new": "Neu je Instanz",
   "scale.policy.first": "Erste behält es, andere neu",
+  "scale.policy.first_writes": "Gemeinsam, nur die erste schreibt",
   "scale.servers": "Desktop-MCP-Server",
   "scale.serversHint":
     "Wo jeder Desktop-Server läuft. Nur Instanz 1 ist für ein Programm, das sperrt, was die Instanzen teilen, etwa ein Ghidra-Projekt auf einem gemeinsamen Volume: Instanz 1 führt es einmal aus, und seine Werkzeuge dienen jeder Instanz. Eine Änderung gilt sofort für alle Instanzen.",
@@ -2340,6 +2341,7 @@ export const de: Messages = {
   "scale.note": "Notiz",
   "scale.notePlaceholder": "Wofür sie ist, etwa der Agent, der darin arbeitet",
   "scale.setPolicy": "Wahl der Gruppe: {policy}",
+  "scale.firstWritesInstance": "Nach Instanz 1 schreibgeschützt, auch wenn Gemeinsam gewählt ist.",
   "scale.addInstance": "Instanz hinzufügen",
   "scale.deleteTitle": "Skalierungsgruppe {name} löschen?",
   "scale.deleteDescription":
