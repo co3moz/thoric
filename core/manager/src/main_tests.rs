@@ -65,6 +65,7 @@ async fn automation_http_routes_keep_browser_auth_and_csrf_checks() {
         "files/read",
         "files/write",
         "files/list",
+        "files/search",
         "files/mkdir",
         "files/move",
         "files/delete",

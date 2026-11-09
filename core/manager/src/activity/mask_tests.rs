@@ -326,3 +326,30 @@ fn a_transfer_keeps_the_paths_and_names_it_was_issued_for() {
     );
     assert_eq!(masked.summary, "/home/desktop/report.pdf");
 }
+
+/// What a file search looks for is kept as the agent wrote it, as a process search's query is: it
+/// is one bounded line about the desktop's files, never a file's contents.
+#[test]
+fn a_file_search_keeps_what_it_looked_for() {
+    let masked = masked_tool(
+        "search_files",
+        json!({"instance": 2, "path": "/home/desktop/project", "pattern": "TODO|FIXME", "name": "*.py",
+               "literal": false, "max_results": 50}),
+    );
+    assert_eq!(masked.arguments["pattern"], "TODO|FIXME");
+    assert_eq!(masked.arguments["name"], "*.py");
+    assert_eq!(masked.arguments["path"], "/home/desktop/project");
+    assert_eq!(masked.arguments["max_results"], 50);
+    assert!(
+        masked.summary.starts_with("TODO|FIXME"),
+        "{}",
+        masked.summary
+    );
+    // A long one is cut like any kept text, and an argument the policy does not know is masked.
+    let masked = masked_tool(
+        "search_files",
+        json!({"path": "/", "pattern": "x".repeat(TEXT + 1), "contents": "hunter22"}),
+    );
+    assert_eq!(masked.arguments["pattern"]["length"], TEXT + 1);
+    assert!(!keeps(&masked, "hunter22"));
+}

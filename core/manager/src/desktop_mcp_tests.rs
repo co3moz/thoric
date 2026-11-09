@@ -2965,3 +2965,40 @@ async fn without_the_administrators_token_an_endpoints_calls_are_recorded_as_its
     // installation that opens /mcp without one.
     assert_eq!(rows[0].credential, "endpoint_token", "{rows:?}");
 }
+
+/// Searching files reads them, so files_read alone offers it, bound to the endpoint's container
+/// or to an instance of its scale set like the scope's other tools.
+#[test]
+fn searching_files_belongs_to_files_read() {
+    let offering: Vec<_> = Scope::ALL
+        .iter()
+        .filter(|scope| scope.offers("search_files"))
+        .map(|scope| scope.id())
+        .collect();
+    assert_eq!(offering, ["files_read"]);
+    let app = app(false);
+    app.db
+        .put(CONTAINERS, "c1", &container("c1", "Chrome dev"))
+        .unwrap();
+    let reader = endpoint(
+        "reader",
+        vec![grant("c1", "chrome-dev", &[Scope::FilesRead])],
+    );
+    assert!(names(&app, &reader).contains(&"search_files".to_owned()));
+    let others: Vec<Scope> = Scope::DEFAULT
+        .into_iter()
+        .filter(|scope| *scope != Scope::FilesRead)
+        .collect();
+    let rest = endpoint("rest", vec![grant("c1", "chrome-dev", &others)]);
+    assert!(!names(&app, &rest).contains(&"search_files".to_owned()));
+    let tool = crate::mcp::listed_tool("search_files").unwrap();
+    let bound = bound_tool(&tool, None);
+    assert_eq!(bound.input_schema["required"], serde_json::json!(["path"]));
+    assert!(bound.input_schema["properties"]["container_id"].is_null());
+    let instance = super::scopes::instance_tool(&tool);
+    assert_eq!(
+        instance.input_schema["required"],
+        serde_json::json!(["path", "instance"])
+    );
+    assert!(instance.input_schema["properties"]["container_id"].is_null());
+}

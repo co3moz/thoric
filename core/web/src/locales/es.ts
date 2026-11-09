@@ -1828,7 +1828,7 @@ export const es: Messages = {
   "mcp.scope.applications.description":
     "Abrir y cerrar aplicaciones, y leer sus registros y métricas.",
   "mcp.scope.files_read": "Leer archivos",
-  "mcp.scope.files_read.description": "Listar, leer y descargar archivos.",
+  "mcp.scope.files_read.description": "Listar, buscar, leer y descargar archivos.",
   "mcp.scope.files_write": "Escribir archivos",
   "mcp.scope.files_write.description":
     "Escribir, subir, mover y eliminar archivos, y guardar capturas de pantalla.",

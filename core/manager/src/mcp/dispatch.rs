@@ -445,6 +445,9 @@ impl ThoricMcp {
                     .0
             }
             "list_files" => files::list_files(&self.app, &id.unwrap(), &parse(args)?).await?,
+            "search_files" => {
+                Box::pin(files::search_files(&self.app, &id.unwrap(), &parse(args)?)).await?
+            }
             "download_file" => {
                 let (summary, bytes) =
                     files::download_file(&self.app, &id.unwrap(), &parse(args)?).await?;

@@ -46,3 +46,43 @@ async fn command_timeout_includes_waiting_for_exit() {
     );
     assert!(start.elapsed() < Duration::from_secs(3));
 }
+
+/// A helper that takes the end of its stdin as the sign that nobody waits for it gets its input
+/// and an stdin that stays open while it works; the plain capture closes it after the input.
+#[cfg(unix)]
+#[tokio::test]
+async fn held_input_leaves_stdin_open_until_the_command_ends() {
+    // Bash's read answers above 128 when its time runs out and 1 at the end of the input.
+    let command = || {
+        let mut c = Command::new("bash");
+        c.args(["-c", "read line; read -t 0.3 rest; echo \"$line $?\""]);
+        c
+    };
+    let held = capture_held(
+        command(),
+        Duration::from_secs(10),
+        1024,
+        Overflow::Reject,
+        b"request\n".to_vec(),
+    )
+    .await
+    .unwrap();
+    assert!(held.status.success());
+    let said = String::from_utf8(held.stdout).unwrap();
+    let (line, status) = said.trim().split_once(' ').unwrap();
+    assert_eq!(line, "request");
+    assert!(status.parse::<i32>().unwrap() > 128, "{said}");
+    let closed = capture_input(
+        command(),
+        Duration::from_secs(10),
+        1024,
+        Overflow::Reject,
+        Some(b"request\n".to_vec()),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        String::from_utf8(closed.stdout).unwrap().trim(),
+        "request 1"
+    );
+}
