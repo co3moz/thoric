@@ -466,19 +466,20 @@ pub(super) fn set_instructions(app: &App, grant: &super::endpoints::Grant, set: 
         app.db.get(crate::scale::TEMPLATES, set).unwrap_or_default();
     let slots =
         crate::scale::volumes::slots(&record, template.pinned.as_ref().map(|(_, pinned)| pinned));
-    let shared = slots
-        .iter()
-        .filter(|slot| {
-            !slot.volume.is_empty()
-                && record.policy(&slot.target) == crate::scale::VolumePolicy::Shared
-        })
-        .map(|slot| slot.target.as_str())
-        .collect::<Vec<_>>();
-    let own = slots
-        .iter()
-        .filter(|slot| record.policy(&slot.target) != crate::scale::VolumePolicy::Shared)
-        .map(|slot| slot.target.as_str())
-        .collect::<Vec<_>>();
+    use crate::scale::VolumePolicy;
+    let folders = |shared: bool, policies: &[VolumePolicy]| {
+        slots
+            .iter()
+            .filter(|slot| {
+                (!shared || !slot.volume.is_empty())
+                    && policies.contains(&record.policy(&slot.target))
+            })
+            .map(|slot| slot.target.as_str())
+            .collect::<Vec<_>>()
+    };
+    let shared = folders(true, &[VolumePolicy::Shared]);
+    let first_writes = folders(true, &[VolumePolicy::FirstWrites]);
+    let own = folders(false, &[VolumePolicy::New, VolumePolicy::First]);
     let mut text = format!(
         " This endpoint drives the scale set {set}: up to {} instances of one desktop, each a container of its own made from the same image and settings, numbered from 1. Every container tool and desktop server tool takes instance, the number of the instance to work on; list_instances shows them, their state and their volumes. A new instance starts from the image, never from another instance's files, so what one writes in its own folders the others do not see.",
         record.max
@@ -487,6 +488,12 @@ pub(super) fn set_instructions(app: &App, grant: &super::endpoints::Grant, set: 
         text.push_str(&format!(
             " These folders are one volume every instance shares: what one writes there the others see at once and may change too, {}.",
             shared.join(", ")
+        ));
+    }
+    if !first_writes.is_empty() {
+        text.push_str(&format!(
+            " These folders are one volume every instance mounts, which instance 1 alone writes and the others read only, so publish files there from instance 1: {}.",
+            first_writes.join(", ")
         ));
     }
     if !own.is_empty() {

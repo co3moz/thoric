@@ -1,7 +1,7 @@
 //! Pins down what each instance of a scale set mounts: the template's volume for a shared folder,
 //! an empty one of its own named after it for `new`, the template's for instance 1 alone with
-//! `first`, what a request for one instance asks over the policy, and a volume of its own in place
-//! of a shared one that is gone.
+//! `first`, the template's read-only after instance 1 with `first_writes`, what a request for one
+//! instance asks over the policy, and a volume of its own in place of a shared one that is gone.
 use super::*;
 use crate::compose::{Compose, Pinned};
 use serde_json::json;
@@ -36,7 +36,11 @@ fn pinned() -> Pinned {
     ]}))
     .unwrap();
     let values = compose.resolve(&Default::default(), "first").unwrap();
-    Pinned { compose, values }
+    Pinned {
+        compose,
+        values,
+        readonly: Default::default(),
+    }
 }
 
 fn volume_at<'a>(planned: &'a Planned, target: &str) -> &'a str {
@@ -97,6 +101,99 @@ fn first_keeps_the_templates_volume_for_instance_one_alone() {
         volume_at(&two, "/home/desktop/analysis"),
         "thoric-c2-mount-home-desktop-analysis"
     );
+}
+
+fn readonly_at(planned: &Planned, target: &str) -> bool {
+    planned
+        .mounts
+        .iter()
+        .find(|mount| mount.target == target)
+        .map(|mount| mount.readonly)
+        .unwrap()
+}
+
+#[test]
+fn first_writes_mounts_the_templates_volume_read_only_after_instance_one() {
+    let set = set(&[
+        ("/home/desktop/analysis", VolumePolicy::FirstWrites),
+        ("/opt/tools", VolumePolicy::FirstWrites),
+    ]);
+    let one = plan(&set, None, 1, "c1", &BTreeMap::new(), &[]);
+    assert_eq!(volume_at(&one, "/home/desktop/analysis"), "analysis");
+    assert!(!readonly_at(&one, "/home/desktop/analysis"));
+    // A volume the template mounts read-only stays so, also in instance 1.
+    assert!(readonly_at(&one, "/opt/tools"));
+    assert!(one.read_only.is_empty() && one.own.is_empty());
+    for number in [2, 7] {
+        let other = plan(&set, None, number, "c", &BTreeMap::new(), &[]);
+        assert_eq!(volume_at(&other, "/home/desktop/analysis"), "analysis");
+        assert!(readonly_at(&other, "/home/desktop/analysis"));
+        assert!(readonly_at(&other, "/opt/tools"));
+        // Nobody writes where the template is read-only, so only the first is instance 1's.
+        assert_eq!(other.read_only, ["/home/desktop/analysis"]);
+        assert_eq!(other.shared, ["/home/desktop/analysis", "/opt/tools"]);
+        assert!(other.own.is_empty());
+    }
+}
+
+#[test]
+fn an_instance_cannot_ask_to_write_where_only_instance_one_writes() {
+    let set = set(&[("/home/desktop/analysis", VolumePolicy::FirstWrites)]);
+    let shared = BTreeMap::from([("/home/desktop/analysis".to_owned(), Override::Shared)]);
+    let planned = plan(&set, None, 2, "c2", &shared, &[]);
+    assert_eq!(volume_at(&planned, "/home/desktop/analysis"), "analysis");
+    assert!(readonly_at(&planned, "/home/desktop/analysis"));
+    // A volume of its own is its own to write.
+    let new = BTreeMap::from([("/home/desktop/analysis".to_owned(), Override::New)]);
+    let planned = plan(&set, None, 2, "c2", &new, &[]);
+    assert_eq!(
+        volume_at(&planned, "/home/desktop/analysis"),
+        "thoric-c2-mount-home-desktop-analysis"
+    );
+    assert!(!readonly_at(&planned, "/home/desktop/analysis"));
+    assert!(planned.read_only.is_empty());
+    // So is one it gets because the template's volume is gone.
+    let planned = plan(
+        &set,
+        None,
+        2,
+        "c2",
+        &BTreeMap::new(),
+        &["analysis".to_owned()],
+    );
+    assert!(!readonly_at(&planned, "/home/desktop/analysis"));
+}
+
+#[test]
+fn a_compose_volume_only_instance_one_writes_is_pinned_read_only_for_the_others() {
+    let compose: Compose = serde_json::from_value(json!({"steps": [
+        {"id": "unity", "script": "true", "parameters": [
+            {"name": "INSTALLS", "type": "volume", "path": "/opt/unity", "new_volume": true},
+        ]},
+    ]}))
+    .unwrap();
+    let values = compose.resolve(&Default::default(), "first").unwrap();
+    let mut pinned = Pinned {
+        compose,
+        values,
+        readonly: Default::default(),
+    };
+    let set = set(&[("/opt/unity", VolumePolicy::FirstWrites)]);
+    let one = plan(&set, Some(&pinned), 1, "c1", &BTreeMap::new(), &[]);
+    assert!(one.readonly.is_empty());
+    let two = plan(&set, Some(&pinned), 2, "c2", &BTreeMap::new(), &[]);
+    assert_eq!(
+        two.values.as_ref().unwrap()["INSTALLS"],
+        "thoric-first-installs"
+    );
+    assert_eq!(two.readonly, BTreeSet::from(["INSTALLS".to_owned()]));
+    assert_eq!(two.read_only, ["/opt/unity"]);
+    // The pinned compose carries it into the container's mounts, which every recreation reads.
+    pinned.readonly = two.readonly;
+    let mounts = pinned.mounts();
+    assert_eq!(mounts.len(), 1);
+    assert!(mounts[0].readonly && mounts[0].volume == "thoric-first-installs");
+    assert_eq!(pinned.setup("img").mounts, mounts);
 }
 
 #[test]

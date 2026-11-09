@@ -2261,12 +2261,13 @@ export const tr: Messages = {
     "Grubun tuttuklarının dışındaki bir örnek bu kadar süre kullanılmazsa, onun için oluşturulan volume'lerle birlikte silinir.",
   "scale.volumes": "Yeni örneklerin volume'leri",
   "scale.volumesHint":
-    "Ortak, her örneğe aynı volume'ü bağlar; her örnek diğerlerinin oraya yazdığını görür. Örnek başına yeni, her örneğe kendine ait boş bir volume verir, örnekle birlikte silinir. İlki, volume'ü 1. örnekte tutar, diğerlerine yenisini verir.",
+    "Ortak, her örneğe aynı volume'ü bağlar; her örnek diğerlerinin oraya yazdığını görür. Örnek başına yeni, her örneğe kendine ait boş bir volume verir, örnekle birlikte silinir. İlki, volume'ü 1. örnekte tutar, diğerlerine yenisini verir. Ortak, yalnız ilki yazar da aynı volume'ü her örneğe bağlar, ama 1. örnek dışındakilere salt okunur; onlar dosyaları görür, değiştiremez. Var olan örnekler bağladıklarını korur.",
   "scale.noVolumes": "Konteyner hiç volume bağlamıyor, örnekleri hiçbir şey paylaşmaz.",
   "scale.policyOf": "Yeni örneklerin {target} yolunda aldığı",
   "scale.policy.shared": "Ortak",
   "scale.policy.new": "Örnek başına yeni",
   "scale.policy.first": "İlki tutar, diğerleri yeni",
+  "scale.policy.first_writes": "Ortak, yalnız ilki yazar",
   "scale.servers": "Masaüstü MCP sunucuları",
   "scale.serversHint":
     "Her masaüstü sunucusunun nerede çalıştığı. Yalnız 1. örnek, örneklerin paylaştığını kilitleyen bir program içindir, örneğin paylaşılan bir volume'deki Ghidra projesi: 1. örnek onu bir kez çalıştırır ve araçları her örneğe hizmet eder. Değişiklik her örneğe hemen uygulanır.",
@@ -2296,6 +2297,7 @@ export const tr: Messages = {
   "scale.note": "Not",
   "scale.notePlaceholder": "Ne için olduğu, örneğin içinde çalışan ajan",
   "scale.setPolicy": "Grubun seçimi: {policy}",
+  "scale.firstWritesInstance": "1. örnekten sonra salt okunur, Ortak seçilse de.",
   "scale.addInstance": "Örnek ekle",
   "scale.deleteTitle": "{name} ölçeklenebilir grubu silinsin mi?",
   "scale.deleteDescription":

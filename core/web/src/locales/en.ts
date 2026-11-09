@@ -2284,12 +2284,13 @@ export const en = {
     "An instance beyond those the set keeps that nothing used for this long is deleted with the volumes made for it.",
   "scale.volumes": "Volumes of new instances",
   "scale.volumesHint":
-    "Shared mounts the same volume in every instance, so each sees what the others write there. New per instance gives each its own empty volume, deleted with it. First keeps the volume for instance 1 and gives the others new ones.",
+    "Shared mounts the same volume in every instance, so each sees what the others write there. New per instance gives each its own empty volume, deleted with it. First keeps the volume for instance 1 and gives the others new ones. Shared, only first writes mounts it in every instance too, read-only in all but instance 1, so the others see its files and cannot change them. Instances that exist keep what they mount.",
   "scale.noVolumes": "The container mounts no volume, so its instances share nothing.",
   "scale.policyOf": "What new instances get at {target}",
   "scale.policy.shared": "Shared",
   "scale.policy.new": "New per instance",
   "scale.policy.first": "First keeps it, others new",
+  "scale.policy.first_writes": "Shared, only first writes",
   "scale.servers": "Desktop MCP servers",
   "scale.serversHint":
     "Where each desktop server runs. Instance 1 only is for a program that locks what the instances share, such as a Ghidra project on a shared volume: instance 1 runs it once and its tools serve every instance. A change applies to every instance at once.",
@@ -2319,6 +2320,7 @@ export const en = {
   "scale.note": "Note",
   "scale.notePlaceholder": "What it is for, such as the agent that works in it",
   "scale.setPolicy": "The set's choice: {policy}",
+  "scale.firstWritesInstance": "Read-only after instance 1, also when Shared is chosen.",
   "scale.addInstance": "Add instance",
   "scale.deleteTitle": "Delete the scale set {name}?",
   "scale.deleteDescription":

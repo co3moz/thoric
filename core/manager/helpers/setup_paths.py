@@ -7,9 +7,11 @@ leaves at a new volume's mount point, and what the path is when no volume was ch
 lacks it. Docker also creates the missing folders above a mount point, owned by root; one of those
 inside a folder of the desktop user, holding nothing but the next folder of the path, is handed to
 the desktop user too. A folder that holds anything else keeps its owner. No symlink on the way is
-followed.
+followed. A volume mounted read-only, as a scale set's instance after the first mounts one only
+instance 1 writes, keeps its owner too: nothing can be written there anyway.
 """
 
+import errno
 import os
 import sys
 
@@ -39,7 +41,11 @@ def prepare(path, desktop=DESKTOP):
             else:
                 left = parent.st_uid == desktop and contents == [parts[index + 1]]
             if left:
-                os.fchown(folder, desktop, desktop)
+                try:
+                    os.fchown(folder, desktop, desktop)
+                except OSError as error:
+                    if error.errno != errno.EROFS:
+                        raise
     finally:
         os.close(folder)
 

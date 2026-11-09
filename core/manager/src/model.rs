@@ -170,14 +170,17 @@ impl ContainerSpec {
             if !targets.insert(&mount.target) {
                 bail!("Volume targets must be unique");
             }
-            if mount.readonly
-                && (mount.target == "/home/desktop" || mount.target.starts_with("/home/desktop/."))
-            {
+            if mount.readonly && must_stay_writable(&mount.target) {
                 bail!("Desktop home and configuration paths must be writable");
             }
         }
         Ok(())
     }
+}
+/// Whether a volume at `target` must be writable: the desktop home and the folders of its
+/// configuration, which the session writes.
+pub(crate) fn must_stay_writable(target: &str) -> bool {
+    target == "/home/desktop" || target.starts_with("/home/desktop/.")
 }
 pub fn image_ref(value: &str) -> Result<()> {
     if value.is_empty()

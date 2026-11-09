@@ -33,6 +33,7 @@ fn original() -> (Container, Pinned) {
     let pinned = Pinned {
         compose: compose(),
         values,
+        readonly: Default::default(),
     };
     let mut setup = pinned.setup("img");
     setup.status = "completed".into();
@@ -172,6 +173,7 @@ fn the_volumes_created_for_the_original_get_copies_and_the_others_stay_shared() 
     let copied = Pinned {
         compose: compose(),
         values,
+        readonly: Default::default(),
     };
     assert_eq!(
         copied.new_volumes("dup"),

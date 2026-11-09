@@ -150,6 +150,30 @@ fn only_policies_other_than_shared_are_kept() {
 }
 
 #[test]
+fn only_instance_one_writing_is_refused_where_the_session_writes() {
+    let scaling: Scaling = serde_json::from_value(json!({"volumes": {
+        "/home/desktop/analysis": "first_writes",
+        "/opt/reference": "first_writes",
+        "/home/desktop/.config/chrome-agent": "new",
+    }}))
+    .unwrap();
+    scaling.validate().unwrap();
+    let set = new_set("re", &spec(), &scaling);
+    assert_eq!(
+        set.policy("/home/desktop/analysis"),
+        VolumePolicy::FirstWrites
+    );
+    // The home and its configuration folders are written by the session in every instance, as a
+    // container's own read-only volume may not be there either.
+    for target in ["/home/desktop", "/home/desktop/.config/chrome-agent"] {
+        let scaling: Scaling =
+            serde_json::from_value(json!({"volumes": {target: "first_writes"}})).unwrap();
+        let error = scaling.validate().unwrap_err().to_string();
+        assert!(error.contains(target), "{error}");
+    }
+}
+
+#[test]
 fn a_set_runs_a_server_in_every_instance_unless_it_names_instance_one() {
     let scaling: Scaling = serde_json::from_value(json!({"servers": {
         "ghidra": "first",

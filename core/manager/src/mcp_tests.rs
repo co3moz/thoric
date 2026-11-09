@@ -527,6 +527,12 @@ fn the_scale_set_skill_names_tools_and_arguments_that_exist() {
                     {
                         known.extend(properties.keys().cloned());
                     }
+                    // A value an argument takes, such as the volume policy first_writes.
+                    if key == "enum"
+                        && let Some(values) = inner.as_array()
+                    {
+                        known.extend(values.iter().filter_map(|v| v.as_str().map(String::from)));
+                    }
                     arguments(inner, known);
                 }
             }

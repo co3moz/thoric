@@ -80,6 +80,7 @@ pub(crate) async fn make_set(
         let pinned = crate::compose::Pinned {
             compose: compose.clone(),
             values,
+            readonly: Default::default(),
         };
         known = volumes::slots(&set, Some(&pinned));
     }
@@ -325,9 +326,18 @@ async fn create_instance(
             &format!("Instance {number} gets the volume {volume} of its own for {made_for}."),
         )?;
     }
+    for target in &planned.read_only {
+        app.append_log(
+            job_id,
+            &format!(
+                "Instance {number} mounts the volume at {target} read-only; instance 1 writes there."
+            ),
+        )?;
+    }
     let compose = match (pinned, planned.values) {
         (Some((image, mut pinned)), Some(values)) => {
             pinned.values = values;
+            pinned.readonly = planned.readonly;
             ComposeChoice::Pinned(image, pinned)
         }
         _ => ComposeChoice::Image(template.parameters),

@@ -32,7 +32,7 @@ pub(crate) use parameters::Parameter;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
     sync::Arc,
     time::Duration,
 };
@@ -429,6 +429,10 @@ pub(crate) struct Pinned {
     #[serde(alias = "template")]
     pub compose: Compose,
     pub values: BTreeMap<String, String>,
+    /// The values, by the names they go by, whose volume the container mounts read-only, such as
+    /// an instance of a scale set after the first under `first_writes`.
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub readonly: BTreeSet<String>,
 }
 impl Pinned {
     /// The values of the parameters that are not secret, by the names they go by.
@@ -490,8 +494,16 @@ impl Pinned {
             },
         }
     }
+    /// The volumes its volume parameters mount, read-only those `readonly` names.
     pub fn mounts(&self) -> Vec<Mount> {
-        self.compose.mounts(&self.values)
+        self.compose
+            .entries()
+            .filter_map(|(_, parameter, key)| {
+                let mut mount = parameter.mount(self.values.get(&key)?)?;
+                mount.readonly = self.readonly.contains(&key);
+                Some(mount)
+            })
+            .collect()
     }
     /// The volume parameters, by the name their value goes by, with the folder each mounts at.
     pub fn volume_slots(&self) -> Vec<(String, String)> {
@@ -599,7 +611,14 @@ impl App {
         };
         let compose = record.compose.clone().context("Missing compose")?;
         let values = compose.resolve(given, container)?;
-        Ok(Some((record.id.clone(), Pinned { compose, values })))
+        Ok(Some((
+            record.id.clone(),
+            Pinned {
+                compose,
+                values,
+                readonly: Default::default(),
+            },
+        )))
     }
 
     /// The compose a container was created with, which a snapshot of it keeps.

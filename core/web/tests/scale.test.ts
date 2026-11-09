@@ -6,6 +6,9 @@ import { pendingContainers } from "../src/lib/pending"
 import {
   bySet,
   entryCount,
+  mustStayWritable,
+  policiesFor,
+  POLICIES,
   room,
   runningEntries,
   samePolicies,
@@ -79,6 +82,23 @@ test("a request sends the policies that are not shared, and the set's name only 
     { ghidra: "first" }
   )
   assert.equal(scalingBody({ ...scalingDraft(), servers: { chrome: "each" } }).servers, undefined)
+})
+
+test("only instance 1 writing is offered where the session need not write", () => {
+  // The manager refuses it for the home and its configuration folders (must_stay_writable).
+  for (const target of ["/home/desktop", "/home/desktop/.config/chrome-agent"]) {
+    assert.ok(mustStayWritable(target), target)
+    assert.ok(!policiesFor(target).includes("first_writes"), target)
+  }
+  for (const target of ["/home/desktop/analysis", "/opt/reference", "/home/desktopx"]) {
+    assert.ok(!mustStayWritable(target), target)
+    assert.deepEqual(policiesFor(target), POLICIES)
+  }
+  const body = scalingBody({
+    ...scalingDraft(),
+    volumes: { "/opt/reference": "first_writes", "/home/desktop/analysis": "shared" },
+  })
+  assert.deepEqual(body.volumes, { "/opt/reference": "first_writes" })
 })
 
 test("a set's server policies start from the set and compare without the default", () => {

@@ -2,12 +2,14 @@
 //! or an empty one of its own, by the set's policy and what the request for that instance asks.
 //! A volume of its own is named after the instance's container, as a compose's `new_volume`
 //! parameter names one, and carries its owner's labels, so deleting the instance with its volumes
-//! takes it too while the shared ones stay.
+//! takes it too while the shared ones stay. Under `first_writes` an instance after the first
+//! mounts the template's volume read-only, whatever the request for it asks, since the set, not
+//! the agent that asks for an instance, says who writes there.
 use super::{ScaleSet, VolumePolicy};
 use crate::{compose::Pinned, model::Mount};
 use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// What a request for one instance asks for a volume of the template, by its folder, over the
 /// set's policy.
@@ -83,11 +85,17 @@ pub(crate) fn own(policy: VolumePolicy, number: u32, asked: Option<Override>) ->
         Some(Override::Shared) => false,
         Some(Override::New) => true,
         None => match policy {
-            VolumePolicy::Shared => false,
+            VolumePolicy::Shared | VolumePolicy::FirstWrites => false,
             VolumePolicy::New => true,
             VolumePolicy::First => number > 1,
         },
     }
+}
+
+/// Whether instance `number` mounts a slot of this policy read-only: the template's volume after
+/// instance 1 under `first_writes`. A volume of its own is the instance's to write.
+pub(crate) fn read_only(policy: VolumePolicy, number: u32, own: bool) -> bool {
+    policy == VolumePolicy::FirstWrites && number > 1 && !own
 }
 
 /// The name of the volume the container `container` gets of its own for `slot`, which is
@@ -127,6 +135,10 @@ pub(crate) struct Planned {
     pub own: Vec<(String, String)>,
     /// The folders whose volume it shares with the template.
     pub shared: Vec<String>,
+    /// The folders whose volume it shares read-only, since instance 1 alone writes there.
+    pub read_only: Vec<String>,
+    /// Of those, the compose values, by the names they go by, for its pinned compose.
+    pub readonly: BTreeSet<String>,
 }
 
 /// Plan the volumes of instance `number`. A slot whose template volume is one of `gone`, such as
@@ -144,11 +156,11 @@ pub(crate) fn plan(
         ..Planned::default()
     };
     for slot in slots(set, pinned) {
-        let mine = own(
-            set.policy(&slot.target),
-            number,
-            asked.get(&slot.target).copied(),
-        ) || gone.contains(&slot.volume);
+        let policy = set.policy(&slot.target);
+        let mine =
+            own(policy, number, asked.get(&slot.target).copied()) || gone.contains(&slot.volume);
+        // A volume the template mounts read-only is read-only everywhere, instance 1 too.
+        let readonly = read_only(policy, number, mine) && !slot.readonly;
         let volume = if mine {
             let mut name = own_name(container, &part(&slot));
             // Two folders whose names clean to one part keep volumes apart.
@@ -163,17 +175,23 @@ pub(crate) fn plan(
         } else {
             if !slot.volume.is_empty() {
                 planned.shared.push(slot.target.clone());
+                if readonly {
+                    planned.read_only.push(slot.target.clone());
+                }
             }
             slot.volume.clone()
         };
         match (&slot.key, planned.values.as_mut()) {
             (Some(key), Some(values)) => {
+                if readonly && !volume.is_empty() {
+                    planned.readonly.insert(key.clone());
+                }
                 values.insert(key.clone(), volume);
             }
             _ => planned.mounts.push(Mount {
                 volume,
                 target: slot.target.clone(),
-                readonly: slot.readonly,
+                readonly: slot.readonly || readonly,
             }),
         }
     }
