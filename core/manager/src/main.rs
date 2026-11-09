@@ -128,6 +128,8 @@ pub struct App {
     notifier: notify::Notifier,
     /// What `/metrics` counts since the manager started.
     metrics: metrics::Metrics,
+    /// The row of each caller's running read in the agent activity log, which a repeat joins.
+    calls: activity::Recent,
 }
 /// The interface's content security policy. The templates page reads its list, the templates
 /// and their icons from another host, which is the one exception to `'self'`. No page needs a
@@ -181,6 +183,7 @@ fn router(app: Arc<App>) -> Router {
             "/api/scale-sets/{name}",
             get(api::set).put(api::update_set).delete(api::delete_set),
         )
+        .route("/api/scale-sets/{name}/activity", get(api::set_activity))
         .route(
             "/api/scale-sets/{name}/instances",
             post(api::create_instance),
@@ -406,6 +409,7 @@ fn router(app: Arc<App>) -> Router {
         .route("/api/human-requests", get(human::list))
         .route("/api/human-requests/{id}/answer", post(human::answer))
         .route("/api/activity", get(activity::list))
+        .route("/api/activity/export", get(activity::export))
         .route("/api/dependencies", get(dependencies::list))
         .route("/api/openapi.json", get(openapi::serve))
         // Inside `protect`, so only a signed-in request counts as a container's use.
@@ -573,6 +577,7 @@ async fn main() -> anyhow::Result<()> {
     }
     compose::mark_interrupted(&db)?;
     scale::prune(&db)?;
+    activity::trim(&db, config.activity_keep)?;
     let listen = config.listen.clone();
     let app = Arc::new(App {
         config,
@@ -602,6 +607,7 @@ async fn main() -> anyhow::Result<()> {
         fitters: resolution::Fitters::default(),
         notifier: notify::Notifier::default(),
         metrics: metrics::Metrics::default(),
+        calls: activity::Recent::default(),
     });
     usage::spawn(app.clone());
     notify::spawn(app.clone());

@@ -64,6 +64,25 @@ export type ScaleInstance = {
   kept: boolean
 }
 
+/**
+ * What agents did in one instance, as `GET scale-sets/NAME/activity` counts it from the rows the
+ * activity log keeps.
+ */
+export type InstanceActivity = {
+  instance: number
+  container_id: string
+  /** Every call, a repeated read's each. */
+  calls: number
+  /** Those that failed or were refused. */
+  errors: number
+  /** When the last call began, in Unix milliseconds; null without calls. */
+  last_at: number | null
+}
+
+/** The instances that took calls, in the order of their numbers. */
+export const activeInstances = (instances: InstanceActivity[] | undefined) =>
+  (instances ?? []).filter((item) => item.calls > 0).sort((a, b) => a.instance - b.instance)
+
 /** A volume of the template: where it is mounted, the template's volume there and its policy. */
 export type ScaleSlot = {
   target: string

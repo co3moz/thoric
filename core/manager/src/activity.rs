@@ -6,8 +6,10 @@
 //! container's name at the time, its arguments as [`mask`] keeps them, how it ended and how long
 //! it took. A result is never kept beyond a short error text, so whatever a tool returns, such as
 //! a new endpoint's token, never reaches the log. The rows live in the manager's SQLite, the newest
-//! [`KEPT`] of them, and each call also writes one line without its arguments to the manager's own
-//! log.
+//! `ACTIVITY_KEEP` of them ([`KEPT`] unless it is set), and each call also writes one line without
+//! its arguments to the manager's own log. A read that repeats the call before it, as a poll of
+//! `get_job` does, joins that call's row and is counted there; see [`merge`]. `get_job` and
+//! `cancel_job` name no container, so their row takes it from the job they name.
 //!
 //! Recording never fails or holds up a call: the row is written on a blocking thread once the
 //! answer is ready, and a row that cannot be written is logged and dropped.
@@ -17,11 +19,16 @@
 //! actions, and the desktop servers the MCP page's inspector starts in a `docker exec` of their
 //! own. The inspector's calls to `/mcp` and to an endpoint run through the same handlers and are
 //! recorded with the dashboard as their credential.
+mod export;
 mod mask;
+mod merge;
 mod store;
 
-pub(crate) use store::Filter;
-pub(crate) use store::opened;
+pub(crate) use export::{Export, export};
+pub(crate) use merge::Recent;
+#[cfg(test)]
+pub(crate) use store::KEPT;
+pub(crate) use store::{Filter, by_container, keep, trim};
 
 use crate::{App, error::Result};
 use axum::{
@@ -46,8 +53,6 @@ use std::{
 };
 use subtle::ConstantTimeEq;
 
-/// How many calls are kept, newest first.
-pub(crate) const KEPT: usize = store::KEPT;
 /// The longest tool, server or client name kept.
 const NAME: usize = 128;
 /// The longest error text kept.
@@ -240,6 +245,10 @@ pub(crate) struct Entry {
     pub duration_ms: u64,
     /// The job a call started, which `get_job` and the job panel follow.
     pub job_id: Option<String>,
+    /// How many more calls the row stands for: reads that repeated its call, one after another.
+    pub repeats: u64,
+    /// When the last of those began, in Unix milliseconds; `None` for a row of one call.
+    pub last_at: Option<u64>,
 }
 
 tokio::task_local! {
@@ -302,7 +311,44 @@ impl Call {
             using: None,
         };
         call.on_container(app, container);
+        call.about_job(app);
         call
+    }
+
+    /// `get_job` and `cancel_job` name a job and no container: the row names the container the
+    /// job belongs to, so the log filtered by a container keeps the polls of its jobs. On an
+    /// endpoint only for a job that endpoint started, the ones it may read, which on a scale
+    /// set's endpoint is the job's own instance. Reading a job does not use its container, so
+    /// unlike [`Call::on_container`] this opens no use of it.
+    fn about_job(&mut self, app: &App) {
+        /// A job record's resource alone, without its log.
+        #[derive(serde::Deserialize)]
+        struct Resource {
+            #[serde(default)]
+            resource: Option<String>,
+        }
+        if !matches!(self.tool.as_str(), "get_job" | "cancel_job") {
+            return;
+        }
+        let Some(job) = self.arguments.get("job_id").and_then(Value::as_str) else {
+            return;
+        };
+        if let Some(endpoint) = &self.caller.endpoint
+            && !app.desktop_mcp.started_by(endpoint, job)
+        {
+            return;
+        }
+        let Some(id) = app
+            .db
+            .get::<Resource>("job", job)
+            .ok()
+            .and_then(|job| job.resource)
+            .and_then(|resource| resource.strip_prefix("container:").map(str::to_owned))
+        else {
+            return;
+        };
+        self.container_name = app.container(&id).ok().map(|container| container.spec.name);
+        self.container_id = Some(clip(&id, NAME));
     }
 
     /// A transfer link's operation as its request arrives, with the caller whose tool call issued
@@ -455,6 +501,8 @@ impl Call {
             outcome: outcome.id().into(),
             duration_ms: u64::try_from(self.started.elapsed().as_millis()).unwrap_or(u64::MAX),
             job_id: job_id.map(|id| clip(&id, NAME)),
+            repeats: 0,
+            last_at: None,
         }
     }
 
@@ -491,7 +539,7 @@ impl Call {
         );
         let app = app.clone();
         let write = move || {
-            if let Err(error) = store::insert(&app.db, &entry) {
+            if let Err(error) = app.calls.record(&app.db, &entry, app.config.activity_keep) {
                 tracing::warn!("Agent activity was not recorded: {error:#}");
             }
         };
@@ -546,7 +594,9 @@ pub async fn list(
     let next = (items.len() == limit)
         .then(|| items.last().map(|entry| entry.id))
         .flatten();
-    Ok(Json(json!({"items": items, "next": next, "kept": KEPT})))
+    Ok(Json(
+        json!({"items": items, "next": next, "kept": app.config.activity_keep}),
+    ))
 }
 
 /// The recorded calls once at least `count` are written, newest first. Rows are written on a

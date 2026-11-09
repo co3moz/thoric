@@ -150,6 +150,25 @@ fn the_job_counts_start_from_the_ended_jobs_a_database_still_has() {
 }
 
 #[test]
+fn the_calls_a_database_holds_read_as_rows_of_one_call_after_version_four() {
+    let mut conn = Connection::open_in_memory().unwrap();
+    run_these(&mut conn, &MIGRATIONS[..3]).unwrap();
+    conn.execute_batch(
+        "INSERT INTO activity(at, credential, source, tool, kind, arguments, summary, outcome, duration_ms)
+            VALUES(7, 'mcp_token', 'tool', 'get_job', 'read', '{}', '', 'ok', 3);",
+    )
+    .unwrap();
+    run_these(&mut conn, MIGRATIONS).unwrap();
+    assert_eq!(version(&conn), 4);
+    let (tool, repeats, last): (String, i64, Option<i64>) = conn
+        .query_row("SELECT tool, repeats, last_at FROM activity", [], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })
+        .unwrap();
+    assert_eq!((tool.as_str(), repeats, last), ("get_job", 0, None));
+}
+
+#[test]
 fn a_database_a_newer_release_migrated_is_refused_and_left_as_it_was() {
     let dir = folder();
     let path = dir.join(crate::db::FILE);

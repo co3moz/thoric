@@ -12,6 +12,7 @@ import {
   activityLabel,
   argumentRows,
   argumentText,
+  callCount,
   callDuration,
   exactTime,
   isMasked,
@@ -104,6 +105,7 @@ export function ActivityDetail({
   const rows = argumentRows(entry.arguments)
   const more = typeof entry.arguments.$more === "number" ? entry.arguments.$more : 0
   const container = containerName ?? entry.container_name ?? entry.container_id
+  const calls = callCount(entry)
   return (
     <div className="flex flex-col gap-4 text-sm">
       <div className="flex flex-wrap items-center gap-2">
@@ -113,6 +115,9 @@ export function ActivityDetail({
           {callDuration(entry.duration_ms)}
         </span>
       </div>
+      {calls > 1 && (
+        <p className="text-xs text-muted-foreground">{t("activity.detail.repeatsNote")}</p>
+      )}
       {entry.error && (
         <Alert variant="destructive">
           <AlertTitle>{t("activity.detail.error")}</AlertTitle>
@@ -136,6 +141,14 @@ export function ActivityDetail({
           )}
         </Fact>
         <Fact label={t("activity.detail.started")}>{exactTime(entry.at)}</Fact>
+        {calls > 1 && (
+          <Fact label={t("activity.detail.calls")}>
+            <span className="tabular-nums">{formatNumber(calls)}</span>
+          </Fact>
+        )}
+        {calls > 1 && entry.last_at && (
+          <Fact label={t("activity.detail.lastCall")}>{exactTime(entry.last_at)}</Fact>
+        )}
         {entry.container_id && (
           <Fact label={t("activity.detail.container")}>
             <span className="flex flex-wrap items-center gap-1.5">

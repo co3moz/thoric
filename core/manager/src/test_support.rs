@@ -73,6 +73,7 @@ impl config::Config {
             desktop_host: None,
             upload_limit: 1024 * 1024,
             archive_limit: 4 * 1024 * 1024,
+            activity_keep: crate::activity::KEPT,
             root_mcp_enabled: false,
             mcp_token: Some(String::new()),
             metrics_token: None,
@@ -122,6 +123,7 @@ pub(crate) fn app(auth: bool) -> Arc<App> {
         fitters: resolution::Fitters::default(),
         notifier: notify::Notifier::default(),
         metrics: metrics::Metrics::default(),
+        calls: crate::activity::Recent::default(),
     })
 }
 /// A sample of the host's GPU `index` with 1 GiB of its 8 in use, as the GPU sampler stores one.

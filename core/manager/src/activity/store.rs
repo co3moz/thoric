@@ -1,39 +1,59 @@
-//! The activity table in the manager's SQLite: one row a call, the newest [`KEPT`] kept, and the
-//! filtered, newest-first pages `GET /api/activity` reads.
+//! The activity table in the manager's SQLite: one row a call, or a run of the same read (see
+//! `merge.rs`), the newest `ACTIVITY_KEEP` kept, the filtered, newest-first pages
+//! `GET /api/activity` reads and the calls counted by container.
 use super::Entry;
 use crate::{
     db::Db,
     error::{Error, Result},
 };
+use anyhow::{Context, bail};
 use axum::http::StatusCode;
 use rusqlite::{Connection, Row, params, params_from_iter, types::Value as Sql};
 use serde::Deserialize;
 
-/// How many calls are kept, newest first.
-pub(super) const KEPT: usize = 10_000;
-/// Rows beyond [`KEPT`] are removed every this many calls, not on every one.
+/// How many rows are kept unless `ACTIVITY_KEEP` says otherwise, and how few and how many it may
+/// ask for: enough to say what happened, and no more than a page's count and a set's summary
+/// read in a moment.
+pub(crate) const KEPT: usize = 10_000;
+const KEPT_MIN: usize = 100;
+const KEPT_MAX: usize = 1_000_000;
+/// Rows beyond the kept ones are removed every this many rows, not on every one.
 const PRUNE_EVERY: i64 = 64;
 /// The calls a page holds by default, and at most.
 const PAGE: usize = 50;
-const PAGE_LIMIT: usize = 200;
+pub(super) const PAGE_LIMIT: usize = 200;
 
-/// Drop what is beyond [`KEPT`] when the database opens. Its migrations make the table, whose
-/// AUTOINCREMENT never gives an ID again after older rows are pruned, so a page's cursor keeps
-/// its place.
-pub(crate) fn opened(conn: &Connection) -> rusqlite::Result<()> {
-    prune(conn, KEPT)?;
+/// `ACTIVITY_KEEP`: how many rows of the log are kept, the newest.
+pub(crate) fn keep(value: Option<&str>) -> anyhow::Result<usize> {
+    let refused = || format!("ACTIVITY_KEEP must be a whole number from {KEPT_MIN} to {KEPT_MAX}");
+    let keep = match value.filter(|text| !text.is_empty()) {
+        None => KEPT,
+        Some(text) => text.parse::<usize>().with_context(refused)?,
+    };
+    if !(KEPT_MIN..=KEPT_MAX).contains(&keep) {
+        bail!(refused());
+    }
+    Ok(keep)
+}
+
+/// Drop what is beyond `keep` when the manager starts, so a smaller `ACTIVITY_KEEP` applies at
+/// once. The table's AUTOINCREMENT never gives an ID again after older rows are pruned, so a
+/// page's cursor keeps its place.
+pub(crate) fn trim(db: &Db, keep: usize) -> rusqlite::Result<()> {
+    prune(&db.connection(), keep)?;
     Ok(())
 }
 
-/// Write a call, and every [`PRUNE_EVERY`] calls drop what is beyond [`KEPT`].
-pub(super) fn insert(db: &Db, entry: &Entry) -> anyhow::Result<i64> {
+/// Write a call as a row of its own, and every [`PRUNE_EVERY`] rows drop what is beyond `keep`.
+pub(super) fn insert(db: &Db, entry: &Entry, keep: usize) -> anyhow::Result<i64> {
     let conn = db.connection();
     conn.execute(
         "INSERT INTO activity(at, endpoint, credential, client, source, tool, server, container_id,
-            container_name, kind, arguments, summary, outcome, error, duration_ms, job_id)
-         VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+            container_name, kind, arguments, summary, outcome, error, duration_ms, job_id, repeats,
+            last_at)
+         VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
         params![
-            i64::try_from(entry.at).unwrap_or(i64::MAX),
+            signed(entry.at),
             entry.endpoint,
             entry.credential,
             entry.client,
@@ -47,18 +67,40 @@ pub(super) fn insert(db: &Db, entry: &Entry) -> anyhow::Result<i64> {
             entry.summary,
             entry.outcome,
             entry.error,
-            i64::try_from(entry.duration_ms).unwrap_or(i64::MAX),
+            signed(entry.duration_ms),
             entry.job_id,
+            signed(entry.repeats),
+            entry.last_at.map(signed),
         ],
     )?;
     let id = conn.last_insert_rowid();
     if id % PRUNE_EVERY == 0 {
-        prune(&conn, KEPT)?;
+        prune(&conn, keep)?;
     }
     Ok(id)
 }
 
-/// Remove every call but the newest `keep`.
+/// Count one more call on the row `id`: it began at `at` and took `duration_ms`, and the row
+/// keeps the longest of its calls. `false` when the row is gone, pruned since.
+pub(super) fn repeat(db: &Db, id: i64, at: u64, duration_ms: u64) -> anyhow::Result<bool> {
+    let changed = db.connection().execute(
+        "UPDATE activity SET repeats = repeats + 1, last_at = max(coalesce(last_at, at), ?2),
+            duration_ms = max(duration_ms, ?3)
+         WHERE id = ?1",
+        params![id, signed(at), signed(duration_ms)],
+    )?;
+    Ok(changed == 1)
+}
+
+fn signed(value: u64) -> i64 {
+    i64::try_from(value).unwrap_or(i64::MAX)
+}
+
+fn unsigned(value: i64) -> u64 {
+    u64::try_from(value).unwrap_or_default()
+}
+
+/// Remove every row but the newest `keep`.
 pub(super) fn prune(conn: &Connection, keep: usize) -> rusqlite::Result<usize> {
     conn.execute(
         "DELETE FROM activity WHERE id <= (SELECT id FROM activity ORDER BY id DESC LIMIT 1 OFFSET ?1)",
@@ -66,9 +108,44 @@ pub(super) fn prune(conn: &Connection, keep: usize) -> rusqlite::Result<usize> {
     )
 }
 
+/// The calls of one container among the kept rows.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct Tally {
+    pub container_id: String,
+    /// Every call, a repeated read's each.
+    pub calls: u64,
+    /// Those that ended in an error or were refused.
+    pub errors: u64,
+    /// When the last one began, in Unix milliseconds.
+    pub last_at: u64,
+}
+
+/// The calls of each of `containers` that has some, in one read of their rows through the
+/// container index. The list is a scale set's instances, so it is short.
+pub(crate) fn by_container(db: &Db, containers: &[&str]) -> anyhow::Result<Vec<Tally>> {
+    if containers.is_empty() {
+        return Ok(Vec::new());
+    }
+    let conn = db.connection();
+    let mut statement = conn.prepare(&format!(
+        "SELECT container_id, sum(1 + repeats), sum(outcome != 'ok'), max(coalesce(last_at, at))
+         FROM activity WHERE container_id IN ({}) GROUP BY container_id",
+        vec!["?"; containers.len()].join(", ")
+    ))?;
+    let rows = statement.query_map(params_from_iter(containers), |row| {
+        Ok(Tally {
+            container_id: row.get(0)?,
+            calls: unsigned(row.get(1)?),
+            errors: unsigned(row.get(2)?),
+            last_at: unsigned(row.get(3)?),
+        })
+    })?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
 /// Which calls a page lists: each filter given narrows it, and `before` continues from the last
 /// ID of the page before.
-#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, Default, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Filter {
     /// A container's ID.
@@ -187,7 +264,8 @@ pub(super) fn query(db: &Db, filter: &Filter) -> anyhow::Result<Vec<Entry>> {
     let conn = db.connection();
     let mut statement = conn.prepare(&format!(
         "SELECT id, at, endpoint, credential, client, source, tool, server, container_id,
-            container_name, kind, arguments, summary, outcome, error, duration_ms, job_id
+            container_name, kind, arguments, summary, outcome, error, duration_ms, job_id, repeats,
+            last_at
          FROM activity {condition} ORDER BY id DESC LIMIT ?"
     ))?;
     let rows = statement.query_map(params_from_iter(bound), entry)?;
@@ -198,7 +276,7 @@ fn entry(row: &Row) -> rusqlite::Result<Entry> {
     let arguments: String = row.get(11)?;
     Ok(Entry {
         id: row.get(0)?,
-        at: u64::try_from(row.get::<_, i64>(1)?).unwrap_or_default(),
+        at: unsigned(row.get(1)?),
         endpoint: row.get(2)?,
         credential: row.get(3)?,
         client: row.get(4)?,
@@ -212,8 +290,10 @@ fn entry(row: &Row) -> rusqlite::Result<Entry> {
         summary: row.get(12)?,
         outcome: row.get(13)?,
         error: row.get(14)?,
-        duration_ms: u64::try_from(row.get::<_, i64>(15)?).unwrap_or_default(),
+        duration_ms: unsigned(row.get(15)?),
         job_id: row.get(16)?,
+        repeats: unsigned(row.get(17)?),
+        last_at: row.get::<_, Option<i64>>(18)?.map(unsigned),
     })
 }
 

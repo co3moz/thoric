@@ -179,6 +179,11 @@ pub(super) fn all() -> Vec<Route> {
             "Delete a scale set with its instances and the volumes made for them.",
         )
         .job(),
+        get(
+            "/api/scale-sets/{name}/activity",
+            CONTAINERS,
+            "The agent calls of each instance of a scale set: how many, how many failed and the last.",
+        ),
         post(
             "/api/scale-sets/{name}/instances",
             CONTAINERS,
@@ -800,6 +805,13 @@ pub(super) fn all() -> Vec<Route> {
             "The agent activity log, newest first, with filters and a cursor.",
         )
         .query::<activity::Filter>(),
+        get(
+            "/api/activity/export",
+            EVENTS,
+            "The filtered agent activity log as a file, CSV or JSON lines.",
+        )
+        .query::<activity::Export>()
+        .download("text/csv"),
         get(
             "/api/dependencies",
             INSTALLATION,

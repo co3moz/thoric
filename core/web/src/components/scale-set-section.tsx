@@ -1,12 +1,71 @@
-import { RiAddLine, RiDeleteBinLine, RiSettings3Line, RiStackLine } from "@remixicon/react"
+import {
+  RiAddLine,
+  RiDeleteBinLine,
+  RiPulseLine,
+  RiSettings3Line,
+  RiStackLine,
+} from "@remixicon/react"
 
+import { CallTime, useNow } from "@/components/activity-feed"
 import { ContainerCard } from "@/components/container-card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { openDialog } from "@/lib/dialogs"
-import { t } from "@/lib/i18n"
-import { room, type ScaleSet } from "@/lib/scale"
+import { plural, t } from "@/lib/i18n"
+import { useScaleSetActivity } from "@/lib/queries"
+import { navigate } from "@/lib/route"
+import { activeInstances, room, type ScaleSet } from "@/lib/scale"
 import type { ContainerItem, ImageItem } from "@/lib/types"
+
+/**
+ * What agents did in each instance of a set, from the activity log's kept rows: its calls, how
+ * many of them failed and when the last was. An instance opens the Activity page for it. Nothing
+ * shows while no instance has taken a call.
+ */
+function SetActivity({ name }: { name: string }) {
+  const now = useNow()
+  const instances = activeInstances(useScaleSetActivity(name).data)
+  if (!instances.length) return null
+  return (
+    <ul
+      className="flex flex-wrap items-center gap-x-1 gap-y-1 px-4 text-xs text-muted-foreground lg:px-6"
+      aria-label={t("scale.activity", { name })}
+    >
+      <li className="flex items-center" aria-hidden>
+        <RiPulseLine className="size-3.5" />
+      </li>
+      {instances.map((item) => (
+        <li key={item.container_id}>
+          <button
+            type="button"
+            title={t("scale.activity.open", { number: item.instance })}
+            onClick={() => navigate({ page: "activity", container: item.container_id })}
+            className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 tabular-nums transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          >
+            <span className="font-medium text-foreground">
+              {t("scale.activity.instance", { number: item.instance })}
+            </span>
+            <span>
+              {plural(item.calls, {
+                one: "scale.activity.calls.one",
+                other: "scale.activity.calls.other",
+              })}
+            </span>
+            {item.errors > 0 && (
+              <span className="text-destructive">
+                {plural(item.errors, {
+                  one: "scale.activity.errors.one",
+                  other: "scale.activity.errors.other",
+                })}
+              </span>
+            )}
+            {item.last_at !== null && <CallTime at={item.last_at} now={now} />}
+          </button>
+        </li>
+      ))}
+    </ul>
+  )
+}
 
 /**
  * A scale set on the containers page: its name, how many instances it has of how many, its MCP
@@ -66,6 +125,7 @@ export function ScaleSetSection({
           </Button>
         </div>
       </div>
+      <SetActivity name={set.name} />
       <div className="grid grid-cols-1 gap-4 px-4 lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-3 @[100rem]/main:grid-cols-4">
         {instances.map((item) => (
           <ContainerCard key={item.id} item={item} images={images} />

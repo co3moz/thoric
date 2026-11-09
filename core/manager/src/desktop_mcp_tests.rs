@@ -1608,6 +1608,21 @@ async fn get_job_reads_only_the_jobs_the_endpoint_started_in_its_containers() {
     )
     .await;
     assert_eq!(body["result"]["structuredContent"]["id"], started, "{body}");
+    // The activity log names the container of a job the endpoint read, and none for a job
+    // that is not the endpoint's, whose container it may not learn of.
+    let rows = crate::activity::recorded(&app, 5).await;
+    let container = |job: &str| {
+        rows.iter()
+            .find(|row| row.tool == "get_job" && row.arguments["job_id"] == job)
+            .map(|row| (row.container_id.clone(), row.container_name.clone()))
+            .unwrap_or_else(|| panic!("{job}: {rows:?}"))
+    };
+    let chrome = (Some("c1".to_owned()), Some("Chrome dev".to_owned()));
+    assert_eq!(container("mine"), chrome);
+    assert_eq!(container(&started), chrome);
+    assert_eq!(container("administrators"), (None, None));
+    // Started by the endpoint, in a container that is no longer its own.
+    assert_eq!(container("theirs"), (Some("c2".into()), None));
     // Once the job history no longer keeps it, the read says so, and a job's id the endpoint
     // does not know may have been pruned too; neither is a bare missing record.
     app.db.remove("job", &started).unwrap();

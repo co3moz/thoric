@@ -225,6 +225,13 @@ export const de: Messages = {
   "activity.loadOlder": "Ältere Aufrufe laden",
   "activity.end": "Das sind alle aufgezeichneten Aufrufe.",
   "activity.kept": "Die neuesten {count} werden aufbewahrt.",
+  "activity.calls": "{count} Aufrufe",
+  "activity.repeatedUntil": "Wiederholt bis {time}",
+  "activity.export": "Herunterladen",
+  "activity.export.hint":
+    "Das Protokoll so speichern, wie es gefiltert ist, mit Argumenten maskiert wie hier",
+  "activity.export.csv": "CSV, für eine Tabellenkalkulation",
+  "activity.export.jsonl": "JSON Lines",
   "activity.empty.title": "Noch keine Agentenaktivität",
   "activity.empty.description":
     "Jeder Werkzeugaufruf eines Agenten über MCP erscheint hier: wer aufgerufen hat, was betroffen war und wie es ausging.",
@@ -242,6 +249,10 @@ export const de: Messages = {
   "activity.detail.job": "Auftrag",
   "activity.detail.openJob": "Auftrag öffnen",
   "activity.detail.started": "Begonnen",
+  "activity.detail.calls": "Aufrufe",
+  "activity.detail.lastCall": "Letzter Aufruf",
+  "activity.detail.repeatsNote":
+    "Ein Lesezugriff, der Aufruf für Aufruf wiederholt wurde, ist eine Zeile. Die Dauer ist die des längsten Aufrufs.",
   "activity.detail.arguments": "Argumente",
   "activity.detail.noArguments": "Keine Argumente.",
   "activity.detail.error": "Fehler",
@@ -1321,6 +1332,8 @@ export const de: Messages = {
   "settings.about.UPLOAD_MAX_MB": "Die größte Datei, die ein Upload annimmt, in MiB.",
   "settings.about.IMAGE_ARCHIVE_MAX_MB":
     "Das größte Image- oder Volume-Archiv, das ein Import entpackt, in MiB.",
+  "settings.about.ACTIVITY_KEEP":
+    "Wie viele Zeilen das Protokoll der Agentenaktivität aufbewahrt, die neuesten.",
   "settings.about.TEMPLATES_URL":
     "Die Liste, die die Vorlagenseite liest; none schaltet die Seite aus.",
   "settings.about.VOLUME_FILTER":
@@ -2367,4 +2380,11 @@ export const de: Messages = {
   "scale.setOf": "Skalierungsgruppe {name}",
   "scale.count": "{count} von {max}",
   "scale.deleting": "Wird gelöscht",
+  "scale.activity": "Agentenaufrufe in den Instanzen von {name}",
+  "scale.activity.open": "Aktivität für Instanz {number} öffnen",
+  "scale.activity.instance": "#{number}",
+  "scale.activity.calls.one": "{count} Aufruf",
+  "scale.activity.calls.other": "{count} Aufrufe",
+  "scale.activity.errors.one": "{count} fehlgeschlagen",
+  "scale.activity.errors.other": "{count} fehlgeschlagen",
 }

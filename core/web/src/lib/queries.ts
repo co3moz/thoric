@@ -11,7 +11,7 @@ import { jobsPath, OTHER_JOBS } from "./job-history"
 import { followLog, jobReadPath, logWentBack, type JobRead } from "./job-log"
 import { endpointApi } from "./mcp"
 import { creationEnded } from "./pending"
-import type { ScaleSet } from "./scale"
+import type { InstanceActivity, ScaleSet } from "./scale"
 import type { Skill } from "./skills"
 import type {
   Configuration,
@@ -138,6 +138,23 @@ export const useScaleSets = (poll = true) =>
     queryKey: ["scale-sets"],
     queryFn: async () => (await api<{ items: ScaleSet[] }>("scale-sets")).items,
     refetchInterval: () => watchedInterval(poll),
+  })
+
+/** How often a scale set's calls are counted again while its section shows. */
+const SET_ACTIVITY_INTERVAL = 15_000
+
+/** The agent calls of each instance of a scale set, counted from the activity log's kept rows. */
+export const useScaleSetActivity = (name: string) =>
+  useQuery({
+    queryKey: ["scale-sets", name, "activity"],
+    queryFn: async () =>
+      (
+        await api<{ instances: InstanceActivity[] }>(
+          `scale-sets/${encodeURIComponent(name)}/activity`
+        )
+      ).instances,
+    refetchInterval: SET_ACTIVITY_INTERVAL,
+    meta: { quiet: true },
   })
 
 /**

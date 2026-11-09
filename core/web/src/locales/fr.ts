@@ -225,6 +225,13 @@ export const fr: Messages = {
   "activity.loadOlder": "Charger des appels plus anciens",
   "activity.end": "C'est tout ce qui a été enregistré.",
   "activity.kept": "Les {count} plus récents sont conservés.",
+  "activity.calls": "{count} appels",
+  "activity.repeatedUntil": "Répété jusqu'à {time}",
+  "activity.export": "Télécharger",
+  "activity.export.hint":
+    "Enregistre le journal tel qu'il est filtré, avec les arguments masqués comme ici",
+  "activity.export.csv": "CSV, pour un tableur",
+  "activity.export.jsonl": "JSON Lines",
   "activity.empty.title": "Aucune activité d'agent pour l'instant",
   "activity.empty.description":
     "Chaque appel d'outil qu'un agent fait via MCP apparaît ici : qui a appelé, ce qui a été touché et comment cela s'est terminé.",
@@ -242,6 +249,10 @@ export const fr: Messages = {
   "activity.detail.job": "Tâche",
   "activity.detail.openJob": "Ouvrir la tâche",
   "activity.detail.started": "Début",
+  "activity.detail.calls": "Appels",
+  "activity.detail.lastCall": "Dernier appel",
+  "activity.detail.repeatsNote":
+    "Une lecture répétée appel après appel est une seule ligne. La durée est celle de l'appel le plus long.",
   "activity.detail.arguments": "Arguments",
   "activity.detail.noArguments": "Aucun argument.",
   "activity.detail.error": "Erreur",
@@ -1318,6 +1329,8 @@ export const fr: Messages = {
   "settings.about.UPLOAD_MAX_MB": "Le plus gros fichier qu'accepte un envoi, en Mio.",
   "settings.about.IMAGE_ARCHIVE_MAX_MB":
     "La plus grosse archive d'image ou de volume qu'une importation décompresse, en Mio.",
+  "settings.about.ACTIVITY_KEEP":
+    "Combien de lignes le journal d'activité des agents conserve, les plus récentes.",
   "settings.about.TEMPLATES_URL": "La liste que lit la page Modèles ; none désactive la page.",
   "settings.about.VOLUME_FILTER":
     "L'étiquette qu'un volume doit porter pour être listé et monté ; none liste tous les volumes.",
@@ -2363,4 +2376,11 @@ export const fr: Messages = {
   "scale.setOf": "Groupe évolutif {name}",
   "scale.count": "{count} sur {max}",
   "scale.deleting": "Suppression en cours",
+  "scale.activity": "Appels d'agents dans les instances de {name}",
+  "scale.activity.open": "Ouvrir Activité pour l'instance {number}",
+  "scale.activity.instance": "#{number}",
+  "scale.activity.calls.one": "{count} appel",
+  "scale.activity.calls.other": "{count} appels",
+  "scale.activity.errors.one": "{count} échec",
+  "scale.activity.errors.other": "{count} échecs",
 }

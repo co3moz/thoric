@@ -226,6 +226,12 @@ export const en = {
   "activity.loadOlder": "Load older calls",
   "activity.end": "That is every call recorded.",
   "activity.kept": "The newest {count} are kept.",
+  "activity.calls": "{count} calls",
+  "activity.repeatedUntil": "Repeated until {time}",
+  "activity.export": "Download",
+  "activity.export.hint": "Save the log as it is filtered, with arguments masked as they are here",
+  "activity.export.csv": "CSV, for a spreadsheet",
+  "activity.export.jsonl": "JSON lines",
   "activity.empty.title": "No agent activity yet",
   "activity.empty.description":
     "Every tool call an agent makes over MCP shows up here: who called, what it touched and how it ended.",
@@ -243,6 +249,10 @@ export const en = {
   "activity.detail.job": "Job",
   "activity.detail.openJob": "Open the job",
   "activity.detail.started": "Started",
+  "activity.detail.calls": "Calls",
+  "activity.detail.lastCall": "Last call",
+  "activity.detail.repeatsNote":
+    "A read repeated one call after another is one row. The time taken is the longest call's.",
   "activity.detail.arguments": "Arguments",
   "activity.detail.noArguments": "No arguments.",
   "activity.detail.error": "Error",
@@ -1317,6 +1327,7 @@ export const en = {
   "settings.about.UPLOAD_MAX_MB": "The largest file one upload takes, in MiB.",
   "settings.about.IMAGE_ARCHIVE_MAX_MB":
     "The largest image or volume archive an import unpacks, in MiB.",
+  "settings.about.ACTIVITY_KEEP": "How many rows the agent activity log keeps, the newest.",
   "settings.about.TEMPLATES_URL": "The list the Templates page reads; none turns the page off.",
   "settings.about.VOLUME_FILTER":
     "The label a volume needs to be listed and mounted; none lists every volume.",
@@ -2346,6 +2357,13 @@ export const en = {
   "scale.setOf": "Scale set {name}",
   "scale.count": "{count} of {max}",
   "scale.deleting": "Deleting",
+  "scale.activity": "Agent calls in the instances of {name}",
+  "scale.activity.open": "Open Activity for instance {number}",
+  "scale.activity.instance": "#{number}",
+  "scale.activity.calls.one": "{count} call",
+  "scale.activity.calls.other": "{count} calls",
+  "scale.activity.errors.one": "{count} failed",
+  "scale.activity.errors.other": "{count} failed",
 } as const
 
 export type MessageKey = keyof typeof en

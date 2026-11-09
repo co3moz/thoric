@@ -61,6 +61,7 @@ export const SECTION_OF: Record<string, Section> = {
   GPU_ADAPTER: "gpu",
   UPLOAD_MAX_MB: "limits",
   IMAGE_ARCHIVE_MAX_MB: "limits",
+  ACTIVITY_KEEP: "limits",
   TEMPLATES_URL: "content",
   VOLUME_FILTER: "content",
   PROXY_URL: "proxy",
@@ -210,6 +211,8 @@ export const FIELDS: Record<string, Field> = {
   IDLE_STOP_DEFAULT: { kind: "number", min: 0, max: 10080, unit: "minutes" },
   UPLOAD_MAX_MB: { kind: "number", min: 1, max: 65536, unit: "mib" },
   IMAGE_ARCHIVE_MAX_MB: { kind: "number", min: 1, max: 1048576, unit: "mib" },
+  // Rows of the agent activity log.
+  ACTIVITY_KEEP: { kind: "number", min: 100, max: 1000000 },
   TEMPLATES_URL: {
     kind: "choice",
     choices: [

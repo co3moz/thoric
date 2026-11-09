@@ -79,6 +79,8 @@ pub struct Config {
     pub upload_limit: u64,
     /// The largest unpacked image archive an import accepts, in bytes.
     pub archive_limit: u64,
+    /// How many rows the agent activity log keeps, the newest; see [`crate::activity`].
+    pub activity_keep: usize,
     /// Whether the root `/mcp` answers: the administrator's agent channel to every container, the
     /// one not made on the dashboard. The MCP endpoints at `/mcp/<name>` answer either way.
     pub root_mcp_enabled: bool,
@@ -182,6 +184,7 @@ pub(crate) const EDITABLE: &[&str] = &[
     "IDLE_STOP_DEFAULT",
     "UPLOAD_MAX_MB",
     "IMAGE_ARCHIVE_MAX_MB",
+    "ACTIVITY_KEEP",
     "TEMPLATES_URL",
     "VOLUME_FILTER",
     "PROXY_URL",
@@ -482,6 +485,7 @@ impl Config {
                 .next(),
             upload_limit: upload_mb * 1024 * 1024,
             archive_limit: archive_mb * 1024 * 1024,
+            activity_keep: crate::activity::keep(var("ACTIVITY_KEEP").as_deref())?,
             root_mcp_enabled,
             mcp_token,
             metrics_token: metrics_token(var("METRICS_TOKEN").as_deref())?,
@@ -603,6 +607,7 @@ impl Config {
             value("IDLE_STOP_DEFAULT", json!(self.defaults.idle_stop_minutes)),
             value("UPLOAD_MAX_MB", mib(self.upload_limit)),
             value("IMAGE_ARCHIVE_MAX_MB", mib(self.archive_limit)),
+            value("ACTIVITY_KEEP", json!(self.activity_keep)),
             value(
                 "TEMPLATES_URL",
                 json!(self.templates_url.as_deref().unwrap_or("none")),
