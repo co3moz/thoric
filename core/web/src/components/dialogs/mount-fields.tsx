@@ -1,6 +1,6 @@
+import * as React from "react"
 import { RiAddLine, RiCloseLine } from "@remixicon/react"
 import { cn } from "cn"
-import { toast } from "sonner"
 
 import { ConceptIcon } from "@/components/concept"
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,7 @@ import {
   SelectContent,
   SelectGroup,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
@@ -20,12 +21,17 @@ import type { SetupVolume } from "@/lib/compose"
 import { t } from "@/lib/i18n"
 import type { Mount, Volume } from "@/lib/types"
 import { tile } from "./form-sections"
+import { VolumeDialog } from "./simple-dialogs"
 import { nextMountKey, type SpecDraft } from "./spec-fields"
+
+// Volume names never contain NUL, so this cannot collide with one.
+const CREATE = "\u0000create"
 
 /**
  * The volumes of a container: those its image setup mounts, which the setup's values choose and
  * this only lists, then the ones mounted here, each with its path and access. `volumes` are the
- * ones a container may mount.
+ * ones a container may mount. A volume created here, from a mount's choice or from **Mount** while
+ * there is none, opens over the form and goes to that mount, or to a new one.
  */
 export function MountFields({
   draft,
@@ -41,6 +47,17 @@ export function MountFields({
   const set = (mounts: SpecDraft["mounts"]) => onChange({ ...draft, mounts })
   const setMount = (key: number, patch: Partial<Mount>) =>
     set(draft.mounts.map((mount) => (mount.key === key ? { ...mount, ...patch } : mount)))
+  const addMount = (volume: string) =>
+    set([...draft.mounts, { key: nextMountKey(), volume, target: "", readonly: false }])
+  // The mount a volume being created goes to, or `"new"` for one it adds.
+  const [creating, setCreating] = React.useState<number | "new" | null>(null)
+  // The mount whose choice asked for a new volume, until that choice has closed.
+  const asked = React.useRef<number | null>(null)
+  const created = (volume: string) => {
+    if (creating === "new") addMount(volume)
+    else if (creating !== null) setMount(creating, { volume })
+    setCreating(null)
+  }
 
   return (
     <FieldGroup>
@@ -77,16 +94,7 @@ export function MountFields({
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => {
-              if (!volumes.length) {
-                toast.error(t("spec.volumeFirst"))
-                return
-              }
-              set([
-                ...draft.mounts,
-                { key: nextMountKey(), volume: volumes[0].Name, target: "", readonly: false },
-              ])
-            }}
+            onClick={() => (volumes.length ? addMount(volumes[0].Name) : setCreating("new"))}
           >
             <RiAddLine data-icon="inline-start" />
             {t("spec.mount")}
@@ -103,12 +111,24 @@ export function MountFields({
             >
               <Select
                 value={mount.volume}
-                onValueChange={(volume) => setMount(mount.key, { volume })}
+                onValueChange={(volume) => {
+                  if (volume === CREATE) asked.current = mount.key
+                  else setMount(mount.key, { volume })
+                }}
               >
                 <SelectTrigger aria-label={t("spec.volume")} className="w-full">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent
+                  // The dialog opens once the choice has closed and focused its trigger, which
+                  // the dialog gives the focus back to. Opened with the choice, it lost its name
+                  // field's focus to that trigger.
+                  onCloseAutoFocus={() => {
+                    if (asked.current === null) return
+                    setCreating(asked.current)
+                    asked.current = null
+                  }}
+                >
                   <SelectGroup>
                     {names.map((name) => (
                       <SelectItem key={name} value={name}>
@@ -116,6 +136,13 @@ export function MountFields({
                         {name}
                       </SelectItem>
                     ))}
+                  </SelectGroup>
+                  <SelectSeparator />
+                  <SelectGroup>
+                    <SelectItem value={CREATE}>
+                      <RiAddLine />
+                      {t("spec.createVolume")}
+                    </SelectItem>
                   </SelectGroup>
                 </SelectContent>
               </Select>
@@ -148,6 +175,11 @@ export function MountFields({
         })}
         <FieldDescription className="text-xs">{t("spec.mountsHint")}</FieldDescription>
       </FieldSet>
+      <VolumeDialog
+        open={creating !== null}
+        onOpenChange={(open) => !open && setCreating(null)}
+        onCreated={created}
+      />
     </FieldGroup>
   )
 }

@@ -1511,7 +1511,7 @@ export const fr: Messages = {
   "spec.turnedOffList": "Désactivé pour cette installation : {features}.",
   "spec.gpuUnavailable":
     "Cet hôte n'a pas de GPU pour les bureaux ; la page d'administration en donne la raison.",
-  "spec.volumeFirst": "Créez d'abord un volume.",
+  "spec.createVolume": "Créer un volume…",
   "spec.mount": "Monter",
   "spec.volume": "Volume",
   "spec.mountPath": "Point de montage",

@@ -1488,7 +1488,7 @@ export const tr: Messages = {
   "spec.kvmUnavailable": "Bu Docker host'unda /dev/kvm yok.",
   "spec.turnedOffList": "Bu kurulumda kapalı: {features}.",
   "spec.gpuUnavailable": "Bu host'ta masaüstleri için GPU yok; nedenini Yönetim sayfası söyler.",
-  "spec.volumeFirst": "Önce bir volume oluşturun.",
+  "spec.createVolume": "Yeni volume oluştur…",
   "spec.mount": "Bağla",
   "spec.volume": "Volume",
   "spec.mountPath": "Bağlama yolu",

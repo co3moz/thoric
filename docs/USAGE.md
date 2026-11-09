@@ -225,7 +225,7 @@ A `.tar` saved with `docker save` imports the same way, as long as it holds a de
 
 ## Keep files in volumes
 
-Create a named volume under **Volumes**, then mount it when creating a container. Use an absolute path such as `/workspace/project` or `/opt/game`. Protected system paths, read-only mounts over the desktop's home or configuration and the manager's own data volume, which holds its database, are rejected. **Volumes** labels that volume **Manager data** and offers no file browsing or export for it, and the volume choices of a mount or of a compose's volume parameter leave it out.
+Create a named volume under **Volumes**, then mount it when creating a container. A container's **Volumes** section can also make one without leaving the form: **Create new volume…** at the end of a mount's volume choice, or **Mount** while there is no volume yet, opens the same dialog and mounts the new volume. Use an absolute path such as `/workspace/project` or `/opt/game`. Protected system paths, read-only mounts over the desktop's home or configuration and the manager's own data volume, which holds its database, are rejected. **Volumes** labels that volume **Manager data** and offers no file browsing or export for it, and the volume choices of a mount or of a compose's volume parameter leave it out.
 
 **Volumes** lists only the volumes Thoric created, imported or copied, which carry its label; volumes that other software made on the same Docker Engine stay hidden and cannot be mounted or opened. A container that already mounts such a volume keeps it. The installation's `VOLUME_FILTER` setting chooses the label, or shows every volume with `none` ([installation settings](INSTALLATION.md#settings)).
 

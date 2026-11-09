@@ -375,46 +375,82 @@ export function ImageDeleteDialog({ id, ...props }: DialogProps & { id: string }
   )
 }
 
-export function VolumeDialog(props: DialogProps) {
+/**
+ * A new named volume. The page's own closes as the open dialog; one opened over another form, such
+ * as a mount's volume choice, hands the name to `onCreated` and its opener closes it.
+ */
+export function VolumeDialog({
+  onCreated,
+  ...props
+}: DialogProps & { onCreated?: (name: string) => void }) {
+  // Radix gives the focus back only to a DialogTrigger, which a dialog opened from code has none
+  // of, so this keeps what had it, such as the mount choice the dialog was opened from.
+  const [opener, setOpener] = React.useState(() => (props.open ? document.activeElement : null))
+  const [wasOpen, setWasOpen] = React.useState(props.open)
+  if (props.open !== wasOpen) {
+    setWasOpen(props.open)
+    if (props.open) setOpener(document.activeElement)
+  }
+  return (
+    <Dialog {...props}>
+      <DialogContent
+        className="sm:max-w-md"
+        onCloseAutoFocus={(event) => {
+          if (!(opener instanceof HTMLElement) || !opener.isConnected) return
+          event.preventDefault()
+          opener.focus()
+        }}
+      >
+        {/* Inside the content, so every opening starts with an empty form. */}
+        <VolumeForm onCreated={onCreated} />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function VolumeForm({ onCreated }: { onCreated?: (name: string) => void }) {
   const [name, setName] = React.useState("")
   const { busy, error, submit } = useSubmit()
   const field = React.useId()
+  const send = submit(async () => {
+    await api("volumes", { name })
+    toast.success(t("volumes.created", { name }))
+    void refreshLists("volumes")
+    if (onCreated) onCreated(name)
+    else closeDialog()
+  })
   return (
-    <Dialog {...props}>
-      <DialogContent className="sm:max-w-md">
-        <form
-          className="flex flex-col gap-4"
-          onSubmit={submit(async () => {
-            await api("volumes", { name })
-            closeDialog()
-            toast.success(t("volumes.created", { name }))
-            void refreshLists("volumes")
-          })}
-        >
-          <DialogHeader>
-            <DialogTitle>{t("volumes.new")}</DialogTitle>
-            <DialogDescription>{t("volumes.newHint")}</DialogDescription>
-          </DialogHeader>
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor={`${field}-name`}>{t("table.name")}</FieldLabel>
-              <Input
-                id={`${field}-name`}
-                required
-                pattern="[a-zA-Z0-9][a-zA-Z0-9_.\-]+"
-                title={t("volumes.namePattern")}
-                placeholder="unity-projects"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                className="font-mono"
-                autoFocus
-              />
-            </Field>
-            <FieldError>{error}</FieldError>
-          </FieldGroup>
-          <Footer busy={busy} label={t("common.create")} />
-        </form>
-      </DialogContent>
-    </Dialog>
+    <form
+      className="flex flex-col gap-4"
+      onSubmit={(event) => {
+        // React carries a submit up through the portal to a form this dialog opened over, which
+        // would send that one too.
+        event.stopPropagation()
+        void send(event)
+      }}
+    >
+      <DialogHeader>
+        <DialogTitle>{t("volumes.new")}</DialogTitle>
+        <DialogDescription>{t("volumes.newHint")}</DialogDescription>
+      </DialogHeader>
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor={`${field}-name`}>{t("table.name")}</FieldLabel>
+          <Input
+            id={`${field}-name`}
+            required
+            pattern="[a-zA-Z0-9][a-zA-Z0-9_.\-]+"
+            title={t("volumes.namePattern")}
+            placeholder="unity-projects"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            className="font-mono"
+            autoFocus
+          />
+        </Field>
+        <FieldError>{error}</FieldError>
+      </FieldGroup>
+      <Footer busy={busy} label={t("common.create")} />
+    </form>
   )
 }
