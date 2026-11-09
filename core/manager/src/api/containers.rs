@@ -163,6 +163,10 @@ pub struct CreateContainer {
     /// Give the container an MCP endpoint of its own once it is created.
     #[serde(default = "default_true")]
     pub mcp_endpoint: bool,
+    /// The tool profile of that endpoint, or of the set's when the container is scalable:
+    /// `full`, the default, `headless` or `desktop`.
+    #[serde(default)]
+    pub mcp_profile: crate::desktop_mcp::Profile,
     /// The password of the container's own proxy, kept apart from its settings.
     #[serde(default)]
     pub proxy_password: Option<String>,
@@ -226,9 +230,12 @@ pub async fn create(State(app): State<Arc<App>>, Json(body): Json<Value>) -> Res
         mut spec,
         parameters,
         mcp_endpoint,
+        mcp_profile,
         proxy_password,
         scaling,
     } = creation_request(&app.config, body)?;
+    // The endpoint to make, by its tool profile.
+    let mcp_endpoint = mcp_endpoint.then_some(mcp_profile);
     let password =
         crate::outbound::PasswordChange::from_value(proxy_password.map(Value::String).as_ref())?;
     password.settle(None, &mut spec.proxy)?;
@@ -261,7 +268,7 @@ pub async fn create(State(app): State<Arc<App>>, Json(body): Json<Value>) -> Res
     )
 }
 /// Create a scalable container: its set, with the request as the template and an MCP endpoint
-/// whose tools take `instance` unless `mcp_endpoint` is false, and its first instance, whose job
+/// whose tools take `instance` unless `mcp_endpoint` names no profile, and its first instance, whose job
 /// the answer names. The instances the set keeps beyond the first follow once it stands.
 async fn create_scalable(
     app: Arc<App>,
@@ -269,7 +276,7 @@ async fn create_scalable(
     parameters: std::collections::BTreeMap<String, String>,
     password: crate::outbound::PasswordChange,
     scaling: &crate::scale::Scaling,
-    mcp_endpoint: bool,
+    mcp_endpoint: Option<crate::desktop_mcp::Profile>,
 ) -> Result<Json<Value>> {
     scaling.validate()?;
     app.installation_allows(&spec)?;
@@ -298,13 +305,13 @@ async fn create_scalable(
     Ok(Json(answer))
 }
 /// What a creation job ends with once the container's creation has returned: its own MCP endpoint
-/// whenever the container's record was saved, also when its desktop was not ready or its setup
+/// with the tool profile `mcp_endpoint` names, whenever the container's record was saved, also when its desktop was not ready or its setup
 /// failed, so the endpoint works once the container is repaired.
 pub(crate) async fn creation_finished(
     app: &App,
     id: &str,
     created: anyhow::Result<Value>,
-    mcp_endpoint: bool,
+    mcp_endpoint: Option<crate::desktop_mcp::Profile>,
     job_id: &str,
 ) -> anyhow::Result<Value> {
     // A creation refused before its record was saved leaves no container to keep it for.
@@ -313,9 +320,9 @@ pub(crate) async fn creation_finished(
         return created;
     };
     let mut endpoint = None;
-    if mcp_endpoint {
+    if let Some(profile) = mcp_endpoint {
         // The container is made either way; an endpoint can still be created later.
-        match crate::desktop_mcp::automatic_endpoint(app, &container).await {
+        match crate::desktop_mcp::automatic_endpoint(app, &container, profile).await {
             Ok(name) => {
                 app.append_log(
                     job_id,

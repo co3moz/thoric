@@ -9,6 +9,7 @@ import type {
   GrantRequest,
   ImageItem,
   McpGrant,
+  McpProfile,
   McpScope,
   McpScopes,
   ServerDeclaration,
@@ -29,6 +30,67 @@ export const SCOPES: McpScope[] = [
 ]
 /** The scopes a container's grant may have: every one but `scale`, which only a scale set's has. */
 export const CONTAINER_SCOPES = SCOPES.filter((scope) => scope !== "scale")
+
+/** Every tool profile, in the order the forms list them; the first is what a grant has by default. */
+export const PROFILES: McpProfile[] = ["full", "headless", "desktop"]
+
+/** A profile's name; one a newer manager added as it calls it. */
+export const profileLabel = (profile: string) =>
+  PROFILES.includes(profile as McpProfile) ? t(`mcp.profile.${profile as McpProfile}`) : profile
+/** What a profile keeps; nothing for one this release does not know. */
+export const profileDescription = (profile: string) =>
+  PROFILES.includes(profile as McpProfile)
+    ? t(`mcp.profile.${profile as McpProfile}.description`)
+    : ""
+
+/**
+ * Whether a profile keeps the Thoric tool `name`, by the manager's lists. `full` keeps every
+ * tool, and so does any profile while the manager's lists are not known.
+ */
+export function inProfile(profile: McpProfile, name: string, scopes?: McpScopes) {
+  if (profile === "full") return true
+  const tools = scopes?.profiles?.find((entry) => entry.id === profile)?.tools
+  return !tools || tools.includes(name)
+}
+
+/**
+ * The Thoric tools a grant offers: those of its scopes that `profile` keeps, `get_job` with a
+ * scope whose tools return a job, and for a scale set the tools its endpoint always has, each
+ * unless the grant leaves it out by name.
+ */
+export function thoricTools(
+  draft: Pick<GrantDraft, "scopes" | "excluded" | "set">,
+  scopes: McpScopes | undefined,
+  profile: McpProfile
+): string[] {
+  if (!scopes) return []
+  const granted = scopes.scopes.filter((scope) => draft.scopes.includes(scope.id))
+  const names = [
+    ...(draft.set ? (scopes.set_tools ?? []) : []),
+    ...granted.flatMap((scope) => scope.tools),
+    ...(granted.some((scope) => scopes.job_scopes?.includes(scope.id)) ? ["get_job"] : []),
+  ]
+  return [...new Set(names)].filter(
+    (name) => inProfile(profile, name, scopes) && !draft.excluded.includes(name)
+  )
+}
+
+/**
+ * How many tools of the desktop servers a grant offers, as the manager last read them: those of
+ * the servers it includes, without the ones it leaves out by name.
+ */
+export function serverToolCount(
+  draft: Pick<GrantDraft, "all" | "servers" | "excluded">,
+  servers: Pick<DesktopServer, "name" | "tools">[]
+) {
+  return servers
+    .filter((server) => draft.all || draft.servers.includes(server.name))
+    .reduce(
+      (count, server) =>
+        count + server.tools.filter((tool) => !draft.excluded.includes(tool.exposed)).length,
+      0
+    )
+}
 
 /** A desktop MCP server's name: lowercase letters, digits and dashes, at most 32 characters. */
 export const SERVER_NAME = /^[a-z0-9][a-z0-9-]{0,31}$/
@@ -104,6 +166,8 @@ export type GrantDraft = {
   container_name: string
   alias: string
   scopes: McpScope[]
+  /** Which of the scopes' tools the grant offers. */
+  profile: McpProfile
   all: boolean
   servers: string[]
   /** Tools left out, by the name the endpoint gives them for this container alone. */
@@ -116,6 +180,7 @@ export const grantDraft = (grant: McpGrant): GrantDraft => ({
   container_name: grant.container_name,
   alias: grant.alias,
   scopes: orderScopes(grant.scopes),
+  profile: grant.profile ?? "full",
   all: grant.servers === "all",
   servers: grant.servers === "all" ? [] : [...grant.servers],
   excluded: [...grant.excluded_tools],
@@ -154,6 +219,7 @@ export const newGrant = (
   container_name: container.name,
   alias: defaultAlias(container.name, taken),
   scopes: orderScopes(scopes),
+  profile: "full",
   all: true,
   servers: [],
   excluded: [],
@@ -178,6 +244,8 @@ export function grantRequests(drafts: GrantDraft[], scopes?: McpScopes): GrantRe
       ...(draft.set ? { set: draft.set } : {}),
       ...(alias ? { alias } : {}),
       scopes: orderScopes(draft.scopes),
+      // `full` sends none, as requests did before there were profiles.
+      ...(draft.profile !== "full" ? { profile: draft.profile } : {}),
       servers: draft.all ? "all" : draft.servers,
       ...(excluded.length ? { excluded_tools: excluded } : {}),
     }

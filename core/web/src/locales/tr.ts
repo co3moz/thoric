@@ -1781,6 +1781,21 @@ export const tr: Messages = {
     "Bir kapsamın ya da sunucunun araçlarını açıp birinin işaretini kaldırarak onu dışarıda bırakın.",
   "mcp.grant.excluded.one": "{count} araç dışarıda bırakıldı",
   "mcp.grant.excluded.other": "{count} araç dışarıda bırakıldı",
+  "mcp.grant.profile": "Araç profili",
+  "mcp.grant.profileHint":
+    "Aşağıdaki kapsamların araçlarını daraltır. Masaüstü MCP sunucuları ayrıca seçilir.",
+  "mcp.grant.profileLine": "Profil: {profile}",
+  "mcp.grant.profileEmpty": "Bu profilde araç yok",
+  "mcp.grant.total":
+    "Sunulan araçlar: {count}; {thoric} Thoric'ten, {servers} masaüstü MCP sunucularından",
+  "mcp.profile.full": "Tam",
+  "mcp.profile.full.description": "Kapsamların her aracı.",
+  "mcp.profile.headless": "Ekransız",
+  "mcp.profile.headless.description":
+    "Betikler, terminaller, dosyalar, uygulamalar ve süreçler. Ekran gerektiren hiçbir şey yok.",
+  "mcp.profile.desktop": "Masaüstü",
+  "mcp.profile.desktop.description":
+    "Ekran, girdi, uygulamalar, dosyalar ve betikler; seyrek kullanılan araçlar olmadan.",
   "mcp.scopes.all": "Tüm konteyner araçları",
   "mcp.scopes.none": "Konteyner aracı yok",
   "mcp.servers.all": "tümü, sonradan eklenenler de",

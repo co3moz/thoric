@@ -8,6 +8,7 @@
 //! its newest health check.
 use super::*;
 use crate::api::build;
+use crate::desktop_mcp::Profile;
 use crate::test_support::{app, spec};
 use crate::{model, router};
 use axum::{
@@ -562,7 +563,7 @@ async fn a_container_whose_creation_failed_after_its_record_still_gets_its_endpo
     let unready = || Err(anyhow::anyhow!("The desktop stopped before it was ready"));
 
     // Refused before its record was saved: nothing to make an endpoint for.
-    let error = creation_finished(&app, "e", unready(), true, "create")
+    let error = creation_finished(&app, "e", unready(), Some(Profile::Full), "create")
         .await
         .unwrap_err();
     assert_eq!(error.to_string(), "The desktop stopped before it was ready");
@@ -584,12 +585,12 @@ async fn a_container_whose_creation_failed_after_its_record_still_gets_its_endpo
         setup: None,
     };
     app.db.put(model::CONTAINERS, "e", &env).unwrap();
-    let error = creation_finished(&app, "e", unready(), false, "create")
+    let error = creation_finished(&app, "e", unready(), None, "create")
         .await
         .unwrap_err();
     assert_eq!(error.to_string(), "The desktop stopped before it was ready");
     assert!(endpoints().is_empty(), "none was asked for");
-    let error = creation_finished(&app, "e", unready(), true, "create")
+    let error = creation_finished(&app, "e", unready(), Some(Profile::Full), "create")
         .await
         .unwrap_err();
     assert_eq!(error.to_string(), "The desktop stopped before it was ready");
@@ -603,11 +604,27 @@ async fn a_container_whose_creation_failed_after_its_record_still_gets_its_endpo
     );
 
     // A creation that succeeded names its endpoint in its result.
-    let done = creation_finished(&app, "e", Ok(json!({"container_id": "e"})), true, "create")
-        .await
-        .unwrap();
+    let done = creation_finished(
+        &app,
+        "e",
+        Ok(json!({"container_id": "e"})),
+        Some(Profile::Headless),
+        "create",
+    )
+    .await
+    .unwrap();
     assert_eq!(
         done,
         json!({"container_id": "e", "mcp_endpoint": "unity-2"})
     );
+    // Each endpoint has the tool profile its creation named.
+    let profile = |name: &str| {
+        app.db
+            .get::<crate::desktop_mcp::Endpoint>(crate::desktop_mcp::ENDPOINTS, name)
+            .unwrap()
+            .grants[0]
+            .profile
+    };
+    assert_eq!(profile("unity"), Profile::Full);
+    assert_eq!(profile("unity-2"), Profile::Headless);
 }

@@ -75,7 +75,8 @@ fn a_report_carries_this_desktops_servers_and_grants_and_no_token() {
         report["endpoints"],
         json!([{
             "name": "shared", "path": "/mcp/shared", "automatic": false, "has_token": true,
-            "alias": "mine", "scopes": ["view", "input"], "servers": "all", "excluded_tools": [],
+            "alias": "mine", "scopes": ["view", "input"], "profile": "full", "servers": "all",
+            "excluded_tools": [],
         }])
     );
     let text = report.to_string();

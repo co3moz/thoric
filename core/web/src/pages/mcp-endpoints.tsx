@@ -40,7 +40,13 @@ import { openDialog } from "@/lib/dialogs"
 import { shortDate } from "@/lib/format"
 import { plural, rich, t } from "@/lib/i18n"
 import { useOpenInInspector } from "@/lib/inspector-session"
-import { endpointUrl, scopeSummary, serversSummary } from "@/lib/mcp"
+import {
+  endpointUrl,
+  profileDescription,
+  profileLabel,
+  scopeSummary,
+  serversSummary,
+} from "@/lib/mcp"
 import { newToken } from "@/lib/mcp-api"
 import { useContainers, useMcpEndpoints, useMcpScopes, useSettings } from "@/lib/queries"
 import type { McpEndpoint } from "@/lib/types"
@@ -205,6 +211,11 @@ const columns: DataColumn<Row>[] = [
               <span className="text-muted-foreground">
                 {t("mcp.grant.serversLine", { servers: serversSummary(grant.servers) })}
               </span>
+              {!!grant.profile && grant.profile !== "full" && (
+                <span className="text-muted-foreground" title={profileDescription(grant.profile)}>
+                  {t("mcp.grant.profileLine", { profile: profileLabel(grant.profile) })}
+                </span>
+              )}
               {grant.excluded_tools.length > 0 && (
                 <span className="text-muted-foreground" title={grant.excluded_tools.join(", ")}>
                   {plural(grant.excluded_tools.length, {

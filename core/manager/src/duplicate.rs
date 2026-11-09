@@ -85,6 +85,11 @@ pub async fn duplicate(
         })?;
     name_free(&request.name, &app.db.list::<Container>(CONTAINERS)?)?;
     let new_id = uuid::Uuid::new_v4().simple().to_string();
+    // The duplicate's own endpoint offers every tool of its scopes, as a creation's does unless
+    // it names a profile.
+    let endpoint = request
+        .mcp_endpoint
+        .then(crate::desktop_mcp::Profile::default);
     launch_named(
         app,
         "duplicate",
@@ -95,8 +100,7 @@ pub async fn duplicate(
             let created = app
                 .duplicate_container(&id, &new_id, &request, &job_id)
                 .await;
-            crate::api::creation_finished(&app, &new_id, created, request.mcp_endpoint, &job_id)
-                .await
+            crate::api::creation_finished(&app, &new_id, created, endpoint, &job_id).await
         },
     )
 }

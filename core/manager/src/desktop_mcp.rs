@@ -22,6 +22,7 @@ mod endpoints;
 mod gateway;
 mod inspect;
 mod placement;
+mod profiles;
 mod registry;
 mod report;
 mod scopes;
@@ -37,6 +38,7 @@ pub(crate) use endpoints::{
 pub(crate) use gateway::endpoint;
 pub(crate) use inspect::inspect;
 pub(crate) use placement::servers_changed;
+pub(crate) use profiles::Profile;
 #[cfg(test)]
 pub(crate) use registry::SERVERS;
 pub(crate) use registry::{

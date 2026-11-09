@@ -651,6 +651,12 @@ export type McpScope =
   | "power"
   | "scale"
 
+/**
+ * Which of the tools its scopes give a grant offers: every one, those that need no screen, or
+ * the everyday ones of screen and input work.
+ */
+export type McpProfile = "full" | "headless" | "desktop"
+
 export type McpTool = { name: string; description: string }
 
 /** A desktop server's tool, with `exposed`, its name on an endpoint of its container alone. */
@@ -715,6 +721,8 @@ export type McpGrant = {
   container_name: string
   alias: string
   scopes: McpScope[]
+  /** Its tool profile; a manager from before profiles sends none, which is `full`. */
+  profile?: McpProfile
   /** The desktop MCP servers whose tools it includes: all, also later ones, or these. */
   servers: "all" | string[]
   /**
@@ -754,5 +762,16 @@ export type EndpointTool = McpTool & {
   server: string | null
 }
 
-/** The scopes and the Thoric tools in each; `default` is what a new grant starts with. */
-export type McpScopes = { scopes: { id: McpScope; tools: string[] }[]; default: McpScope[] }
+/**
+ * The scopes and the Thoric tools in each; `default` is what a new grant starts with. `profiles`
+ * names the tools each profile keeps, `job_scopes` the scopes that bring `get_job` and `set_tools`
+ * what a scale set's endpoint offers whatever its scopes; a manager from before profiles sends
+ * none of the three.
+ */
+export type McpScopes = {
+  scopes: { id: McpScope; tools: string[] }[]
+  default: McpScope[]
+  set_tools?: string[]
+  job_scopes?: McpScope[]
+  profiles?: { id: McpProfile; tools: string[] }[]
+}
