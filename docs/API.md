@@ -123,6 +123,7 @@ A transfer ends when its client stops. A download of an image, volume or folder 
 | POST | `/api/containers/{id}/files/read` | Read a bounded file slice as text or base64. |
 | POST | `/api/containers/{id}/files/write` | Write text or base64 file data atomically. |
 | POST | `/api/containers/{id}/files/list` | List a directory without following symlinks. |
+| POST | `/api/containers/{id}/files/search` | [Search a folder's files](#file-search) by content, by name or both, within bounds. |
 | POST | `/api/containers/{id}/files/mkdir` | Create a folder with `path` in an existing parent. |
 | POST | `/api/containers/{id}/files/move` | Rename or move within the same volume. |
 | POST | `/api/containers/{id}/files/delete` | Delete a file, symlink or directory. |
@@ -635,6 +636,16 @@ curl --cookie thoric.cookies \
 ```
 
 Replace `FILE_SIZE_IN_BYTES` with the exact size. URL-encode filenames and destination paths when necessary. Streaming uploads are limited by `UPLOAD_MAX_MB`. They return the saved `path`, its `bytes` and its `download_url`, and create missing folders of the destination. The body is received whole into a temporary file of the manager first, after the destination is checked, so a slow transfer holds nothing of the container; only the delivery into the desktop shares the container's lock, and it waits five seconds for a reset, a snapshot or another change of the container and answers 409 after that. The same holds for a volume's upload and its write lock.
+
+### File search
+
+`POST .../files/search` searches a folder of a running desktop with everything below it, or one regular file, as the desktop user and without following symlinks:
+
+```json
+{"path":"/home/desktop/project","pattern":"TODO|FIXME","literal":false,"name":"*.py","case_sensitive":true,"max_results":100,"context":1,"include_ignored":false,"max_seconds":10}
+```
+
+Only `path` and one of `pattern` and `name` are needed. `pattern` is a regular expression in Python's syntax matched within each line of a file, plain text with `literal`, of at most 1000 characters on one line; `name` is a glob for an entry's own name. The answer of a content search holds `matches` with `path`, `line`, `column`, `text` (at most 400 characters, `cut` when shortened) and, with `context` of up to 10, `before` and `after`; a name search holds `files` with `path`, `type` and `size`. Both hold the counts `entries_visited`, `files_searched`, `files_matched`, `binary_skipped`, `directories_skipped` and `unreadable`, `elapsed_ms`, and `truncated` with `truncated_by`: `results` (`max_results`, 1 to 1000), `time` (`max_seconds`, 1 to 30), `entries` (100,000 looked at) or `size` (256 KiB of results), or null. The bounds, the folders left out unless `include_ignored` and what is skipped are those of the MCP tool `search_files` (`docs/MCP.md`). A request out of bounds, a pattern that is no regular expression and a path that does not exist or holds a symlink answer 400, a stopped container 409, and a search Docker did not answer within its time and 15 seconds more 504.
 
 ### Changed files
 

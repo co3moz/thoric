@@ -1831,7 +1831,7 @@ export const de: Messages = {
   "mcp.scope.applications.description":
     "Anwendungen starten und beenden, ihre Protokolle und Messwerte lesen.",
   "mcp.scope.files_read": "Dateien lesen",
-  "mcp.scope.files_read.description": "Dateien auflisten, lesen und herunterladen.",
+  "mcp.scope.files_read.description": "Dateien auflisten, durchsuchen, lesen und herunterladen.",
   "mcp.scope.files_write": "Dateien schreiben",
   "mcp.scope.files_write.description":
     "Dateien schreiben, hochladen, verschieben und löschen sowie Bildschirmfotos speichern.",

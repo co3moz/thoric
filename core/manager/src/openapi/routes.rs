@@ -214,6 +214,12 @@ pub(super) fn all() -> Vec<Route> {
         )
         .json::<files::ListFiles>(),
         post(
+            "/api/containers/{id}/files/search",
+            FILES,
+            "Search a folder's files by content, by name or both, within bounds and without following symlinks.",
+        )
+        .json::<files::SearchFiles>(),
+        post(
             "/api/containers/{id}/files/mkdir",
             FILES,
             "Create a folder in an existing parent.",
