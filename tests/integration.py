@@ -1195,6 +1195,11 @@ try:
     assert merged_parts[1]["stages"] == 2 and merged_parts[1]["steps"] == [{"stage": 1, "label": "Nothing to add", "skipped": True}], merged_parts
     assert "THORIC_SKIP=1/2 Nothing to add" in merged_build["log"] and "THORIC_LINE" not in merged_build["log"], merged_build["log"]
     assert all("script" not in listed for listed in api("jobs"))
+    # The list without scripts names the build among the other jobs, and the counts of ended jobs,
+    # which outlive the records, know of it.
+    assert all(listed["kind"] != "exec" for listed in api("jobs?scripts=false")) and any(listed["id"] == merged_job["job_id"] for listed in api("jobs?kind=build"))
+    job_history = api("jobs/history?days=7")
+    assert sum(hour["completed"] for hour in job_history["hours"] if hour["class"] == "other") >= 1, job_history
     exported = api(f"images/{merged_image['id']}/config")
     assert exported["parts"][1] == merged_request["parts"][1] and "script" not in exported and exported["template_ids"] == ["first", "second"], exported
     merged_base = {"image": merged_image["image_id"], "internet": False}

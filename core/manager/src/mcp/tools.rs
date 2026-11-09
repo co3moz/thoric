@@ -399,8 +399,8 @@ pub(super) static TOOLS: LazyLock<Vec<Tool>> = LazyLock::new(|| {
         ),
         tool(
             "list_jobs",
-            "List the latest 100 jobs without detailed logs.",
-            json!({}),
+            "List the latest 100 jobs without detailed logs. An agent's scripts (exec) soon fill that list: scripts=false leaves them out, so a build, a creation or a snapshot is found among the other jobs, scripts=true lists them alone, and kind names one kind or several separated by commas, such as build,snapshot. Finished jobs are kept by class, the newest 1000 scripts and the newest 500 of every other kind; get_job says so for one that was removed.",
+            json!({"kind":text,"scripts":{"type":"boolean"}}),
             &[],
             true,
             false,

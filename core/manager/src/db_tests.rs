@@ -1,6 +1,5 @@
-//! Pins down that pruning keeps the newest jobs and every unfinished one, whatever its age, with
-//! the requests kept to retry them, and that the unfinished ones are found without reading the logs
-//! of the others. A record that does not read leaves the others of its kind readable, while the
+//! Pins down that the unfinished jobs are found without reading the logs of the others (pruning
+//! is pinned down in `db/job_history_tests.rs`). A record that does not read leaves the others of its kind readable, while the
 //! complete lists refuse without its data, and a copy of the database is whole. Also that an image
 //! record keeps its snapshot parent, and that the job list is bounded and leaves the logs out.
 use super::*;
@@ -195,41 +194,6 @@ fn job(id: &str, finished: bool) -> Job {
         script: None,
         name: None,
     }
-}
-
-#[test]
-fn pruning_keeps_the_newest_jobs_and_the_unfinished_ones() {
-    let dir = std::env::temp_dir().join(format!("thoric-db-{}", uuid::Uuid::new_v4().simple()));
-    std::fs::create_dir_all(&dir).unwrap();
-    let db = Db::open(&dir.join("state.sqlite")).unwrap();
-    for (id, finished) in [("old", true), ("running", false), ("new", true)] {
-        db.put("job", id, &job(id, finished)).unwrap();
-    }
-    assert_eq!(db.prune_jobs(2).unwrap(), 1);
-    let ids = |db: &Db| {
-        let mut ids: Vec<String> = db
-            .list::<Job>("job")
-            .unwrap()
-            .into_iter()
-            .map(|j| j.id)
-            .collect();
-        ids.sort();
-        ids
-    };
-    assert_eq!(ids(&db), ["new", "running"]);
-    // The running job is older than the one kept, and stays.
-    assert_eq!(db.prune_jobs(1).unwrap(), 0);
-    assert_eq!(ids(&db), ["new", "running"]);
-    // A request kept to retry a job goes with it.
-    let requests = crate::jobs::retry::REQUESTS;
-    for id in ["new", "old"] {
-        db.put(requests, id, &serde_json::json!({})).unwrap();
-    }
-    db.prune_jobs(2).unwrap();
-    assert!(db.contains(requests, "new").unwrap());
-    assert!(!db.contains(requests, "old").unwrap());
-    drop(db);
-    std::fs::remove_dir_all(&dir).unwrap();
 }
 
 #[test]

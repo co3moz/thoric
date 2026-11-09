@@ -423,6 +423,18 @@ export type Job = {
   cancellable?: boolean
 }
 
+/** The jobs of one class that ended in one hour, which began at `at`. */
+export type JobCount = {
+  at: number
+  class: "script" | "other"
+  completed: number
+  failed: number
+  interrupted: number
+}
+
+/** `GET /api/jobs/history`: the hours of the last `days` days in which a job ended. */
+export type JobHistory = { days: number; since: number; kept_days: number; hours: JobCount[] }
+
 /** How a GPU desktop reaches the host's GPU: WSL_GPU, NVIDIA_COMPUTE or DRI_GPU. */
 export type GpuRoute = "wsl" | "nvidia" | "dri"
 

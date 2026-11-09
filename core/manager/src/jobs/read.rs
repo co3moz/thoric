@@ -65,6 +65,7 @@ pub(crate) async fn answer(
     caller: Option<&Caller>,
 ) -> Result<Value> {
     read.checked()?;
+    super::history::kept(app, id)?;
     if let Some(wait) = read.wait_seconds.filter(|wait| *wait > 0) {
         until_ended(app, id, Duration::from_secs(wait), caller).await?;
     }
@@ -116,7 +117,14 @@ pub(crate) async fn mcp_answer(
     caller: Option<&Caller>,
 ) -> Result<Value> {
     let waited = read.wait_seconds.is_some_and(|wait| wait > 0);
-    let mut job = answer(app, id, read, caller).await?;
+    let mut job = match answer(app, id, read, caller).await {
+        Ok(job) => job,
+        Err(error) => {
+            // A job that is gone, such as one the history pruned, is no longer polled.
+            app.polls.forget(id);
+            return Err(error);
+        }
+    };
     if waited || !job["finished_at"].is_null() {
         app.polls.forget(id);
         return Ok(job);
