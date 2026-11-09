@@ -204,36 +204,40 @@ test("the restart warning names the settings that recreate the container and wha
   )
 })
 
-test("job activity counts finished jobs per local day and leaves out running ones", () => {
+test("job activity sums the hourly counts per local day, with or without scripts", () => {
   const now = new Date(2026, 9, 14, 12)
   const at = (days: number, hour = 10) => new Date(2026, 9, 14 - days, hour).getTime() / 1000
-  const job = (status: JobStatus, created: number, finished: number | null = created) => ({
-    status,
-    created_at: created,
-    finished_at: finished,
-  })
-  const points = jobActivity(
-    [
-      job("completed", at(0)),
-      job("failed", at(0)),
-      job("interrupted", at(1)),
-      // A job that started yesterday counts on the day it finished.
-      job("completed", at(1, 23), at(0, 1)),
-      job("running", at(0), null),
-      job("queued", at(0), null),
-      job("completed", at(7)),
-    ],
-    7,
-    now
-  )
+  const count = (
+    cls: "script" | "other",
+    at: number,
+    completed: number,
+    failed = 0,
+    interrupted = 0
+  ) => ({ at, class: cls, completed, failed, interrupted })
+  const hours = [
+    count("other", at(0), 1, 1),
+    count("script", at(0), 40, 2),
+    count("other", at(1), 0, 0, 1),
+    // The last hour of yesterday and the first of today are two days.
+    count("script", at(1, 23), 5),
+    count("other", at(0, 0), 1),
+    count("other", at(6), 2),
+    // Before the range, and after it.
+    count("other", at(7), 9),
+    count("other", at(-1), 9),
+  ]
+  const points = jobActivity(hours, 7, true, now)
   assert.equal(points.length, 7)
   assert.equal(points[0].date, "2026-10-08")
-  assert.deepEqual(points.at(-1), { date: "2026-10-14", completed: 2, failed: 1 })
-  assert.deepEqual(points.at(-2), { date: "2026-10-13", completed: 0, failed: 1 })
-  assert.equal(
-    points.reduce((sum, point) => sum + point.completed + point.failed, 0),
-    4
-  )
+  assert.deepEqual(points[0], { date: "2026-10-08", completed: 2, failed: 0 })
+  assert.deepEqual(points.at(-1), { date: "2026-10-14", completed: 42, failed: 3 })
+  // An interrupted job did not finish as asked either.
+  assert.deepEqual(points.at(-2), { date: "2026-10-13", completed: 5, failed: 1 })
+  const others = jobActivity(hours, 7, false, now)
+  assert.deepEqual(others.at(-1), { date: "2026-10-14", completed: 2, failed: 1 })
+  assert.deepEqual(others.at(-2), { date: "2026-10-13", completed: 0, failed: 1 })
+  // A range the counts do not reach is days without jobs, never a shorter chart.
+  assert.equal(jobActivity([], 30, true, now).length, 30)
 })
 
 test("the jobs menu lists jobs in progress before newer finished ones", () => {

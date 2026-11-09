@@ -39,8 +39,10 @@ use tokio::sync::broadcast::error::RecvError;
 use tokio_util::sync::CancellationToken;
 
 /// How many jobs each endpoint started are remembered, its oldest forgotten first, so one
-/// endpoint's calls never push out another's.
-const STARTED_JOBS: usize = 256;
+/// endpoint's calls never push out another's: as many as the job history keeps, so an endpoint
+/// reads a job it started for as long as the record is there.
+pub(super) const STARTED_JOBS: usize =
+    crate::jobs::history::KEPT_SCRIPT_JOBS + crate::jobs::history::KEPT_JOBS;
 
 /// An endpoint's MCP service, and what ends every session it holds.
 #[derive(Clone)]
@@ -318,10 +320,16 @@ impl EndpointMcp {
                 // Only jobs the endpoint started, so an administrator's script that ran as root
                 // in the same container stays the administrator's.
                 if !self.app.desktop_mcp.started_by(&self.name, &id) {
+                    // A job whose record is gone is said to be gone; another's stays hidden.
+                    crate::jobs::history::kept(&self.app, &id)?;
                     return Err(error::missing());
                 }
-                let job: crate::model::Job =
-                    self.app.db.get("job", &id).map_err(|_| error::missing())?;
+                // The endpoint started it, so a record that is gone was pruned.
+                let job: crate::model::Job = self
+                    .app
+                    .db
+                    .get("job", &id)
+                    .map_err(|_| crate::jobs::history::pruned(&id))?;
                 // And of the endpoint's own containers, should a grant have been taken back. A
                 // set's endpoint started every job in an instance of its own, and reads one of
                 // an instance that is gone since: a creation that failed, or a deletion.

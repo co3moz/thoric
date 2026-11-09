@@ -399,6 +399,7 @@ fn router(app: Arc<App>) -> Router {
             post(desktop_mcp::refresh_server),
         )
         .route("/api/jobs", get(api::jobs))
+        .route("/api/jobs/history", get(jobs::history::counts))
         .route("/api/jobs/{id}", get(api::job))
         .route("/api/jobs/{id}/retry", post(jobs::retry::retry))
         .route("/api/jobs/{id}/cancel", post(jobs::cancel::cancel))
@@ -543,8 +544,9 @@ async fn main() -> anyhow::Result<()> {
     tokio::fs::create_dir_all(&config.data).await?;
     uploads::cleanup_temporary_files(&config.data).await?;
     let db = db::Db::open(&config.data.join(db::FILE))?;
-    // Finished jobs beyond the newest are history nobody reads, kept out of memory and the file.
-    db.prune_jobs(jobs::KEPT_JOBS)?;
+    // Finished jobs beyond the newest of their class are history nobody reads, kept out of
+    // memory and the file.
+    jobs::history::prune(&db)?;
     // Interrupted work is explicit. Never silently retry a user script or remove a container.
     // An update or a settings change the WSL distribution runs replaces the manager on its way,
     // and goes on.
@@ -566,6 +568,7 @@ async fn main() -> anyhow::Result<()> {
                 "\nService restarted. The Docker operation may have continued; check resources before retrying.\n",
                 false,
             )?;
+            jobs::history::count(&db, &job)?;
             if job.kind == "build" {
                 interrupted_builds.push(job.id);
             }

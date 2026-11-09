@@ -12,11 +12,12 @@ import { iconUrl } from "./icons"
 import { fileSize } from "./uploads"
 import type {
   Container,
-  DownloadProgress,
   ContainerItem,
   ContainerSpec,
+  DownloadProgress,
   ImageItem,
   Job,
+  JobCount,
   ScriptSummary,
 } from "./types"
 
@@ -611,15 +612,19 @@ export function restartNotice(fields: string[], running: boolean) {
   )
 }
 
+/** Finished jobs of one local day. */
 export type ActivityPoint = { date: string; completed: number; failed: number }
 
 /**
- * Finished jobs per local day over the last `days` days, oldest first. Interrupted jobs count as
- * failed: either way the operation did not finish as asked.
+ * Finished jobs per local day over the last `days` days, oldest first, from the manager's hourly
+ * counts, which outlive the job records. Interrupted jobs count as failed: either way the
+ * operation did not finish as asked. Without `scripts` the script jobs are left out. An hour
+ * belongs to the local day it begins in.
  */
 export function jobActivity(
-  jobs: Pick<Job, "status" | "created_at" | "finished_at">[],
+  hours: JobCount[],
   days: number,
+  scripts = true,
   now = new Date()
 ): ActivityPoint[] {
   const key = (value: Date) =>
@@ -630,12 +635,12 @@ export function jobActivity(
     const day = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i)
     points.set(key(day), { date: key(day), completed: 0, failed: 0 })
   }
-  for (const job of jobs) {
-    if (jobActive(job)) continue
-    const point = points.get(key(new Date((job.finished_at ?? job.created_at) * 1000)))
+  for (const hour of hours) {
+    if (!scripts && hour.class === "script") continue
+    const point = points.get(key(new Date(hour.at * 1000)))
     if (!point) continue
-    if (job.status === "completed") point.completed++
-    else point.failed++
+    point.completed += hour.completed
+    point.failed += hour.failed + hour.interrupted
   }
   return [...points.values()]
 }

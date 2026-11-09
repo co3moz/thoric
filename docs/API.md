@@ -174,7 +174,8 @@ A transfer ends when its client stops. A download of an image, volume or folder 
 | GET | `/api/skills` | The [skills](#skills) Thoric serves its agents: each one's `name`, `description`, `url`, `digest` and `size`, and the MCP `servers` that offer it, `root` for `/mcp` and `set` for a scale set's endpoints. |
 | Any | `/mcp` | The root MCP server of [the MCP guide](MCP.md): Streamable HTTP with the MCP token, not a session; `404` unless `ROOT_MCP_ENABLED`. |
 | Any | `/mcp/{name}` | An [MCP endpoint](#desktop-mcp-servers-and-endpoints): Streamable HTTP with its own token or the MCP token, not a session. |
-| GET | `/api/jobs` | Latest 100 job summaries. The manager keeps the newest 500 finished jobs and removes older ones; a running job is kept until it ends. |
+| GET | `/api/jobs` | Latest 100 job summaries, of every kind unless `kind` or `scripts` [filters them](#job-history). The manager keeps the newest 1000 finished script jobs and the newest 500 finished jobs of every other kind and removes older ones; a running job is kept until it ends. |
+| GET | `/api/jobs/history` | [How many jobs ended](#job-history) in each hour of the last `days` days, by class and by how they ended. |
 | GET | `/api/jobs/{job_id}` | Job status, log and result. Optional `wait_seconds`, `log_tail_bytes` and `log_offset` [wait for it and read part of its log](#follow-a-job). |
 | POST | `/api/jobs/{job_id}/retry` | Start a [failed or interrupted job again](#retry-a-job) with the request it was started with; returns the new `job_id`. |
 | POST | `/api/jobs/{job_id}/cancel` | [Cancel](#cancel-a-job) a queued job, or stop a running script, build or image download. |
@@ -331,6 +332,21 @@ While the scripts run, the job's `progress` is `{"script": {...}}`:
 | `percent` | The share of all parts done, each part weighing the same: a step that began counts the ones before it, a skipped step counts itself and a line counts the lines above it. It never goes back. |
 
 The job also keeps `script`, which stays once the job ends: `{"parts": [...]}`, each part with `name` when there are several, `started_at`, `finished_at` when it ended well, so the part a failed or interrupted job stopped in has none, `cached` when BuildKit reused the layer of an earlier build and the script did not run, `stages`, the count its steps gave, and `steps`, at most 200 of `{"stage", "label", "started_at", "finished_at", "skipped"}`. A skipped step has no times. A number a script jumped over, and the numbers after its last step in a part that ended well, were skipped too and are not listed. Job lists leave `script` out, as they leave the log out; `GET /api/jobs/{job_id}` has it.
+
+## Job history
+
+An agent runs scripts by the thousand, so finished jobs are kept by class: the newest 1000 script jobs (`exec`) and the newest 500 jobs of every other kind, each counted alone, so a day of scripts never removes a build, a creation or a snapshot. A job that is queued or running stays whatever its age. A job beyond its class's number goes with its log and the request kept to [retry](#retry-a-job) it, when a job ends and when the manager starts.
+
+`GET /api/jobs` lists the latest 100 jobs of every kind. `scripts=false` leaves the script jobs out, so the latest 100 of every other kind are listed, and `scripts=true` lists the script jobs alone. `kind` names one kind, such as `build`, or several separated by commas, as `kind=build,snapshot,create`; a kind is lowercase letters, digits and dashes, and at most 32 are named. Both together list the jobs that match both.
+
+`GET /api/jobs/{job_id}` for a job that was removed answers `404` with an error that says so, `The job ... ended and its record is no longer kept`, instead of `Record not found`. The manager remembers the newest 4096 ids it removed since it started; for any other id of a job's shape, 32 hexadecimal digits, the error says that the job may have been removed.
+
+`GET /api/jobs/history` answers how many jobs ended, which outlives the job records: `{"days", "since", "kept_days", "hours": [{"at", "class", "completed", "failed", "interrupted"}]}`. Each entry is one hour in which a job ended, `at` the second it began, and `class` is `script` or `other`; a cancelled job counts as `failed`, and `interrupted` counts the jobs a restart of the manager ended. `days` is how far back the hours reach, 30 unless given and at most 90, with one more day before them so a page can sum whole days of its own time zone. The counts are kept for 92 days. An installation that upgrades starts them from the finished jobs it still has.
+
+```bash
+curl --cookie thoric.cookies 'http://localhost:8080/api/jobs?scripts=false'
+curl --cookie thoric.cookies 'http://localhost:8080/api/jobs/history?days=7'
+```
 
 ## Follow a job
 

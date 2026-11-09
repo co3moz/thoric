@@ -7,6 +7,7 @@ import { closeDialog } from "./dialogs"
 import { dockerEventsLive, streamLive } from "./events"
 import { jobActive } from "./format"
 import { fetchTemplateList } from "./templates"
+import { jobsPath, OTHER_JOBS } from "./job-history"
 import { followLog, jobReadPath, logWentBack, type JobRead } from "./job-log"
 import { endpointApi } from "./mcp"
 import { creationEnded } from "./pending"
@@ -20,6 +21,7 @@ import type {
   ImageItem,
   ImageLayers,
   Job,
+  JobHistory,
   McpEndpoint,
   McpScopes,
   Session,
@@ -177,7 +179,7 @@ export const useJobs = (poll = true) =>
   useQuery({
     queryKey: ["jobs"],
     queryFn: async () => {
-      const jobs = await api<Job[]>("jobs")
+      const jobs = await api<Job[]>(jobsPath(true))
       const before = queryClient.getQueryData<Job[]>(["jobs"])
       if (before && creationEnded(before, jobs))
         await Promise.all(
@@ -188,6 +190,31 @@ export const useJobs = (poll = true) =>
       return jobs
     },
     refetchInterval: () => streamedInterval(poll),
+  })
+
+/**
+ * The jobs a list shows: the latest of every kind, or with `scripts` off the latest that are not
+ * scripts, which the manager lists apart so a build is found among an agent's scripts.
+ */
+export function useJobList(scripts: boolean) {
+  const all = useJobs(scripts)
+  const others = useQuery({
+    queryKey: [OTHER_JOBS],
+    queryFn: () => api<Job[]>(jobsPath(false)),
+    enabled: !scripts,
+    refetchInterval: () => streamedInterval(!scripts),
+  })
+  return scripts ? all : others
+}
+
+/** How many jobs ended in each hour of the last `days` days; see `jobActivity`. */
+export const useJobHistory = (days: number) =>
+  useQuery({
+    queryKey: ["job-history", days],
+    queryFn: () => api<JobHistory>(`jobs/history?days=${days}`),
+    refetchInterval: 60_000,
+    placeholderData: (before) => before,
+    meta: { quiet: true },
   })
 
 /**

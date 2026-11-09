@@ -1,11 +1,12 @@
 //! The manager's SQLite: a table of JSON records by kind and id, the agent activity, the jobs'
-//! logs ([`job_log`]) and what the numbered [`migrations`] bring, which every start runs before
-//! anything reads.
+//! logs ([`job_log`]), what stays of the jobs that ended ([`job_history`]) and what the numbered
+//! [`migrations`] bring, which every start runs before anything reads.
 use anyhow::{Context, Result};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Serialize, de::DeserializeOwned};
 use std::{collections::HashSet, path::Path, sync::Mutex};
 
+pub(crate) mod job_history;
 mod job_log;
 mod migrations;
 
@@ -16,6 +17,8 @@ pub struct Db {
     conn: Mutex<Connection>,
     /// The records a list skipped because they did not read, by kind and id, each said once.
     unreadable: Mutex<HashSet<(String, String)>>,
+    /// The jobs pruned since the manager started, so a read of one can say so.
+    pruned: Mutex<job_history::Pruned>,
 }
 impl Db {
     pub fn open(path: &Path) -> Result<Self> {
@@ -31,6 +34,7 @@ impl Db {
         Ok(Self {
             conn: Mutex::new(conn),
             unreadable: Mutex::new(HashSet::new()),
+            pruned: Mutex::default(),
         })
     }
     /// The connection itself, for a module with a table of its own, such as the agent activity.
@@ -179,29 +183,6 @@ impl Db {
             )?,
         })
     }
-    /// Remove the finished jobs beyond the newest `keep`, with their logs. A job still running
-    /// or queued stays whatever its age; its end is what marks it finished.
-    pub fn prune_jobs(&self, keep: usize) -> Result<usize> {
-        const PRUNED: &str = "kind='job' AND json_extract(data, '$.finished_at') IS NOT NULL AND rowid NOT IN (SELECT rowid FROM records WHERE kind='job' ORDER BY rowid DESC LIMIT ?1)";
-        let mut conn = self.connection();
-        let transaction = conn.transaction()?;
-        // The logs first, while the records still say whose they are.
-        transaction.execute(
-            &format!("DELETE FROM job_log WHERE job IN (SELECT id FROM records WHERE {PRUNED})"),
-            params![keep as i64],
-        )?;
-        let removed = transaction.execute(
-            &format!("DELETE FROM records WHERE {PRUNED}"),
-            params![keep as i64],
-        )?;
-        // A request kept to start a job again goes with its job.
-        transaction.execute(
-            "DELETE FROM records WHERE kind=?1 AND id NOT IN (SELECT id FROM records WHERE kind='job')",
-            params![crate::jobs::retry::REQUESTS],
-        )?;
-        transaction.commit()?;
-        Ok(removed)
-    }
     /// Remove a record and return it, or `None` when there is none: of two callers that take the
     /// same record, only one gets it.
     pub fn take<T: DeserializeOwned>(&self, kind: &str, id: &str) -> Result<Option<T>> {
@@ -224,9 +205,10 @@ impl Db {
         )?;
         Ok(found)
     }
+    /// The newest 100 jobs, without their logs or script reports, as the tests list them.
+    #[cfg(test)]
     pub fn jobs_summary(&self) -> Result<Vec<crate::model::Job>> {
-        // Strip potentially large logs and script reports in SQLite, before allocating/deserializing rows.
-        self.jobs("SELECT id, json_remove(json_set(data, '$.log', ''), '$.script') FROM records WHERE kind='job' ORDER BY rowid DESC LIMIT 100")
+        self.jobs_listed(&job_history::Filter::default())
     }
     /// The jobs that are queued or running, newest first, without their logs or script reports.
     pub fn active_jobs(&self) -> Result<Vec<crate::model::Job>> {
