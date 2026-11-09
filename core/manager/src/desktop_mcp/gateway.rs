@@ -20,9 +20,9 @@ use rmcp::{
     ErrorData, RoleServer, ServerHandler,
     model::{
         CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, CustomRequest,
-        CustomResult, Implementation, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
-        ReadResourceRequestParams, ReadResourceResponse, ServerCapabilities, ServerConfig,
-        SubscriptionFilter,
+        CustomResult, GetSkillRequestParams, GetSkillResult, Implementation, ListResourcesResult,
+        ListSkillsResult, ListToolsResult, PaginatedRequestParams, ReadResourceRequestParams,
+        ReadResourceResponse, ServerCapabilities, ServerConfig, SubscriptionFilter,
     },
     service::{NotificationContext, RequestContext, SubscriptionContext},
     transport::{
@@ -581,12 +581,26 @@ impl ServerHandler for EndpointMcp {
     ) -> Result<ReadResourceResponse, ErrorData> {
         skills::mcp::read(&self.skills(), &request.uri).map(Into::into)
     }
+    async fn list_skills(
+        &self,
+        request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListSkillsResult, ErrorData> {
+        skills::mcp::list(&self.skills(), request)
+    }
+    async fn get_skill(
+        &self,
+        request: GetSkillRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<GetSkillResult, ErrorData> {
+        skills::mcp::get(&self.skills(), &request.uri)
+    }
     async fn on_custom_request(
         &self,
         request: CustomRequest,
         _context: RequestContext<RoleServer>,
     ) -> Result<CustomResult, ErrorData> {
-        skills::mcp::request(&self.skills(), request)
+        Err(skills::mcp::unread(&self.skills(), &request))
     }
     async fn list_tools(
         &self,

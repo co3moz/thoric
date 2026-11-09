@@ -17,7 +17,7 @@ hyper = { version = "1", features = ["client", "http1"] }
 hyper-util = { version = "0.1", features = ["tokio"] }
 jpeg-decoder = { version = "0.3", default-features = false }
 regex = "1"
-rmcp = { version = "3.5.1", default-features = false, features = ["client", "server", "transport-streamable-http-server"] }
+rmcp = { version = "3.9.0", default-features = false, features = ["client", "server", "transport-streamable-http-server"] }
 rusqlite = { version = "0.41", features = ["bundled"] }
 schemars = "1"
 serde = { version = "1", features = ["derive"] }
