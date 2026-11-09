@@ -313,9 +313,7 @@ fn check_scale_sets(manifest: &Manifest, records: &Records) -> Result<()> {
         let named = |error: anyhow::Error| error.context(format!("Scale set {}", set.name));
         crate::scale::limits(set.min, set.max, set.idle_delete_minutes).map_err(named)?;
         set.template.validate().map_err(named)?;
-        for target in set.volumes.keys() {
-            mount_target(target).map_err(named)?;
-        }
+        crate::scale::check_policies(&set.volumes).map_err(named)?;
         if let Some(endpoint) = &set.endpoint {
             endpoint_name(endpoint).map_err(named)?;
         }

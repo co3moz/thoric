@@ -1,18 +1,19 @@
 //! The skills as the MCP Skills extension (SEP-2640) serves them: each `SKILL.md` is a resource at
 //! `skill://<name>/SKILL.md`, and `skills/list` and `skills/get` give a skill's frontmatter, size
-//! and digest. rmcp routes those two to a server's `list_skills` and `get_skill` once its
-//! capabilities declare the extension, and checks every entry against the extension's rules
-//! before it answers. Few clients know the extension yet, while most let the model read a
-//! resource, so the server's instructions also name each skill's URI and when to read it, the
-//! pointer the extension allows.
+//! and digest. Few clients know the extension yet, while most let the model read a resource, so
+//! the server's instructions also name each skill's URI and when to read it, the pointer the
+//! extension allows. rmcp routes `skills/list` and `skills/get` to a server handler's
+//! `list_skills` and `get_skill`, which answer with `list` and `get`; it answers them itself, as
+//! unknown methods, on a server that declares no skills, and refuses an entry that breaks the
+//! extension's rules.
 use super::{MARKDOWN, SKILLS, Server, Skill};
 use rmcp::{
     ErrorData,
     model::{
         CustomRequest, ErrorCode, GetSkillResult, ListResourcesResult, ListSkillsResult,
         PaginatedRequestParams, ReadResourceResult, Resource, ResourceContents,
-        ResourcesCapability, SKILLS_EXTENSION_ID, ServerCapabilities, Skill as Entry,
-        SkillFrontmatter, SkillResource, SkillResources,
+        ResourcesCapability, SKILLS_EXTENSION_ID, ServerCapabilities, SkillFrontmatter,
+        SkillResource, SkillResources,
     },
 };
 use serde_json::Map;
@@ -95,9 +96,9 @@ pub(crate) fn read(skills: &[&Skill], uri: &str) -> Result<ReadResourceResult, E
     ]))
 }
 
-/// A skill as `skills/list` and `skills/get` give it: every field of its frontmatter and its one
-/// file, with that file's digest and size.
-fn entry(skill: &Skill) -> Entry {
+/// A skill as `skills/list` and `skills/get` give it: its whole frontmatter and its one file, with
+/// that file's digest and size.
+fn entry(skill: &Skill) -> rmcp::model::Skill {
     let uri = uri(skill);
     let frontmatter = skill
         .frontmatter
@@ -108,11 +109,10 @@ fn entry(skill: &Skill) -> Entry {
             |frontmatter, (key, value)| frontmatter.with_field(key.clone(), value.clone()),
         );
     let file = SkillResource::new(uri.clone(), skill.digest.clone(), skill.size());
-    Entry::new(uri, frontmatter, SkillResources::Files(vec![file]))
+    rmcp::model::Skill::new(uri, frontmatter, SkillResources::Files(vec![file]))
 }
 
-/// `skills/list`: every skill the server offers, on one page. rmcp answers method-not-found
-/// before this on a server that declares no skills.
+/// `skills/list`: every skill the server offers, on one page.
 pub(crate) fn list(
     skills: &[&Skill],
     request: Option<PaginatedRequestParams>,
@@ -128,19 +128,24 @@ pub(crate) fn list(
     ))
 }
 
-/// `skills/get` of the skill whose `SKILL.md` is at `uri`.
+/// `skills/get`: the offered skill whose `SKILL.md` is at `uri`.
 pub(crate) fn get(skills: &[&Skill], uri: &str) -> Result<GetSkillResult, ErrorData> {
     Ok(GetSkillResult::new(entry(named(skills, uri)?)))
 }
 
-/// A request whose parameters rmcp could not read as those of a method it knows, such as
-/// `skills/get` without a `uri`, which it hands on as a custom request: invalid params, `-32602`,
-/// for the extension's methods on a server that offers skills, and method-not-found, as rmcp
-/// answers by itself, for anything else.
+/// What a request rmcp could not read as one it knows is answered with. `skills/list` and
+/// `skills/get` come here only when their parameters do not read, such as `skills/get` without a
+/// `uri`, which on a server that offers skills is invalid parameters, `-32602`; any other method
+/// is unknown, as without the extension.
 pub(crate) fn unread(skills: &[&Skill], request: &CustomRequest) -> ErrorData {
-    let method = request.method.as_str();
-    if !skills.is_empty() && matches!(method, "skills/list" | "skills/get") {
-        return ErrorData::invalid_params(format!("The parameters of {method} do not read"), None);
+    let takes = match request.method.as_str() {
+        _ if skills.is_empty() => None,
+        "skills/list" => Some("at most a cursor"),
+        "skills/get" => Some("the uri of a skill's SKILL.md"),
+        _ => None,
+    };
+    match takes {
+        Some(takes) => ErrorData::invalid_params(format!("{} takes {takes}", request.method), None),
+        None => ErrorData::new(ErrorCode::METHOD_NOT_FOUND, request.method.clone(), None),
     }
-    ErrorData::new(ErrorCode::METHOD_NOT_FOUND, method.to_owned(), None)
 }

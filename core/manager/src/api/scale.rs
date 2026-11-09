@@ -151,6 +151,7 @@ pub async fn update_set(
         ));
     }
     if let Some(policies) = &body.volumes {
+        scale::check_policies(policies)?;
         let template: Template = app.db.get(TEMPLATES, &name).unwrap_or_default();
         volumes::check_targets(
             &volumes::slots(&set, template.pinned.as_ref().map(|(_, pinned)| pinned)),

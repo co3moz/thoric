@@ -2289,13 +2289,14 @@ export const es: Messages = {
     "Una instancia además de las que el grupo mantiene que nadie usó durante este tiempo se elimina con los volúmenes creados para ella.",
   "scale.volumes": "Volúmenes de las instancias nuevas",
   "scale.volumesHint":
-    "Compartido monta el mismo volumen en cada instancia, así que cada una ve lo que las otras escriben ahí. Nuevo por instancia da a cada una un volumen vacío propio, que se elimina con ella. Primera mantiene el volumen para la instancia 1 y da volúmenes nuevos a las demás.",
+    "Compartido monta el mismo volumen en cada instancia, así que cada una ve lo que las otras escriben ahí. Nuevo por instancia da a cada una un volumen vacío propio, que se elimina con ella. Primera mantiene el volumen para la instancia 1 y da volúmenes nuevos a las demás. Compartido, solo la primera escribe también lo monta en cada instancia, de solo lectura salvo en la instancia 1, así que las demás ven sus archivos sin poder cambiarlos. Las instancias que ya existen conservan lo que montan.",
   "scale.noVolumes":
     "El contenedor no monta ningún volumen, así que sus instancias no comparten nada.",
   "scale.policyOf": "Lo que reciben las instancias nuevas en {target}",
   "scale.policy.shared": "Compartido",
   "scale.policy.new": "Nuevo por instancia",
   "scale.policy.first": "La primera lo mantiene, las demás nuevo",
+  "scale.policy.first_writes": "Compartido, solo la primera escribe",
   "scale.servers": "Servidores MCP del escritorio",
   "scale.serversHint":
     "Dónde se ejecuta cada servidor del escritorio. Solo la instancia 1 es para un programa que bloquea lo que comparten las instancias, como un proyecto de Ghidra en un volumen compartido: la instancia 1 lo ejecuta una vez y sus herramientas sirven a todas las instancias. Un cambio se aplica a todas las instancias al momento.",
@@ -2326,6 +2327,8 @@ export const es: Messages = {
   "scale.note": "Nota",
   "scale.notePlaceholder": "Para qué es, como el agente que trabaja en ella",
   "scale.setPolicy": "Elección del grupo: {policy}",
+  "scale.firstWritesInstance":
+    "De solo lectura después de la instancia 1, aunque se elija Compartido.",
   "scale.addInstance": "Añadir instancia",
   "scale.deleteTitle": "¿Eliminar el grupo escalable {name}?",
   "scale.deleteDescription":

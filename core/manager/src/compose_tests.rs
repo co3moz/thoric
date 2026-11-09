@@ -193,6 +193,7 @@ fn the_container_shows_ordinary_values_and_only_the_names_of_secrets() {
     let pinned = Pinned {
         compose: unity(),
         values,
+        readonly: Default::default(),
     };
     let setup = pinned.setup("img");
     assert_eq!(setup.status, "pending");
@@ -278,6 +279,7 @@ fn a_volume_parameter_mounts_its_volume_and_the_script_reads_its_path() {
     let pinned = Pinned {
         compose: installs(),
         values,
+        readonly: Default::default(),
     };
     assert_eq!(pinned.mounts(), [mount("unity-installs", "/opt/unity")]);
     assert_eq!(pinned.paths(), ["/opt/unity", "/home/desktop/.cache/unity"]);
@@ -325,6 +327,7 @@ fn the_folders_a_compose_names_are_offered_and_take_uploads() {
     let pinned = Pinned {
         values: compose.resolve(&given(&[]), "e").unwrap(),
         compose,
+        readonly: Default::default(),
     };
     let place = |label: &str, path: &str| Place {
         label: label.into(),
@@ -409,6 +412,7 @@ fn every_new_container_mounts_the_volumes_its_compose_was_given() {
     let pinned = Pinned {
         compose: installs(),
         values: installs().resolve(&BTreeMap::new(), "e").unwrap(),
+        readonly: Default::default(),
     };
     let mut env = Container {
         setup: Some(pinned.setup("img")),
@@ -470,6 +474,7 @@ fn a_container_left_without_a_volume_gets_one_of_its_own_and_pins_it() {
     let pinned = Pinned {
         compose: workspace(),
         values,
+        readonly: Default::default(),
     };
     let own = mount("thoric-e-unity-workspace", "/home/desktop/Projects");
     assert_eq!(pinned.mounts(), std::slice::from_ref(&own));
@@ -496,6 +501,7 @@ fn a_container_left_without_a_volume_gets_one_of_its_own_and_pins_it() {
         values: workspace()
             .resolve(&given(&[("UNITY_WORKSPACE", "projects")]), "e")
             .unwrap(),
+        readonly: Default::default(),
     };
     assert_eq!(
         named.mounts(),
@@ -510,6 +516,7 @@ fn a_container_keeps_its_own_volume_whenever_it_is_created_again() {
     let pinned = Pinned {
         compose: workspace(),
         values: workspace().resolve(&BTreeMap::new(), "e").unwrap(),
+        readonly: Default::default(),
     };
     let mut env = Container {
         setup: Some(pinned.setup("img")),
@@ -537,6 +544,7 @@ async fn a_container_from_a_snapshot_gets_a_volume_of_its_own() {
     let source = Pinned {
         compose: workspace(),
         values: workspace().resolve(&BTreeMap::new(), "e").unwrap(),
+        readonly: Default::default(),
     };
     app.save_pinned("e", &source).unwrap();
     let snapshot = image("snap", app.pinned_compose("e"));
@@ -611,6 +619,9 @@ fn data_saved_while_composes_were_templates_keeps_its_compose() {
     // What is written from now on uses the new name.
     let written = serde_json::to_value(&pinned).unwrap();
     assert!(written.get("compose").is_some() && written.get("template").is_none());
+    // A compose pinned before read-only volumes mounts every volume to write, and one that has
+    // none read-only is written as before.
+    assert!(pinned.readonly.is_empty() && written.get("readonly").is_none());
 }
 
 #[tokio::test]
@@ -687,6 +698,7 @@ fn a_restart_before_setup_finished_leaves_it_failed_for_retry() {
     let pinned = Pinned {
         compose: unity(),
         values: given(&[("UNITY_EMAIL", "a"), ("UNITY_PASSWORD", "b")]),
+        readonly: Default::default(),
     };
     let cases = [
         ("running", None),
@@ -747,6 +759,7 @@ fn the_runner_reads_every_field_the_manager_sends() {
     let pinned = Pinned {
         compose: unity(),
         values: BTreeMap::new(),
+        readonly: Default::default(),
     };
     for key in pinned.request(0).as_object().unwrap().keys() {
         assert!(
@@ -922,6 +935,7 @@ fn each_step_receives_only_its_own_values_and_the_record_shows_them_by_step() {
     let pinned = Pinned {
         values: compose.resolve(&given(&[("TOKEN", "t0k3n")]), "e").unwrap(),
         compose,
+        readonly: Default::default(),
     };
     // The same name reaches each script with its own step's value.
     assert_eq!(
@@ -976,6 +990,7 @@ fn each_step_receives_only_its_own_values_and_the_record_shows_them_by_step() {
     let single = Pinned {
         compose: unity(),
         values: BTreeMap::new(),
+        readonly: Default::default(),
     };
     assert!(single.setup("img").steps.is_empty());
 }
@@ -986,6 +1001,7 @@ fn a_retry_runs_every_step_again_and_a_failure_keeps_the_step_it_stopped_in() {
     let pinned = Pinned {
         values: compose.resolve(&BTreeMap::new(), "e").unwrap(),
         compose,
+        readonly: Default::default(),
     };
     let mut env = Container {
         setup: Some(pinned.setup("img")),

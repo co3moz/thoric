@@ -4,11 +4,26 @@
 // desktop MCP server runs in every instance, or in instance 1 alone for all of them.
 import type { ContainerItem } from "./types"
 
-/** What an instance mounts for a volume of the template. */
-export type VolumePolicy = "shared" | "new" | "first"
+/**
+ * What an instance mounts for a volume of the template. `first_writes` mounts the template's in
+ * every instance, read-only in all but instance 1.
+ */
+export type VolumePolicy = "shared" | "new" | "first" | "first_writes"
 
 /** The policies in the order the forms offer them. */
-export const POLICIES: VolumePolicy[] = ["shared", "new", "first"]
+export const POLICIES: VolumePolicy[] = ["shared", "first_writes", "new", "first"]
+
+/**
+ * Whether a volume at `target` must stay writable in every instance, so `first_writes` is not
+ * offered there: the desktop home and its configuration folders, which the session writes, as
+ * `must_stay_writable` in `core/manager/src/model.rs` says.
+ */
+export const mustStayWritable = (target: string) =>
+  target === "/home/desktop" || target.startsWith("/home/desktop/.")
+
+/** The policies a form offers for a volume at `target`. */
+export const policiesFor = (target: string) =>
+  mustStayWritable(target) ? POLICIES.filter((policy) => policy !== "first_writes") : POLICIES
 
 /**
  * Where the instances run a desktop MCP server: `each` its own, or `first`, instance 1 alone for
