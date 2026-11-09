@@ -1,4 +1,12 @@
-use crate::{App, docker::logged::Ran, error::Result, jobs::launch_shared};
+use crate::{
+    App,
+    docker::logged::Ran,
+    error::Result,
+    files,
+    human::Caller,
+    jobs::{self, launch_shared},
+    model::LOG_LIMIT,
+};
 use anyhow::{Context, bail};
 use axum::{
     Json,
@@ -49,10 +57,55 @@ pub struct Execute {
     pub root: bool,
     #[serde(default = "default_timeout")]
     pub timeout_seconds: u64,
+    /// Files the script needs, such as the program it runs, written before it starts as
+    /// `POST /api/containers/{id}/files/write` writes them: as the desktop user, also for a root
+    /// script. At most 16 files of 512 KiB each and 1 MiB together.
+    #[serde(default)]
+    pub files: Vec<ScriptFile>,
+    /// Wait up to this many seconds, at most 300, for the script to end and answer with its job
+    /// as `GET /api/jobs/{id}` does, with `job_id` beside it. Without it the answer is `job_id`
+    /// alone, at once.
+    #[serde(default)]
+    pub wait_seconds: Option<u64>,
+    /// With `wait_seconds`, return at most the last this many bytes of the job's log. Left out,
+    /// the log is its last 4096 bytes, or empty once `result.output_tail` carries the output.
+    #[serde(default)]
+    pub log_tail_bytes: Option<usize>,
 }
 fn default_timeout() -> u64 {
     300
 }
+
+/// One file written for a script before it runs.
+#[derive(Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ScriptFile {
+    /// Canonical absolute path of the file. Missing folders are created.
+    pub path: String,
+    /// The file's content, as `encoding` says.
+    pub data: String,
+    #[serde(default)]
+    pub encoding: files::Encoding,
+    /// Write over an existing file.
+    #[serde(default)]
+    pub replace: bool,
+}
+
+/// The most files one script takes with it.
+pub(crate) const FILES: usize = 16;
+/// The most bytes those files hold together.
+pub(crate) const FILES_BYTES: usize = 1024 * 1024;
+/// How long `exec_container` waits for its script when the agent does not say: most scripts end
+/// within it, so their result needs no `get_job`, and one that does not still answers soon.
+pub(crate) const MCP_WAIT: u64 = 5;
+
+/// A script's file as it is written: where, what, and whether over an existing file.
+struct Delivery {
+    path: String,
+    data: Vec<u8>,
+    replace: bool,
+}
+
 impl Execute {
     pub fn validate(&self) -> anyhow::Result<()> {
         if self.script.trim().is_empty()
@@ -64,7 +117,45 @@ impl Execute {
         if !(1..=3500).contains(&self.timeout_seconds) {
             bail!("timeout_seconds must be between 1 and 3500");
         }
+        if self
+            .wait_seconds
+            .is_some_and(|wait| wait > jobs::read::MAX_WAIT)
+        {
+            bail!("wait_seconds must be at most {}", jobs::read::MAX_WAIT);
+        }
+        if self.log_tail_bytes.is_some_and(|tail| tail > LOG_LIMIT) {
+            bail!("log_tail_bytes must be at most {LOG_LIMIT}");
+        }
         Ok(())
+    }
+    /// The files to write, decoded, or why the request is refused before anything runs: too
+    /// many, too large, a path that is not canonical or named twice, or data that does not decode.
+    fn deliveries(&self) -> anyhow::Result<Vec<Delivery>> {
+        if self.files.len() > FILES {
+            bail!("A script takes at most {FILES} files");
+        }
+        let mut deliveries: Vec<Delivery> = Vec::with_capacity(self.files.len());
+        let mut total = 0;
+        for file in &self.files {
+            files::split_path(&file.path)?;
+            if deliveries.iter().any(|other| other.path == file.path) {
+                bail!("files names {} twice", file.path);
+            }
+            let data = file
+                .encoding
+                .decode(&file.data)
+                .with_context(|| format!("files: {}", file.path))?;
+            total += data.len();
+            if total > FILES_BYTES {
+                bail!("A script's files are limited to 1 MiB together");
+            }
+            deliveries.push(Delivery {
+                path: file.path.clone(),
+                data,
+                replace: file.replace,
+            });
+        }
+        Ok(deliveries)
     }
 }
 pub async fn execute(
@@ -72,7 +163,53 @@ pub async fn execute(
     Path(id): Path<String>,
     Json(body): Json<Execute>,
 ) -> Result<Json<Value>> {
+    Ok(Json(run(app, id, body, None).await?))
+}
+
+/// Start the script's job and, when the request waits, answer with the job as it is once it ends
+/// or the wait is over, as a read of the job answers. `job_id` is in every answer. `caller` is the
+/// MCP call that waits, which hears progress and may give the wait up.
+pub(crate) async fn run(
+    app: Arc<App>,
+    id: String,
+    body: Execute,
+    caller: Option<&Caller>,
+) -> Result<Value> {
     body.validate()?;
+    let deliveries = body.deliveries()?;
+    let wait = body.wait_seconds.filter(|wait| *wait > 0);
+    let tail = body.log_tail_bytes;
+    let Json(started) = start(app.clone(), id, body, deliveries)?;
+    let Some(wait) = wait else {
+        return Ok(started);
+    };
+    let job_id = started["job_id"].as_str().unwrap_or_default().to_owned();
+    let read = jobs::read::Read {
+        wait_seconds: Some(wait),
+        log_tail_bytes: Some(tail.unwrap_or(jobs::read::MCP_TAIL)),
+        log_offset: None,
+    };
+    let mut job = jobs::read::answer(&app, &job_id, &read, caller).await?;
+    if job["finished_at"].is_null() {
+        job["hint"] = json!(STILL_RUNNING);
+    } else if tail.is_none() && job["result"]["output_tail"].is_string() {
+        // The result carries the script's output; the log would repeat it.
+        job["log"] = json!("");
+        job["log_start"] = job["log_end"].clone();
+    }
+    job["job_id"] = json!(job_id);
+    Ok(job)
+}
+
+/// What an answer says of a script that outlived the call's wait.
+const STILL_RUNNING: &str = "The script is still running. Call get_job with this job_id and wait_seconds, up to 300, to wait for it to end; do not poll without wait_seconds.";
+
+fn start(
+    app: Arc<App>,
+    id: String,
+    body: Execute,
+    deliveries: Vec<Delivery>,
+) -> Result<Json<Value>> {
     app.container(&id)?;
     launch_shared(
         app,
@@ -93,6 +230,29 @@ pub async fn execute(
                 ),
             )?;
             let container = info["Id"].as_str().context("Missing container ID")?;
+            // The desktop user's files whoever runs the script: root reads them all the same,
+            // and nothing is written where only root may write.
+            for file in deliveries {
+                let size = file.data.len();
+                files::deliver(&app, container, &file.path, file.data, file.replace)
+                    .await
+                    .map_err(|error| {
+                        let hint = if error.0 == axum::http::StatusCode::CONFLICT {
+                            " Set replace to true for that file to write over it."
+                        } else {
+                            ""
+                        };
+                        anyhow::anyhow!(
+                            "Could not write {}, so the script did not run: {}{hint}",
+                            file.path,
+                            error.1
+                        )
+                    })?;
+                app.append_log(
+                    &job_id,
+                    &format!("Wrote {} ({size} bytes) as the desktop user.", file.path),
+                )?;
+            }
             // The script's name, its $0, marks its `timeout` for a cancel to find.
             let marker = format!("thoric-exec-{job_id}");
             let mut args = desktop_exec(user, body.root);

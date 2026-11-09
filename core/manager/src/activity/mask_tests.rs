@@ -236,6 +236,58 @@ fn a_script_is_kept_up_to_its_limit_and_a_text_up_to_its_own() {
 }
 
 #[test]
+fn a_scripts_files_keep_their_paths_and_their_contents_as_type_and_size() {
+    let masked = masked_tool(
+        "exec_container",
+        json!({
+            "container_id": "c1",
+            "script": "python3 /tmp/task.py",
+            "wait_seconds": 30,
+            "files": [
+                {"path": "/tmp/task.py", "data": "token = 'hunter22-secret'", "replace": true},
+                {"path": "/tmp/in.bin", "data": "aHVudGVyMjI=", "encoding": "base64", "extra": "kept as size"},
+                "not a file",
+            ],
+        }),
+    );
+    assert_eq!(
+        masked.arguments["files"],
+        json!([
+            {"path": "/tmp/task.py", "data": {"$masked": "string", "length": 25}, "replace": true},
+            {
+                "path": "/tmp/in.bin",
+                "data": {"$masked": "string", "length": 12},
+                "encoding": "base64",
+                "extra": {"$masked": "string", "length": 12},
+            },
+            {"$masked": "string", "length": 10},
+        ])
+    );
+    assert_eq!(masked.arguments["wait_seconds"], 30);
+    for content in ["hunter22", "aHVudGVyMjI=", "not a file"] {
+        assert!(!keeps(&masked, content), "{content}");
+    }
+    assert_eq!(
+        masked.redact("files: /tmp/task.py: unexpected token = 'hunter22-secret'"),
+        "files: /tmp/task.py: unexpected ***"
+    );
+    // Something else under the name is kept as its size, and a path's wrong type too.
+    let masked = masked_tool(
+        "exec_container",
+        json!({"script": "id", "files": "print(1)"}),
+    );
+    assert_eq!(
+        masked.arguments["files"],
+        json!({"$masked": "string", "length": 8})
+    );
+    let masked = masked_tool(
+        "exec_container",
+        json!({"script": "id", "files": [{"path": {"data": "hunter22"}}]}),
+    );
+    assert!(!keeps(&masked, "hunter22"));
+}
+
+#[test]
 fn an_error_text_never_repeats_a_masked_value() {
     let masked = masked_tool(
         "write_file",

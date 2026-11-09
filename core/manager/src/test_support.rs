@@ -115,6 +115,7 @@ pub(crate) fn app(auth: bool) -> Arc<App> {
         releases: releases::Releases::default(),
         events: events::Hub::default(),
         cancels: Default::default(),
+        polls: Default::default(),
         human: human::Requests::default(),
         outbound: outbound::Outbound::default(),
         lifecycle: lifecycle::Activity::default(),

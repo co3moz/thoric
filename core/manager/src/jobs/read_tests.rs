@@ -189,3 +189,72 @@ async fn a_wait_answers_once_the_job_ends_and_no_later_than_it_may() {
         .unwrap();
     assert_eq!(stopped["status"], "running");
 }
+
+#[tokio::test]
+async fn a_job_read_again_without_a_wait_is_answered_with_a_hint_to_wait() {
+    let app = app(false);
+    let (id, end) = running(&app, "working").await;
+    let (_, poll) = mcp_arguments(json!({"job_id": id})).unwrap();
+    let read = |read: Read| {
+        let (app, id) = (app.clone(), id.clone());
+        async move { mcp_answer(&app, &id, &read, None).await.unwrap() }
+    };
+    let again = || Read {
+        log_tail_bytes: poll.log_tail_bytes,
+        ..Default::default()
+    };
+    // The first read is not a poll yet.
+    assert!(read(again()).await.get("hint").is_none());
+    let second = read(again()).await;
+    let hint = second["hint"].as_str().unwrap();
+    assert!(
+        hint.contains("2 times") && hint.contains("wait_seconds"),
+        "{hint}"
+    );
+    assert!(
+        read(again()).await["hint"]
+            .as_str()
+            .unwrap()
+            .contains("3 times")
+    );
+    // The dashboard's own reads of the job, which it repeats, are never counted or hinted.
+    assert!(
+        answer(&app, &id, &Read::default(), None)
+            .await
+            .unwrap()
+            .get("hint")
+            .is_none()
+    );
+    // A read that waits is what the hint asks for, and starts the count again.
+    let waited = read(Read {
+        wait_seconds: Some(1),
+        ..again()
+    })
+    .await;
+    assert!(waited.get("hint").is_none());
+    assert!(read(again()).await.get("hint").is_none());
+    assert!(read(again()).await.get("hint").is_some());
+    // An ended job is read as often as anyone likes.
+    end.send(()).unwrap();
+    let ended = read(Read {
+        wait_seconds: Some(5),
+        ..again()
+    })
+    .await;
+    assert_eq!(ended["status"], "completed");
+    for _ in 0..3 {
+        assert!(read(again()).await.get("hint").is_none());
+    }
+    assert!(app.polls.0.lock().unwrap().is_empty());
+}
+
+#[test]
+fn the_counted_jobs_stay_bounded() {
+    let polls = Polls::default();
+    for job in 0..POLLED_JOBS * 3 {
+        polls.count(&job.to_string());
+        assert!(polls.0.lock().unwrap().len() <= POLLED_JOBS);
+    }
+    // A job that is counted keeps its count while the table is full.
+    assert_eq!(polls.count(&(POLLED_JOBS * 3 - 1).to_string()), 2);
+}
