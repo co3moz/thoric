@@ -102,8 +102,12 @@ impl ThoricMcp {
             // A wait for the job reports progress and ends when the client gives the call up.
             let (id, read) = jobs::read::mcp_arguments(args)?;
             return Ok(structured(
-                Box::pin(jobs::read::answer(&self.app, &id, &read, Some(&caller))).await?,
+                Box::pin(jobs::read::mcp_answer(&self.app, &id, &read, Some(&caller))).await?,
             ));
+        }
+        if name == "exec_container" {
+            // The wait for the script reports progress and ends when the client gives it up.
+            return Box::pin(self.exec(args, Some(&caller))).await;
         }
         if name != "request_human" && !terminal::TOOLS.contains(&name) {
             return self.dispatch(name, args).await;
@@ -148,6 +152,23 @@ impl ThoricMcp {
             }
             _ => unreachable!("tool catalog and dispatch must agree"),
         }
+    }
+    /// `exec_container`: the script's job, waited for [`exec::MCP_WAIT`] seconds unless the agent
+    /// says how long, so a short script's result needs no second call.
+    async fn exec(
+        &self,
+        mut args: Value,
+        caller: Option<&human::Caller>,
+    ) -> error::Result<CallToolResult> {
+        let id = string(&args, "container_id")?;
+        if let Some(object) = args.as_object_mut() {
+            object.remove("container_id");
+        }
+        let mut body: exec::Execute = parse(args)?;
+        body.wait_seconds.get_or_insert(exec::MCP_WAIT);
+        exec::run(self.app.clone(), id, body, caller)
+            .await
+            .map(structured)
     }
     pub(crate) async fn dispatch(
         &self,
@@ -203,9 +224,8 @@ impl ThoricMcp {
             "container_logs" => api::logs(state, Path(id.unwrap())).await?.0,
             "container_diagnostics" => api::diagnostics(state, Path(id.unwrap())).await?.0,
             "exec_container" => {
-                exec::execute(state, Path(id.unwrap()), Json(parse(args)?))
-                    .await?
-                    .0
+                args["container_id"] = json!(id.unwrap());
+                return Box::pin(self.exec(args, None)).await;
             }
             "reset_container" => api::reset(state, Path(id.unwrap())).await?.0,
             "list_images" => api::images(state).await?.0,
@@ -303,7 +323,7 @@ impl ThoricMcp {
             }
             "get_job" => {
                 let (id, read) = jobs::read::mcp_arguments(args)?;
-                jobs::read::answer(&self.app, &id, &read, None).await?
+                jobs::read::mcp_answer(&self.app, &id, &read, None).await?
             }
             "create_transfer" => {
                 // The link binds its container like every other argument.

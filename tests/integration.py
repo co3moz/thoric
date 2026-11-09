@@ -1290,6 +1290,20 @@ try:
     assert "124" in timeout["log"] and timeout["result"]["timed_out"] is True, timeout["result"]
     time.sleep(1)
     assert docker("exec",container,"test","!","-e","/home/desktop/after-timeout") == b""
+    # A script that ends in time is answered in the call itself, with the files it was handed
+    # written as the desktop user before it ran, also for a root script.
+    inline = tool("exec_container", {"container_id":env_id,"root":True,"script":"python3 /tmp/thoric-inline/task.py\nstat -c '%u %a' /tmp/thoric-inline/task.py","files":[{"path":"/tmp/thoric-inline/task.py","data":"print('inline-' + str(6 * 7))\n"}]})["structuredContent"]
+    assert inline["status"] == "completed" and inline["job_id"] == inline["id"], inline
+    assert inline["result"]["output_tail"] == "inline-42\n1001 600\n" and inline["log"] == "", inline
+    taken = tool("exec_container", {"container_id":env_id,"script":"echo must-not-run","files":[{"path":"/tmp/thoric-inline/task.py","data":"x"}]})["structuredContent"]
+    assert taken["status"] == "failed" and "already exists" in taken["log"] and "must-not-run" not in taken["log"], taken
+    slow = tool("exec_container", {"container_id":env_id,"script":"sleep 4","wait_seconds":1})["structuredContent"]
+    assert slow["status"] == "running" and "wait_seconds" in slow["hint"], slow
+    assert "hint" not in tool("get_job", {"job_id":slow["job_id"]})["structuredContent"]
+    assert "wait_seconds" in tool("get_job", {"job_id":slow["job_id"]})["structuredContent"]["hint"]
+    assert tool("get_job", {"job_id":slow["job_id"],"wait_seconds":30})["structuredContent"]["status"] == "completed"
+    assert set(tool("exec_container", {"container_id":env_id,"script":"true","wait_seconds":0})["structuredContent"]) == {"job_id"}
+    print("PASS exec_container waits for its script, writes its files first and get_job hints at wait_seconds", flush=True)
     # A cancelled script stops inside its desktop too, and input reaches the desktop meanwhile.
     script = tool("exec_container", {"container_id":env_id,"script":"sleep 60\nprintf must-not-exist > /home/desktop/after-cancel"})["structuredContent"]["job_id"]
     wait_for(lambda: tool("get_job", {"job_id":script})["structuredContent"]["status"] == "running", 30)

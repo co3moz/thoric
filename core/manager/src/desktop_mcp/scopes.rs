@@ -491,7 +491,7 @@ fn set_catalog(app: &App, grant: &Grant, set: &str) -> Vec<Entry> {
         && !grant.excludes("get_job")
         && let Some(mut tool) = crate::mcp::listed_tool("get_job")
     {
-        tool.description = Some("Read a job that a tool of this endpoint started, such as create_instance, exec_container or container_action: its status, bounded log and result. Wait for completed, failed or interrupted; a queued job is not finished.".into());
+        tool.description = Some("Read a job that a tool of this endpoint started, such as create_instance, exec_container or container_action: its status, bounded log and result. Wait for completed, failed or interrupted with wait_seconds, up to 300, never by calling get_job in a loop; a queued job is not finished.".into());
         entries.push(Entry {
             tool,
             target: Target::Job {
@@ -618,7 +618,7 @@ pub(crate) fn catalog(app: &App, endpoint: &Endpoint) -> Vec<Entry> {
     if !jobs.is_empty()
         && let Some(mut tool) = crate::mcp::listed_tool("get_job")
     {
-        tool.description = Some("Read a job that a tool of this endpoint started, such as exec_container or container_action: its status, bounded log and result. Wait for completed, failed or interrupted; a queued job is not finished.".into());
+        tool.description = Some("Read a job that a tool of this endpoint started, such as exec_container or container_action: its status, bounded log and result. Wait for completed, failed or interrupted with wait_seconds, up to 300, never by calling get_job in a loop; a queued job is not finished.".into());
         entries.push(Entry {
             tool,
             target: Target::Job {

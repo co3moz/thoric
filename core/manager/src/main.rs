@@ -114,6 +114,8 @@ pub struct App {
     events: events::Hub,
     /// The jobs that have not ended, which a cancel reaches.
     cancels: jobs::cancel::Cancels,
+    /// How often agents read each unfinished job without waiting, for the hint to wait.
+    polls: jobs::read::Polls,
     /// Agents' requests for a person, in memory only.
     human: human::Requests,
     /// The proxies inside the desktops that use one.
@@ -592,6 +594,7 @@ async fn main() -> anyhow::Result<()> {
         releases: releases::Releases::default(),
         events: events::Hub::default(),
         cancels: Default::default(),
+        polls: Default::default(),
         human: human::Requests::default(),
         outbound: outbound::Outbound::default(),
         lifecycle: lifecycle::Activity::default(),
