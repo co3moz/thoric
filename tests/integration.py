@@ -2097,7 +2097,8 @@ try:
     tried = api("settings/notify/test", {})["results"]
     assert tried == [{"format": "json", "host": receiver_host, "ok": True, "status": 200, "answer": "received", "error": None}], tried
     wait_for(lambda: [n for n in notices() if n["kind"] == "test"], 30)
-    assert {"name": "NOTIFY_URL", "secret": True, "set": True} in api("configuration")["variables"]
+    # The Management page replaces NOTIFY_URL without ever reading it back (EDITABLE_SECRETS).
+    assert {"name": "NOTIFY_URL", "secret": True, "set": True, "editable": True} in api("configuration")["variables"]
     events.close()
     print("PASS the event stream carries jobs, Docker's own changes and an agent's request for a person, which the waiting call answers and NOTIFY_URL hears of once", flush=True)
     docker("exec",container,"chown","1001:1001","/shared")
