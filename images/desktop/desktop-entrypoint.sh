@@ -16,9 +16,9 @@ fi
 printf 'Defaults env_keep += "HTTP_PROXY HTTPS_PROXY NO_PROXY http_proxy https_proxy no_proxy"\n' \
     > /etc/sudoers.d/thoric-proxy
 chmod 0440 /etc/sudoers.d/thoric-proxy
-# Devices passed from the host keep its group IDs, and runuser gives the desktop user only the
-# groups /etc/group names, so it joins a group with the device's ID, made under `prefix` when
-# the image has none.
+# Devices passed from the host keep its group IDs, and the session gets only the groups
+# /etc/group names for the desktop user, so it joins a group with the device's ID, made under
+# `prefix` when the image has none.
 join_device_group() {
     local node=$1 prefix=$2 gid group
     [[ -c $node ]] || return 0
@@ -48,5 +48,11 @@ if [[ ${DESKTOP_GPU:-false} == true && -e /dev/dxg ]]; then
     # shellcheck disable=SC2016 # the profile expands it in each login shell
     printf 'export LD_LIBRARY_PATH=/usr/lib/wsl/lib:${LD_LIBRARY_PATH:-}\n' >> /etc/profile.d/desktop.sh
 fi
-exec runuser -u desktop -- /usr/local/bin/desktop-session
+# The session starts through setpriv, not runuser: runuser, and su too, set the real-time
+# priority and nice limits to 0 whatever Docker gave the container, so the realtime permission
+# would reach only the programs started with docker exec. The environment is what runuser gave:
+# the desktop user's HOME and SHELL, USER and LOGNAME, and the rest kept.
+IFS=: read -r _ _ _ _ _ home shell < <(getent passwd desktop)
+export HOME=$home SHELL=$shell USER=desktop LOGNAME=desktop
+exec setpriv --reuid=desktop --regid=desktop --init-groups -- /usr/local/bin/desktop-session
 
